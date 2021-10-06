@@ -140,7 +140,7 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     {
         return 0;
     }
-    if(depth > 0 && hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].key== pos->key )
+    if(depth > 0 && pos->ply && hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].key== pos->key )
     {
         char flag = hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].flag & TT_NODE_TYPE;
         score = hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].score;
