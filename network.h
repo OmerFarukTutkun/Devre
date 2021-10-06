@@ -367,10 +367,12 @@ int16_t evaluate_network(Position* pos )
         return 0;
     if(black_pawns == 0 && white_pawns == 0 
      && PieceList[QUEEN][0] == 0 && PieceList[B_QUEEN][0] == 0
-     && PieceList[ROOK][0] == 0 && PieceList[B_ROOK][0] == 0)//insufficent material detection 
+     && PieceList[ROOK][0] == 0 && PieceList[B_ROOK][0] == 0
+     && PieceList[B_BISHOP][1] == 0 && PieceList[BISHOP][1] == 0 
+     && PieceList[B_KNIGHT][1] == 0 && PieceList[KNIGHT][1] == 0  )//insufficent material detection 
     {       
             int k=0;
-            k += (PieceList[BISHOP][0] > 0);
+            k += (PieceList[BISHOP][0] > 0 );
             k += (PieceList[B_BISHOP][0] > 0);
             k += (PieceList[KNIGHT][0] > 0);
             k += (PieceList[B_KNIGHT][0] > 0);
