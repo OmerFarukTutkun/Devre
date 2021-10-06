@@ -469,7 +469,7 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
             //Todo: Test the order of killer[0] , killer[1], counter_move.
             if( pos->killers[pos->ply][0] == moves[i])
             {
-                scores[i] = 1870;
+                scores[i] = 1970;
             }
             else if( pos->killers[pos->ply][1] == moves[i])
             {
