@@ -256,7 +256,6 @@ void print_Board(Position* pos)
     
     uint8_t white_castlings = pos->castlings & (W_CASTLING);
     uint8_t black_castlings = pos->castlings & (B_CASTLING);
-    black_castlings = black_castlings>>3;
     printf("Castling: ");
 
     switch (white_castlings)
