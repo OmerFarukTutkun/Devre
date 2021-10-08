@@ -11,7 +11,7 @@
 #define SCALE 260 // SCALING FACTOR to turn centipawn to win probability,    wdl = sigmoid(cp/SCALE)
 // sigmoid(output[0]) = sigmoid(cp/SCALE) -> cp = output[0] * SCALE at the end of neural network
 #define SCALE_WEIGHT 8192 // SCALE weights for float32 -> int16 quantization
-#define WEIGHT_FILE "Weights.bin"
+#define WEIGHT_FILE "network_128x2_8.10.2021.bin"
 
 int weight_indices[2][32];
 int active_neurons[2][32];
