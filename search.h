@@ -140,13 +140,13 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     {
         return 0;
     }
-    if(depth > 0 && pos->ply && hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].key== pos->key )
+    if(depth > 0 && pos->ply && hash_table[index].key== pos->key )
     {
-        char flag = hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].flag & TT_NODE_TYPE;
-        score = hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].score;
+        char flag = hash_table[index].flag & TT_NODE_TYPE;
+        score = hash_table[index].score;
         if(hash_table[index].hit < 255)
             hash_table[index].hit++;
-        if(hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].depth >= depth )
+        if(hash_table[index].depth >= depth )
         {
             if(score > MATE -MAX_DEPTH)
                 score -= pos->ply;
