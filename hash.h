@@ -96,7 +96,8 @@ void updateHashTable(Position* pos , int score ,char flag,uint8_t depth,uint16_t
         hash_table[ind].depth = depth;
         hash_table[ind].flag = flag + TT_NEW;
         hash_table[ind].move = move;
-        hash_table[ind].hit= 0;
+        if(pos->key != hash_table[ind].key)
+            hash_table[ind].hit= 0;
     }
 }
 void updateZobristKey(Position* pos, uint16_t move ,Stack * stack)
