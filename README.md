@@ -1,7 +1,7 @@
 # Devre
 
 Devre is an open-source UCI compatible chess engine written in C as a hobby project.The code is a bit badly written now but I'll try to make it cleaner and more efficent in my free time. Although Devre is an original chess engine written from scratch, I got great help from chessprogramming wiki , talkchess forum,stcokfish discord ,and some open-source C engines: Ethereal, Vice, CPW.
-Estimated Elo for Devre: 2900-3000 Elo 
+Estimated Elo for Devre 1.0: 2900-3000 Elo 
 
 
 # Movegen
@@ -28,8 +28,9 @@ Estimated Elo for Devre: 2900-3000 Elo
 * Promotion
 *  Ep-capture
 *  Captures sorted by MVV-LVA
+*  Killer move
 *  Castlings
-*  2 killers and a countermove
+*  countermove
 *  History heuristic
 
 
@@ -39,5 +40,6 @@ Devre uses two small NNUE for evaluation. The nets were trained using Stockfish 
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 # Compiling 
- To compile in Windows with a cpu that supports AVX2:
- gcc -march=native -Ofast main.c -o devre_avx2
+ To compile in Windows with a cpu that supports AVX2 or SSE3:
+ gcc -march=native -Ofast -D USE_AVX2 main.c -o devre_avx2
+ gcc -march=native -Ofast -D USE_SSE3 main.c -o devre_sse3
