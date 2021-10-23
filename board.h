@@ -59,7 +59,7 @@
      uint16_t bestmove;
      uint8_t search_depth;
      uint64_t history[2][64][64];   // history table for ordering quiet moves
-     uint16_t killers[MAX_DEPTH][2]; // 2-killer moves for move ordering
+     uint16_t killer[MAX_DEPTH]; // a killer move for move ordering
      uint16_t counter_moves[2][64][64]; // a counter move for move ordering
  }Position;
  
@@ -154,8 +154,7 @@ void fen_to_board ( Position* pos , char fen[])
     pos->bestmove= 0;
     pos->ply = 0;
     pos->last_move = 0;
-    pos->killers[0][0] = 0;
-    pos->killers[0][1] = 0;
+    pos->killer[0]= 0;
     int k=0;
     for( int i = 0 ; i <120 ; i++)
         pos->board[i] = EMPTY;
