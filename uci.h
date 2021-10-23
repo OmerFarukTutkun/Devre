@@ -8,7 +8,7 @@
 void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 
 	int depth = MAX_DEPTH, movestogo = 30 ,movetime = -1;
-	int time = 2000000, inc = 0;
+	int time = 20000000, inc = 0;
     char *ptr = NULL;
 	info->quit = 0;
 
@@ -50,8 +50,6 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 
 	if(time != -1) {
 		time /= movestogo+1;
-		if(pos_history.n <= 2) //spend more time on the first move
-			time = 5*time;
 		info->stop_time = info->start_time + time + inc;
 	}
 	if(movetime != -1) {
@@ -91,6 +89,11 @@ void set_position(char* lineIn, Position *pos ,Stack* stack) {
         while(*ptrChar) {
               move = string_to_move(pos, ptrChar);
 			  make_move(pos, move ,stack);
+			  if(pos->half_move== 0)
+			  {
+				  	pos_history.n=0;
+					pos_history.position_keys[pos_history.n++] = pos->key;
+			  }
 			  while(*ptrChar && *ptrChar!= ' ') ptrChar++;
               ptrChar++;
         }
@@ -116,7 +119,7 @@ void Uci_Loop() {
 	set_weights();
 	hash_table= (TTentry * )malloc(sizeof(TTentry)*HASH_SIZE);
 	memset(hash_table,0, 16*HASH_SIZE);
-	printf("id name Devre 1.0\n");
+	printf("id name Devre 1.5\n");
     printf("id author Omer Faruk Tutkun\n");
 	fflush(stdout);
 	int l=0;
@@ -155,7 +158,7 @@ void Uci_Loop() {
         } else if (!strncmp(line, "quit", 4) || info->quit) {
             break;
         } else if (!strncmp(line, "uci", 3)) {
-			printf("id name Devre 1.0\n");
+			printf("id name Devre 1.5\n");
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 2 max 512\n");
             printf("uciok\n");
