@@ -1,11 +1,17 @@
 #ifndef _SEARCH_H_
 #define _SEARCH_H_
 #include "movegen.h"
-#include "network.h"
 #include "board.h"
 #include "legal.h"
 #include "hash.h"
 #include <unistd.h>
+
+#if defined (USE_AVX2)
+    #include "network_avx2.h"
+#elif defined (USE_SSE3)
+    #include "network_sse3.h"
+#endif
+
 int nodes = 0;
 int qnodes =0;
 #define INF 15000
@@ -17,7 +23,8 @@ typedef struct search_info {
     clock_t stop_time;
     int stopped;
 } search_info;
-int pick_move(int* scores,int size);
+int non_pawn_pieces(Position* pos);
+int pick_move(int* scores,int size, int* score_of_move);
 int move_scoring(Position* pos,int* scores,uint16_t *moves, int size);
 int is_repetition(Position* pos);
 int only_captures(uint16_t moves[], int size);
@@ -25,11 +32,15 @@ int max(int a,int b)
 {
     return a>b ? a : b;
 }
+int min(int a,int b)
+{
+    return a>b ? b : a;
+}
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
-    int oldalpha,stand_pat,best_score , score ,flag,val,number_of_moves;
+    int oldalpha,stand_pat,best_score , score ,flag,val,number_of_moves,score_of_move;
     uint16_t move ,bestmove = 0;
 
       if(hash_table[index].key== pos->key)
@@ -51,9 +62,12 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     }
     oldalpha = alpha;
     stand_pat = evaluate_network(pos);
+    if(stand_pat == 0)
+        stand_pat = 1;
     best_score = stand_pat;
     if(stand_pat >= beta)
     {
+
         return stand_pat;
     }
     if ( alpha <stand_pat )
@@ -69,7 +83,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 
     for (int i=0 ; i<number_of_moves ; i++)
     {
-        move= moves[pick_move(moves_score, number_of_moves)];
+        move= moves[pick_move(moves_score, number_of_moves, &score_of_move)];
         make_move(pos, move, stack);
         if( is_legal(pos) == 0)
         {
@@ -106,13 +120,13 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 }
 int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_info* info, int NullMoveAllowed)
 {
-    int lmr, oldalpha= alpha;
+    int lmr, oldalpha= alpha ,score_of_move;
     int PVNode = (alpha != beta -1);
     uint16_t move,best_move=0;
     int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, incheck;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
 
-    if(( ( nodes + qnodes) %1000 == 0 && (clock() + 30) > info->stop_time  && pos->search_depth > 1) || info->stopped)  //at least do 1 depth search
+    if(  ( ( nodes + qnodes) %128 == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) || info->stopped  )  //at least do 1 depth search
     {
         info->stopped =TRUE;
         return 0;
@@ -159,14 +173,10 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
         }
     }
     incheck = is_square_attacked(pos,PieceList[8*(pos->side_to_move ) + KING][0], !pos->side_to_move);
-
     //check extension
     if(incheck && pos->ply)
     {
-        if(depth)
-            depth++;
-        else
-            depth=1;
+        depth = max(1, 1+ depth);
     }
 
     if (depth <= 0)
@@ -175,14 +185,14 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     }
     if( pos->ply > MAX_DEPTH)
     {
-        return evaluate_network(pos);
+        return evaluate_network(pos );
     }
     //Prune positions whose score is well above beta or well below alpha. Return fail-soft.
     //Todo: Tune the parameters and conditions.
     if(!PVNode && !incheck && depth<=4 && pos->ply && beta > -1000 && alpha< 1000)
     {
-        if(score == -INF)// get a score from quiescence search if we don't have a score from hash_table
-            score= qsearch (alpha,beta,pos,stack);
+        if(score == -INF)
+            score = qsearch(alpha ,beta , pos, stack);
         if( (pos->last_move & MOVE_TYPE) <2 &&  score < alpha -depth*200) // fail-low
         {
             return score;
@@ -197,29 +207,34 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     //Todo : tune the parameters.
     if(!PVNode && NullMoveAllowed && !incheck && pos->ply 
     && depth>=2 && beta > -1000 && alpha< 1000 
-    && ( score == -INF || score > beta -200))
+    && ( score == -INF || score > beta -200) && non_pawn_pieces(pos) )
     {
+        //Use very similar formula to Stockfish
         int R= 4+ depth/4;
+        if(score > beta)
+        {
+            R += min(2 ,(score- beta)/200);
+        }
         make_move(pos, NULL_MOVE, stack);
         score = -AlphaBeta( -(beta), -(beta -1), pos, stack, depth -R,info, FALSE);
         unmake_move(pos,stack, NULL_MOVE);
         if(score >= beta && abs(score) < MATE -100)
         {
-            return score;
+             return score;
         }
     }
 
-    pos->killers[pos->ply + 1][0] = 0;
-    pos->killers[pos->ply + 1][1] = 0;
+    pos->killer[pos->ply + 1] = 0;
 
     uint16_t moves[MAX_MOVES_NUMBER];
     int number_of_moves = generate_moves(pos, moves);
     int moves_score[MAX_MOVES_NUMBER];
     move_scoring(pos, moves_score, &moves[0], number_of_moves);
     int number_of_illegal_moves=0;
+    int played = 0;
     for (int i=0 ; i<number_of_moves ; i++)
     {
-        move= moves[pick_move(moves_score, number_of_moves)];
+        move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
         make_move(pos, move, stack);
         if( !is_legal(pos) )
         {
@@ -228,12 +243,15 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
             continue;
         }
         lmr=1;
-        //Todo: try not reducing for PVNodes or reducing less for PVNodes
-        //Todo: try late move pruning 
-        //Todo: try different reduction formulas/tables for late move reduction
-        if( i > 3 && depth > 3 && (move & MOVE_TYPE) < 2 && !incheck )// don't use late move reduction in check
+        // The LMR code was taken from Ethereal, then modified
+        if( played > 1 && depth > 2  && (move & MOVE_TYPE) < 2 )
         {
-            lmr=(int)sqrt((sqrt(depth) * sqrt(i)));
+            lmr =  log(depth)*log(played)/1.75;
+            lmr += !PVNode;
+            lmr += incheck && (pos->board[move_to(move)] & 7) == KING;
+            lmr -= (score_of_move > 1845); // killer and counter move
+            lmr -= min( 2, pos->history[pos->side_to_move][(moves[i]&FROM)>>4][(moves[i] & TO)>>10] / 5000);//less reduction for the moves with good history score
+            lmr = max(1, min(depth-1 , lmr)); 
         }
         if(best_score > -INF)// search with null window centered at alpha to prove the move fails low.
         {
@@ -248,6 +266,7 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
             score = -AlphaBeta( -beta, -alpha, pos, stack, depth -1,info,NullMoveAllowed );
         }
         unmake_move(pos,  stack, move );
+        played++;
         if(info->stopped == TRUE)
         {
             return 0;
@@ -267,9 +286,9 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
         {
             if((move & MOVE_TYPE) < 2)
             {
-                pos->counter_moves[pos->side_to_move][(pos->last_move&FROM)>>4][(pos->last_move&TO)>>10] = move;//update counter move heuristic
-                pos->killers[pos->ply][1] = pos->killers[pos->ply][0];// update killer move heuristic
-                pos->killers[pos->ply][0] = move;
+                if(pos->last_move != 0 && pos->last_move != NULL_MOVE)
+                    pos->counter_moves[pos->side_to_move][(pos->last_move&FROM)>>4][(pos->last_move&TO)>>10] = move;//update counter move heuristic
+                pos->killer[pos->ply] = move;
 
                 if( depth > 2 )
                 {
@@ -384,6 +403,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
         nps= (total_nodes * 1000) / (clock() + 1 - start_t);
         if( abs(last_score) < MATE - MAX_DEPTH)
             printf("info depth %d  nps %d nodes %d score cp %d time %d pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);
+
         else
         {
             int mate= (MATE-abs(last_score) +1)* (2*(last_score > 0) -1 ) /2;
@@ -404,7 +424,6 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
     }
     printf("\n");
     fflush(stdout);
-
     for(int i=0; i<HASH_SIZE ; i++)
     {
         if( hash_table[i].hit == 0  && (TT_OLD & hash_table[i].flag))//clear old hash entries if there is no hit
@@ -424,7 +443,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
         }
     }
 }
-int pick_move(int* scores,int size)
+int pick_move(int* scores,int size ,int *score_of_move)
 {
     int max_index=0;
     for(int i=1 ; i<size ; i++)
@@ -434,7 +453,8 @@ int pick_move(int* scores,int size)
             max_index = i;
         }
     }
-    scores[max_index]= -100000;
+    score_of_move[0] = scores[max_index];
+    scores[max_index]= -10000000;
     return max_index;
 }
 int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
@@ -467,13 +487,9 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
             }
 
             //Todo: Test the order of killer[0] , killer[1], counter_move.
-            if( pos->killers[pos->ply][0] == moves[i])
+            if( pos->killer[pos->ply]== moves[i])
             {
                 scores[i] = 1970;
-            }
-            else if( pos->killers[pos->ply][1] == moves[i])
-            {
-                scores[i] = 1860;
             }
             else if(pos->counter_moves[pos->side_to_move][(pos->last_move&FROM)>>4][(pos->last_move&TO)>>10] == moves[i])
             {
@@ -495,13 +511,15 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
             // Todo: implement SEE and test against mvv-lva, we can also use SEE for pruning.
             if((moves[i] & MOVE_TYPE) == 4  )//mvv-lva
             {
-                uint8_t from = (moves[i] & FROM)>>4;
-                from = mailbox64[from];
-                uint8_t to = (moves[i] & TO)>>10;
-                to = mailbox64[to];
+                uint8_t from = move_from(moves[i]);
+                uint8_t to   = move_to(moves[i]);
                 uint8_t piece_type = pos->board[from];
                 uint8_t captured_piece_type = pos->board[to];
                 scores[i] += (piece_values[captured_piece_type]*10 - piece_values[piece_type])/2;
+                if((pos->last_move & CAPTURE) && to == move_to(pos->last_move))
+                {
+                    scores[i] += 100;
+                }
             }
         }
 
@@ -536,5 +554,14 @@ int is_repetition(Position * pos)
         }
     }
     return k;
+}
+int non_pawn_pieces(Position* pos)
+{
+
+    if(!(PieceList[B_KNIGHT][0] || PieceList[B_ROOK][0] || PieceList[B_BISHOP][0] || PieceList[B_QUEEN][0] ))
+        return 0;
+    if(PieceList[KNIGHT][0] || PieceList[ROOK][0] || PieceList[BISHOP][0] || PieceList[QUEEN][0] )
+        return 1;
+    return 0;
 }
 #endif
