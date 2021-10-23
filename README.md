@@ -41,5 +41,6 @@ Thanks to Stockfish and Leela teams for publishing their training data in public
 
 # Compiling 
  To compile in Windows with a cpu that supports AVX2 or SSE3:
- gcc -march=native -Ofast -D USE_AVX2 main.c -o devre_avx2
- gcc -march=native -Ofast -D USE_SSE3 main.c -o devre_sse3
+
+ * gcc -march=native -Ofast -D USE_AVX2 main.c -o devre_avx2
+ * gcc -march=native -Ofast -D USE_SSE3 main.c -o devre_sse3
