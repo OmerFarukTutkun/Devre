@@ -382,6 +382,7 @@ void make_move(Position* pos, uint16_t move , Stack* stack)
         pos->key ^= SideToPlayKey;
         pos->en_passant = 0;
         pos->half_move = 0;
+        pos->last_move = NULL_MOVE;
         return ;  
     }
     uint8_t from = move_from(move);
