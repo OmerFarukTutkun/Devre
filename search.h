@@ -371,7 +371,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
         if(i >= 4 ) // aspiration window search
         {
 
-            int window_size=40;
+            int window_size=20;
             score = AlphaBeta((last_score-window_size), last_score+window_size, pos,stack,i,info, TRUE);
             while(1)
             {
