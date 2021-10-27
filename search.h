@@ -377,11 +377,11 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
             {
                 if(score >= last_score+window_size) //half open window search
                 {
-                    score = AlphaBeta(last_score, last_score+2*window_size, pos,stack,i,info, TRUE);
+                    score = AlphaBeta(last_score -2*window_size, last_score+2*window_size, pos,stack,i,info, TRUE);
                 }
                 else if(score <= last_score-window_size)
                 {
-                    score = AlphaBeta((last_score-2*window_size), last_score, pos,stack,i,info, TRUE);
+                    score = AlphaBeta(last_score-2*window_size, last_score +2*window_size , pos,stack,i,info, TRUE);
                 }
                 else
                 {
