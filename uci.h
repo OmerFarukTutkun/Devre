@@ -119,7 +119,7 @@ void Uci_Loop() {
 	set_weights();
 	hash_table= (TTentry * )malloc(sizeof(TTentry)*HASH_SIZE);
 	memset(hash_table,0, 16*HASH_SIZE);
-	printf("id name Devre 1.5\n");
+	printf("id name Devre 1.6\n");
     printf("id author Omer Faruk Tutkun\n");
 	fflush(stdout);
 	int l=0;
@@ -158,7 +158,7 @@ void Uci_Loop() {
         } else if (!strncmp(line, "quit", 4) || info->quit) {
             break;
         } else if (!strncmp(line, "uci", 3)) {
-			printf("id name Devre 1.5\n");
+			printf("id name Devre 1.6\n");
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 2 max 512\n");
             printf("uciok\n");
