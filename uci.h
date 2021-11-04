@@ -155,7 +155,7 @@ void Uci_Loop() {
 			}
         } else if (!strncmp(line, "go", 2)) {
             go(line , info,pos,stack );
-        } else if (!strncmp(line, "quit", 4) || info->quit) {
+        } else if (!strncmp(line, "quit", 4)) {
             break;
         } else if (!strncmp(line, "uci", 3)) {
 			printf("id name Devre 1.6\n");
