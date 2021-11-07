@@ -403,6 +403,8 @@ void make_move(Position* pos, uint16_t move , Stack* stack)
       pos->ply++;
       pos->last_move = move;
 
+    if(move_type & CAPTURE)
+        pos->piece_count--;
 
     if(from == h1 || to == h1)
         pos->castlings &= 14 ; //  0b00001110
@@ -539,13 +541,15 @@ void unmake_move(Position* pos, Stack* stack,  uint16_t move)
         pos-> side_to_move = !pos-> side_to_move;
         pos-> key = stack->array[stack->top].key;
         pos->last_move = stack->array[stack->top].last_move;
+        pos->accumulator_cursor[pos->ply ] = 0;
         pos->ply--;
-
     if(move == NULL_MOVE)
     {
         pop(stack);
         return ;
-    }
+    }    
+    if(move_type & CAPTURE)
+        pos->piece_count++;
     uint8_t captured_piece = stack->array[stack->top].captured_piece;  
     pos_history.n--;  
     uint8_t piece_type = pos->board[to] ;

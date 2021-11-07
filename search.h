@@ -4,38 +4,36 @@
 #include "board.h"
 #include "legal.h"
 #include "hash.h"
-#include <unistd.h>
+//#include <windows.h>
 
 #if defined (USE_AVX2)
     #include "network_avx2.h"
 #elif defined (USE_SSE3)
     #include "network_sse3.h"
 #endif
-
+#define min(a,b) (a>b ? b : a)
+#define max(a,b) (a>b ? a : b)
 int nodes = 0;
 int qnodes =0;
 #define INF 15000
 #define MATE 14000
+enum {NORMAL_GAME=0, FIX_DEPTH , FIX_NODES, FIX_TIME 
+};
 typedef struct search_info {
     int depth;
     int quit;
     clock_t start_time;
     clock_t stop_time;
     int stopped;
+    int search_type;
 } search_info;
 int non_pawn_pieces(Position* pos);
 int pick_move(int* scores,int size, int* score_of_move);
 int move_scoring(Position* pos,int* scores,uint16_t *moves, int size);
 int is_repetition(Position* pos);
 int only_captures(uint16_t moves[], int size);
-int max(int a,int b)
-{
-    return a>b ? a : b;
-}
-int min(int a,int b)
-{
-    return a>b ? b : a;
-}
+//int InputAavaliable();
+//int UciCheck(search_info* info);
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
@@ -61,7 +59,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
             return val;
     }
     oldalpha = alpha;
-    stand_pat = evaluate_network(pos);
+    stand_pat = evaluate_network(pos ,stack, pos->last_move);
     if(stand_pat == 0)
         stand_pat = 1;
     best_score = stand_pat;
@@ -118,15 +116,16 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     return best_score;
 
 }
-int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_info* info, int NullMoveAllowed)
+int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_info* info, int NullMoveAllowed)
 {
     int lmr, oldalpha= alpha ,score_of_move;
-    int PVNode = (alpha != beta -1);
+    int PVNode = (alpha != beta -1) ,tthit=0,ttdepth=0;
+    uint8_t flag;
     uint16_t move,best_move=0;
     int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, incheck;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
 
-    if(  ( ( nodes + qnodes) %128 == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) || info->stopped  )  //at least do 1 depth search
+    if(  ( ( nodes + qnodes) %128 == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) || info->stopped)  //at least do 1 depth search
     {
         info->stopped =TRUE;
         return 0;
@@ -156,11 +155,13 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     }
     if(depth > 0 && pos->ply && hash_table[index].key== pos->key )
     {
-        char flag = hash_table[index].flag & TT_NODE_TYPE;
+        flag = hash_table[index].flag & TT_NODE_TYPE;
         score = hash_table[index].score;
+        tthit = 1;
         if(hash_table[index].hit < 255)
             hash_table[index].hit++;
-        if(hash_table[index].depth >= depth )
+        ttdepth = hash_table[index].depth;
+        if( ttdepth >= depth)
         {
             if(score > MATE -MAX_DEPTH)
                 score -= pos->ply;
@@ -185,19 +186,19 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     }
     if( pos->ply > MAX_DEPTH)
     {
-        return evaluate_network(pos );
+        return evaluate_network(pos , stack, pos->last_move);
     }
-    //Prune positions whose score is well above beta or well below alpha. Return fail-soft.
-    //Todo: Tune the parameters and conditions.
-    if(!PVNode && !incheck && depth<=4 && pos->ply && beta > -1000 && alpha< 1000)
+    if(!tthit || flag != TT_EXACT )
     {
-        if(score == -INF)
-            score = qsearch(alpha ,beta , pos, stack);
-        if( (pos->last_move & MOVE_TYPE) <2 &&  score < alpha -depth*200) // fail-low
+        score = qsearch(alpha ,beta , pos, stack);
+    }
+    if(!PVNode && !incheck && depth<=5 && pos->ply && beta > -1000 && alpha< 1000)
+    {
+        if( (pos->last_move & MOVE_TYPE) <2 &&  score < alpha - depth*200) // fail-low
         {
             return score;
         }
-        if(score > beta + depth*200) //fail-high
+        if((score > beta + depth*125 )) //fail-high
         {
             return score;
         }
@@ -207,7 +208,7 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     //Todo : tune the parameters.
     if(!PVNode && NullMoveAllowed && !incheck && pos->ply 
     && depth>=2 && beta > -1000 && alpha< 1000 
-    && ( score == -INF || score > beta -200) && non_pawn_pieces(pos) )
+    && ( score > beta) && non_pawn_pieces(pos) )
     {
         //Use very similar formula to Stockfish
         int R= 4+ depth/4;
@@ -225,7 +226,6 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
     }
 
     pos->killer[pos->ply + 1] = 0;
-
     uint16_t moves[MAX_MOVES_NUMBER];
     int number_of_moves = generate_moves(pos, moves);
     int moves_score[MAX_MOVES_NUMBER];
@@ -246,14 +246,14 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
         // The LMR code was taken from Ethereal, then modified
         if( played > 1 && depth > 2  && (move & MOVE_TYPE) < 2 )
         {
-            lmr =  log(depth)*log(played)/1.75;
+            lmr = log(depth)*log(played)/1.75;
             lmr += !PVNode;
             lmr += incheck && (pos->board[move_to(move)] & 7) == KING;
             lmr -= (score_of_move > 1845); // killer and counter move
             lmr -= min( 2, pos->history[pos->side_to_move][(moves[i]&FROM)>>4][(moves[i] & TO)>>10] / 5000);//less reduction for the moves with good history score
             lmr = max(1, min(depth-1 , lmr)); 
         }
-        if(best_score > -INF)// search with null window centered at alpha to prove the move fails low.
+        if(played >=1 )// search with null window centered at alpha to prove the move fails low.
         {
             score= -AlphaBeta( -(alpha+1), -alpha, pos, stack, depth -lmr,info, NullMoveAllowed);
             if(score > alpha && score < beta)// if the score is inside (alpha, beta) do research with an open window
@@ -271,15 +271,15 @@ int16_t AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,sea
         {
             return 0;
         }
-        if (score >best_score)
+        if (score > best_score)
         {
             best_move = move;
-            best_score=score;
+            best_score = score;
             if(pos->ply == 0)
                 pos->bestmove = best_move;
             if(best_score > alpha)
             {
-                alpha = score;
+                alpha = best_score;
             }
         }
         if( best_score >= beta)
@@ -365,12 +365,13 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
     uint64_t total_nodes = 0;
     clock_t start_t=clock();
     uint16_t best_move=0;
+    uint64_t t_nodes[MAX_DEPTH];
+    float branching_factor = 1.0;
     for(i=1 ; i<=info->depth ; i++)
     {
         pos->search_depth = i;
         if(i >= 4 ) // aspiration window search
         {
-
             int window_size=20;
             score = AlphaBeta((last_score-window_size), last_score+window_size, pos,stack,i,info, TRUE);
             while(1)
@@ -381,7 +382,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
                 }
                 else if(score <= last_score-window_size)
                 {
-                    score = AlphaBeta(last_score-2*window_size, last_score +2*window_size , pos,stack,i,info, TRUE);
+                    score = AlphaBeta((last_score-2*window_size), last_score +2*window_size , pos,stack,i,info, TRUE);
                 }
                 else
                 {
@@ -390,7 +391,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
                 window_size *=2;
             }
         }
-        else // full open window search for depth <4
+        else// full open window search for depth <4
         {
             score = AlphaBeta(-INF, INF, pos, stack,i,info, TRUE);
         }
@@ -399,7 +400,10 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
             break;
 
         best_move = pos->bestmove;
+        if(i >= 10)
+            branching_factor = t_nodes[i-1]/((float)t_nodes[i-2]);
         total_nodes = nodes + qnodes;
+        t_nodes[i] = nodes +qnodes;
         nps= (total_nodes * 1000) / (clock() + 1 - start_t);
         if( abs(last_score) < MATE - MAX_DEPTH)
             printf("info depth %d  nps %d nodes %d score cp %d time %d pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);
@@ -412,6 +416,10 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
         getPV(pos, stack,i);
         printf("\n");
         fflush(stdout);
+        if(info->search_type == NORMAL_GAME && (clock() - info->start_time)*branching_factor > (info->stop_time - info->start_time))
+        {
+            break ;
+        }
     }
     printf("bestmove  ");
     if( best_move)
@@ -564,4 +572,41 @@ int non_pawn_pieces(Position* pos)
         return 1;
     return 0;
 }
+/*int InputAvaliable()
+{
+  struct timeval tv;
+  fd_set fds;
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+  FD_ZERO(&fds);
+  FD_SET(STDIN_FILENO, &fds);
+  select(STDIN_FILENO+1, &fds, NULL, NULL, &tv);
+  return (FD_ISSET(0, &fds));
+}
+int UciCheck(search_info* info)
+{
+    if(InputAavaliable())
+    {
+         int bytes;
+         char input[256] = "", *endc;
+		do {
+		  bytes=read(fileno(stdin),input,256);
+		} while (bytes<0);
+		endc = strchr(input,'\n');
+		if (endc) *endc=0;
+
+		if (strlen(input) > 0) {
+			if (!strncmp(input, "quit", 4))    {
+              info->stopped = TRUE;
+			  info->quit = TRUE;
+              return 1;
+			}
+            else if (!strncmp(input, "stop", 4))    {
+			  info->stopped = TRUE;
+              return 1;
+			}
+		}
+    }
+    return 0;
+}*/
 #endif

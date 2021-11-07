@@ -18,7 +18,6 @@
 uint64_t PieceKeys[15][120];// PieceKeys[0][sq] is used for en-passant
 uint64_t SideToPlayKey;
 uint64_t CastlingKeys[16];
-
 int  HASH_SIZE = 1048576; // 1024 x 1024 entry -> 16MB hash size
 int  HASH_SHIFT = 44;
 

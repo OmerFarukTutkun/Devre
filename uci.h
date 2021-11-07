@@ -4,10 +4,13 @@
 #include "search.h"
 #include "hash.h"
 #include "test.h"
+
+
 // The library forked from Vice chess engine.
+int string_compare(char* str1, char* str2, int size);
 void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 
-	int depth = MAX_DEPTH, movestogo = 30 ,movetime = -1;
+	int depth = MAX_DEPTH, movestogo = 8 ,movetime = -1;
 	int time = 20000000, inc = 0;
     char *ptr = NULL;
 	info->quit = 0;
@@ -24,10 +27,12 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 	}
 
 	if ((ptr = strstr(line,"wtime")) &&pos->side_to_move == 0) {
+		info->search_type = NORMAL_GAME;
 		time = atoi(ptr + 6);
 	}
 
 	if ((ptr = strstr(line,"btime")) &&pos->side_to_move == 1) {
+		info->search_type = NORMAL_GAME;
 		time = atoi(ptr + 6);
 	}
 
@@ -36,10 +41,12 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 	}
 
 	if ((ptr = strstr(line,"movetime"))) {
+		info->search_type = FIX_TIME;
 		movetime = atoi(ptr + 9);
 	}
 
 	if ((ptr = strstr(line,"depth"))) {
+		info->search_type = FIX_DEPTH;
 		depth = atoi(ptr + 6);
 		if(depth > MAX_DEPTH)
 			depth= MAX_DEPTH;
@@ -112,6 +119,8 @@ void Uci_Loop() {
 	fflush(stdout);
 	Position * pos= (Position*)malloc(sizeof(Position));
 	search_info *info=(search_info*)malloc(sizeof(search_info));
+	memset(info, 0, sizeof(info));
+	info->quit = 0;
 	Stack* stack=createStack();
 	int length;
 
@@ -119,7 +128,7 @@ void Uci_Loop() {
 	set_weights();
 	hash_table= (TTentry * )malloc(sizeof(TTentry)*HASH_SIZE);
 	memset(hash_table,0, 16*HASH_SIZE);
-	printf("id name Devre 1.6\n");
+	printf("id name Devre 1.7\n");
     printf("id author Omer Faruk Tutkun\n");
 	fflush(stdout);
 	int l=0;
@@ -127,17 +136,19 @@ void Uci_Loop() {
 	while (TRUE) {
 		memset(&line[0], 0, sizeof(line));
 		fflush(stdout);
+		if(info->quit)
+			break;
         if (!fgets(line, 2500, stdin))
         	continue;
         if (line[0] == '\n')
         	continue;
-        if (!strncmp(line, "isready", 7)) {
+        else if (string_compare(line, "isready", 7)) {
             printf("readyok\n");
 			fflush(stdout);
             continue;
-        } else if (!strncmp(line, "position", 8)) {
+        }else if (string_compare(line, "position", 8)) {
             set_position(line, pos,stack);
-        } else if (!strncmp(line, "ucinewgame", 10)) {
+        }else  if (string_compare(line, "ucinewgame", 10)) {
 			for(int i=0; i<HASH_SIZE ; i++)//clear hash table
 			{
 				hash_table[i].key = 0;
@@ -153,18 +164,18 @@ void Uci_Loop() {
 					}
 				}
 			}
-        } else if (!strncmp(line, "go", 2)) {
+        }else if (string_compare(line, "go", 2)) {
             go(line , info,pos,stack );
-        } else if (!strncmp(line, "quit", 4)) {
+        }else if (string_compare(line, "quit", 4)) {
             break;
-        } else if (!strncmp(line, "uci", 3)) {
-			printf("id name Devre 1.6\n");
+        }else if (string_compare(line, "uci", 3)) {
+			printf("id name Devre 1.7\n");
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 2 max 512\n");
             printf("uciok\n");
 			fflush(stdout);
         }
-		else if (!strncmp(line, "setoption name Hash value ", 26)) {
+		 else if (string_compare(line, "setoption name Hash value ", 26)) {
 			int hash_size = atoi(line + 26);//in mb
 			if(hash_size < 2)
 				hash_size =2;
@@ -193,13 +204,13 @@ void Uci_Loop() {
 		{
 			perft_test(pos, stack,atoi(ptr + 6));
 		}
-		else if ((ptr = strstr(line,"print"))) 
+		else  if ((ptr = strstr(line,"print"))) 
 		{
 			print_Board(pos);
 		}
 		else if ((ptr = strstr(line,"eval"))) 
 		{
-			int score=evaluate_network(pos);
+			int score=evaluate_network(pos , stack, pos->last_move);
 			char fen_notation[15]=" PNBRQK  pnbrqk";
 			for(int i=9 ; i>1 ;i--)
 			{
@@ -215,7 +226,7 @@ void Uci_Loop() {
 						uint8_t piece = pos->board[sq];
 						pos->board[sq] = 0;
 						delete_piece(piece, sq);
-						printf("%8.2f",(score -evaluate_network(pos))/100.0);
+						printf("%8.2f",(score -evaluate_network(pos , stack, pos->last_move))/100.0);
 						pos->board[sq] = piece;
 						add_piece(piece, sq);
 					}
@@ -235,4 +246,14 @@ void Uci_Loop() {
 	free(stack);
 	free(info);
 }
+int string_compare(char* str1, char* str2, int size)
+{
+	for(int i=0; i<size ; i++ )
+	{
+		if(str1[i] != str2[i])
+			return 0;
+	}
+	return 1;
+}
+
 #endif

@@ -61,6 +61,9 @@
      uint64_t history[2][64][64];   // history table for ordering quiet moves
      uint16_t killer[MAX_DEPTH]; // a killer move for move ordering
      uint16_t counter_moves[2][64][64]; // a counter move for move ordering
+     uint8_t  accumulator_cursor[2*MAX_DEPTH];
+     uint8_t piece_count;
+
  }Position;
  
  typedef struct UnMake_Info
@@ -155,6 +158,8 @@ void fen_to_board ( Position* pos , char fen[])
     pos->ply = 0;
     pos->last_move = 0;
     pos->killer[0]= 0;
+    pos->piece_count =64;
+    memset(pos->accumulator_cursor , 0, 2*MAX_DEPTH);
     int k=0;
     for( int i = 0 ; i <120 ; i++)
         pos->board[i] = EMPTY;
@@ -186,6 +191,7 @@ void fen_to_board ( Position* pos , char fen[])
                     for(char e = '0' ; e < fen[k] ; e++) // empty squares
                     {
                         pos->board[10*i + j] = EMPTY;
+                        pos->piece_count--;
                         j--; 
                     }     
                         j++;                                break;
