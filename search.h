@@ -4,15 +4,15 @@
 #include "board.h"
 #include "legal.h"
 #include "hash.h"
-//#include <windows.h>
+#include <windows.h>
 
 #if defined (USE_AVX2)
     #include "network_avx2.h"
 #elif defined (USE_SSE3)
     #include "network_sse3.h"
 #endif
-#define min(a,b) (a>b ? b : a)
-#define max(a,b) (a>b ? a : b)
+//#define min(a,b) (a>b ? b : a)
+//#define max(a,b) (a>b ? a : b)
 int nodes = 0;
 int qnodes =0;
 #define INF 15000
@@ -32,8 +32,8 @@ int pick_move(int* scores,int size, int* score_of_move);
 int move_scoring(Position* pos,int* scores,uint16_t *moves, int size);
 int is_repetition(Position* pos);
 int only_captures(uint16_t moves[], int size);
-//int InputAavaliable();
-//int UciCheck(search_info* info);
+int InputAvaliable();
+int UciCheck(search_info* info);
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
@@ -125,6 +125,10 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, incheck;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
 
+    if(( nodes + qnodes) %2048 == 0 )
+    {
+        UciCheck(info);
+    }
     if(  ( ( nodes + qnodes) %128 == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) || info->stopped)  //at least do 1 depth search
     {
         info->stopped =TRUE;
@@ -572,29 +576,37 @@ int non_pawn_pieces(Position* pos)
         return 1;
     return 0;
 }
-/*int InputAvaliable()
+int InputAvaliable()
 {
-  struct timeval tv;
-  fd_set fds;
-  tv.tv_sec = 0;
-  tv.tv_usec = 0;
-  FD_ZERO(&fds);
-  FD_SET(STDIN_FILENO, &fds);
-  select(STDIN_FILENO+1, &fds, NULL, NULL, &tv);
-  return (FD_ISSET(0, &fds));
+  static int init = 0, pipe;
+	static HANDLE inh;
+	DWORD dw;
+
+	if (!init) {
+		init = 1;
+		inh = GetStdHandle(STD_INPUT_HANDLE);
+		pipe = !GetConsoleMode(inh, &dw);
+		if (!pipe) {
+			SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
+			FlushConsoleInputBuffer(inh);
+		}
+	}
+	if (pipe) {
+		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL))
+			return 1;
+		return dw;
+	} else {
+		GetNumberOfConsoleInputEvents(inh, &dw);
+		return dw <= 1 ? 0 : dw;
+	}
 }
 int UciCheck(search_info* info)
 {
-    if(InputAavaliable())
+    if(InputAvaliable())
     {
          int bytes;
-         char input[256] = "", *endc;
-		do {
-		  bytes=read(fileno(stdin),input,256);
-		} while (bytes<0);
-		endc = strchr(input,'\n');
-		if (endc) *endc=0;
-
+         char input[256] = "";
+		 fgets(input, 256, stdin);
 		if (strlen(input) > 0) {
 			if (!strncmp(input, "quit", 4))    {
               info->stopped = TRUE;
@@ -608,5 +620,5 @@ int UciCheck(search_info* info)
 		}
     }
     return 0;
-}*/
+}
 #endif
