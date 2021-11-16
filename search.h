@@ -576,8 +576,10 @@ int non_pawn_pieces(Position* pos)
         return 1;
     return 0;
 }
+
 int InputAvaliable()
 {
+//the code taken from Vice 
   static int init = 0, pipe;
 	static HANDLE inh;
 	DWORD dw;
