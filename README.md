@@ -6,7 +6,7 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 
 | Version  | [CCRL (Blitz)](http://ccrl.chessdom.com/ccrl/404/) | [Owl Chess Blitz](http://chessowl.blogspot.com/) |
 | ------------- | ------------- |----------|
-| Devre 2.0  | -  | 2962
+| Devre 2.0  | 3107  | 2962
 | Devre 1.0  | 2954  | 2797
 
 
