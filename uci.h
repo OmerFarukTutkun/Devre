@@ -37,7 +37,7 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 	}
 
 	if ((ptr = strstr(line,"movestogo"))) {
-		movestogo = atoi(ptr + 10);
+		movestogo = min(20, atoi(ptr + 10));
 	}
 
 	if ((ptr = strstr(line,"movetime"))) {
@@ -54,7 +54,10 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 	info->start_time = clock();
 	info->depth = depth;
 	info->stopped = FALSE;
-
+	if(inc == 0 && movestogo==8)
+	{
+		movestogo = 20;
+	}
 	if(time != -1) {
 		time /= movestogo+1;
 		info->stop_time = info->start_time + time + inc;
