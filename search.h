@@ -239,6 +239,10 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
+        if(alpha < 1800 && beta > -1800 && depth<=5 && played > depth*5 +15 )
+        {
+            break;
+        }
         make_move(pos, move, stack);
         if( !is_legal(pos) )
         {
@@ -246,6 +250,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             unmake_move(pos,  stack, move );
             continue;
         }
+
         lmr=1;
         // The LMR code was taken from Ethereal, then modified
         if( played > 1 && depth > 2  && (move & MOVE_TYPE) < 2 )
