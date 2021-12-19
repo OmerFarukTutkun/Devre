@@ -239,7 +239,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
-        if(alpha < 1800 && beta > -1800 && depth<=5 && played > depth*5 +15 )
+        if(alpha < 1800 && beta > -1800 && depth<=4 && played > depth*5 + 15 )
         {
             break;
         }
