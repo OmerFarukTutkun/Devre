@@ -259,7 +259,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             lmr += !PVNode;
             lmr += incheck && (pos->board[move_to(move)] & 7) == KING;
             lmr -= (score_of_move > 1845); // killer and counter move
-            lmr -= min( 2, pos->history[pos->side_to_move][(moves[i]&FROM)>>4][(moves[i] & TO)>>10] / 5000);//less reduction for the moves with good history score
+            lmr -= min( 2, pos->history[pos->side_to_move][(move&FROM)>>4][(move & TO)>>10] / 5000);//less reduction for the moves with good history score
             lmr = max(1, min(depth-1 , lmr)); 
         }
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
