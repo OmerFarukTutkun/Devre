@@ -239,10 +239,6 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
-        if(alpha < 1800 && beta > -1800 && depth<=4 && played > depth*5 + 15 )
-        {
-            break;
-        }
         make_move(pos, move, stack);
         if( !is_legal(pos) )
         {
@@ -533,7 +529,7 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
                 uint8_t piece_type = pos->board[from];
                 uint8_t captured_piece_type = pos->board[to];
                 scores[i] += (piece_values[captured_piece_type]*10 - piece_values[piece_type])/2;
-                if((pos->last_move & CAPTURE) && to == move_to(pos->last_move))
+                if(to == move_to(pos->last_move))
                 {
                     scores[i] += 100;
                 }
