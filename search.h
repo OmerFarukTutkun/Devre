@@ -251,7 +251,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
         // The LMR code was taken from Ethereal, then modified
         if( played > 1 && depth > 2  && (move & MOVE_TYPE) < 2 )
         {
-            lmr = log(depth)*log(played)/1.75;
+            lmr =0.75 + log(depth)*log(played)/2.25;
             lmr += !PVNode;
             lmr += incheck && (pos->board[move_to(move)] & 7) == KING;
             lmr -= (score_of_move > 1845); // killer and counter move
