@@ -1,5 +1,6 @@
 #ifndef _SEARCH_H_
 #define _SEARCH_H_
+
 #include "movegen.h"
 #include "board.h"
 #include "legal.h"
@@ -11,29 +12,35 @@
 #elif defined (USE_SSE3)
     #include "network_sse3.h"
 #endif
-//#define min(a,b) (a>b ? b : a)
-//#define max(a,b) (a>b ? a : b)
-int nodes = 0;
-int qnodes =0;
+
+uint64_t nodes = 0;
+uint64_t qnodes =0;
+
 #define INF 15000
 #define MATE 14000
+
 enum {NORMAL_GAME=0, FIX_DEPTH , FIX_NODES, FIX_TIME 
 };
+
 typedef struct search_info {
     int depth;
+    uint64_t nodes;
     int quit;
     clock_t start_time;
     clock_t stop_time;
     int stopped;
     int search_type;
 } search_info;
-int non_pawn_pieces(Position* pos);
+
+int non_pawn_pieces();
 int pick_move(int* scores,int size, int* score_of_move);
-int move_scoring(Position* pos,int* scores,uint16_t *moves, int size);
+int move_scoring(Position* pos, int* scores,uint16_t *moves, int size);
 int is_repetition(Position* pos);
 int only_captures(uint16_t moves[], int size);
 int InputAvaliable();
 int UciCheck(search_info* info);
+int see(Position* pos,uint16_t move);
+
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
@@ -78,10 +85,11 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     number_of_moves = generate_moves(pos, moves);
     number_of_moves= only_captures(moves,number_of_moves );
     move_scoring(pos, moves_score, &moves[0], number_of_moves);
-
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves, &score_of_move)];
+        if(see(pos, move) < 0)
+            continue;
         make_move(pos, move, stack);
         if( is_legal(pos) == 0)
         {
@@ -114,22 +122,23 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
         updateHashTable(pos, best_score, TT_ALPHA, 0, bestmove);
     }
     return best_score;
-
 }
 int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_info* info, int NullMoveAllowed)
 {
     int lmr, oldalpha= alpha ,score_of_move;
-    int PVNode = (alpha != beta -1) ,tthit=0,ttdepth=0;
-    uint8_t flag;
+    int PVNode = (alpha != beta -1) ,ttdepth=0;
+    uint8_t flag = 0;
     uint16_t move,best_move=0;
-    int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, incheck;
+    int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, inCheck,improving;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
 
-    if(( nodes + qnodes) %2048 == 0 )
+    if( (nodes & 2047) == 0 )
     {
         UciCheck(info);
     }
-    if(  ( ( nodes + qnodes) %128 == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) || info->stopped)  //at least do 1 depth search
+    if( ( ( nodes & 255 ) == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) 
+            || info->stopped 
+            || ( info->search_type == FIX_NODES && (nodes +qnodes) > info->nodes))  //at least do 1 depth search
     {
         info->stopped =TRUE;
         return 0;
@@ -157,11 +166,10 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     {
         return 0;
     }
-    if(depth > 0 && pos->ply && hash_table[index].key== pos->key )
+    if(depth > 0 && pos->ply && !PVNode && hash_table[index].key== pos->key )
     {
         flag = hash_table[index].flag & TT_NODE_TYPE;
         score = hash_table[index].score;
-        tthit = 1;
         if(hash_table[index].hit < 255)
             hash_table[index].hit++;
         ttdepth = hash_table[index].depth;
@@ -177,9 +185,9 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
                 return score;
         }
     }
-    incheck = is_square_attacked(pos,PieceList[8*(pos->side_to_move ) + KING][0], !pos->side_to_move);
+    pos->inCheck = inCheck = is_square_attacked(pos,PieceList[8*(pos->side_to_move ) + KING][0], !pos->side_to_move);
     //check extension
-    if(incheck && pos->ply)
+    if(inCheck && pos->ply)
     {
         depth = max(1, 1+ depth);
     }
@@ -192,11 +200,14 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     {
         return evaluate_network(pos , stack, pos->last_move);
     }
-    if(!tthit || flag != TT_EXACT )
+     if(flag != TT_EXACT )
     {
         score = qsearch(alpha ,beta , pos, stack);
     }
-    if(!PVNode && !incheck && depth<=5 && pos->ply && beta > -1000 && alpha< 1000)
+    pos->scores[pos->ply] = score;
+    if(pos->ply >= 2)
+        improving = !inCheck &&  score > pos->scores[pos->ply - 2];
+    if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
     {
         if( (pos->last_move & MOVE_TYPE) <2 &&  score < alpha - depth*200) // fail-low
         {
@@ -210,7 +221,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
 
     //Null Move Pruning 
     //Todo : tune the parameters.
-    if(!PVNode && NullMoveAllowed && !incheck && pos->ply 
+    if(!PVNode && NullMoveAllowed && !inCheck && pos->ply 
     && depth>=2 && beta > -1000 && alpha< 1000 
     && ( score > beta) && non_pawn_pieces(pos) )
     {
@@ -233,12 +244,17 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     uint16_t moves[MAX_MOVES_NUMBER];
     int number_of_moves = generate_moves(pos, moves);
     int moves_score[MAX_MOVES_NUMBER];
-    move_scoring(pos, moves_score, &moves[0], number_of_moves);
+    move_scoring(pos,moves_score, &moves[0], number_of_moves);
     int number_of_illegal_moves=0;
     int played = 0;
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
+        if(!improving && !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && see(pos,move) < 0)
+        {
+            played++;
+            continue;
+        }
         make_move(pos, move, stack);
         if( !is_legal(pos) )
         {
@@ -246,16 +262,15 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             unmake_move(pos,  stack, move );
             continue;
         }
-
         lmr=1;
         // The LMR code was taken from Ethereal, then modified
-        if( played > 1 && depth > 2  && (move & MOVE_TYPE) < 2 )
+        if( played >1 && depth > 2  && move_type(move) < 2 )
         {
-            lmr =0.75 + log(depth)*log(played)/2.25;
+            lmr =  0.75 + log(depth)*log(played)/2.25;
             lmr += !PVNode;
-            lmr += incheck && (pos->board[move_to(move)] & 7) == KING;
+            lmr += inCheck && (pos->board[move_to(move)] & 7) == KING;
             lmr -= (score_of_move > 1845); // killer and counter move
-            lmr -= min( 2, pos->history[pos->side_to_move][(move&FROM)>>4][(move & TO)>>10] / 5000);//less reduction for the moves with good history score
+            lmr -= min( 2, pos->history[pos->side_to_move][(move&FROM)>>4][(move & TO)>>10] / 500);//less reduction for the moves with good history score
             lmr = max(1, min(depth-1 , lmr)); 
         }
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
@@ -289,7 +304,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
         }
         if( best_score >= beta)
         {
-            if((move & MOVE_TYPE) < 2)
+            if(move_type(move) < 2)
             {
                 if(pos->last_move != 0 && pos->last_move != NULL_MOVE)
                     pos->counter_moves[pos->side_to_move][(pos->last_move&FROM)>>4][(pos->last_move&TO)>>10] = move;//update counter move heuristic
@@ -306,7 +321,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     }
     if(number_of_moves == number_of_illegal_moves)
     {
-        if( incheck)
+        if( inCheck)
         {
             return -(MATE - pos->ply);//ckeckmate
 
@@ -328,51 +343,42 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
 }
 int getPV(Position* pos, Stack* stack, int depth) //get PV from hash table. It is generally shorter than actual PV.
 {
-    int i=0;
     if(depth == 0)
     {
         return 1;
     }
     if( hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].key == pos->key)
     {
-        uint16_t moves[MAX_MOVES_NUMBER];
-        int number_of_moves = generate_moves(pos, moves);
         uint16_t move = hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].move;
         if(move == 0)
             return 0;
-        for(i=0 ; i<number_of_moves ; i++)
+
+        make_move(pos, move, stack);
+        if( is_legal(pos ) == 0)
         {
-            if(moves[i] == move)
-            {
-                make_move(pos, move, stack);
-                if( is_legal(pos ) == 0)
-                {
-                    unmake_move(pos,  stack, move );
-                    return 0;
-                }
-                print_move(move);
-                getPV(pos, stack,depth -1);
-                unmake_move(pos, stack,move);
-                return 1;
-            }
+            unmake_move(pos,  stack, move );
+            return 0;
         }
+        print_move(move);
+        getPV(pos, stack,depth -1);
+        unmake_move(pos, stack,move);
+            return 1;
     }
     return 0;
 }
-uint16_t search(Position* pos, Stack* stack,search_info* info )
+void search(Position* pos, Stack* stack,search_info* info )
 {
     nodes=0;
     qnodes=0;
     pos->ply = 0;
     int nps=0;
-    int i=1;
     int16_t score,last_score;
     uint64_t total_nodes = 0;
     clock_t start_t=clock();
     uint16_t best_move=0;
     uint64_t t_nodes[MAX_DEPTH];
     float branching_factor = 1.0;
-    for(i=1 ; i<=info->depth ; i++)
+    for(int i=1 ; i<=info->depth ; i++)
     {
         pos->search_depth = i;
         if(i >= 4 ) // aspiration window search
@@ -381,7 +387,7 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
             score = AlphaBeta((last_score-window_size), last_score+window_size, pos,stack,i,info, TRUE);
             while(1)
             {
-                if(score >= last_score+window_size) //half open window search
+                if(score >= last_score+window_size) 
                 {
                     score = AlphaBeta(last_score -2*window_size, last_score+2*window_size, pos,stack,i,info, TRUE);
                 }
@@ -411,12 +417,12 @@ uint16_t search(Position* pos, Stack* stack,search_info* info )
         t_nodes[i] = nodes +qnodes;
         nps= (total_nodes * 1000) / (clock() + 1 - start_t);
         if( abs(last_score) < MATE - MAX_DEPTH)
-            printf("info depth %d  nps %d nodes %d score cp %d time %d pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);
+            printf("info depth %d  nps %d nodes %llu score cp %d time %ld pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);
 
         else
         {
             int mate= (MATE-abs(last_score) +1)* (2*(last_score > 0) -1 ) /2;
-            printf("info depth %d  nps %d nodes %d score mate %d time %d pv ",i,nps,total_nodes, mate,clock() + 1 - start_t);
+            printf("info depth %d  nps %d nodes %llu score mate %d time %ld pv ",i,nps,total_nodes, mate,clock() + 1 - start_t);
         }
         getPV(pos, stack,i);
         printf("\n");
@@ -470,7 +476,7 @@ int pick_move(int* scores,int size ,int *score_of_move)
     scores[max_index]= -10000000;
     return max_index;
 }
-int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
+int move_scoring(Position* pos, int* scores,uint16_t *moves, int size) {
 
     uint16_t hash_move = 0;
     if( hash_table[(pos->key<<HASH_SHIFT)>>HASH_SHIFT].key == pos->key)
@@ -528,7 +534,7 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
                 uint8_t to   = move_to(moves[i]);
                 uint8_t piece_type = pos->board[from];
                 uint8_t captured_piece_type = pos->board[to];
-                scores[i] += (piece_values[captured_piece_type]*10 - piece_values[piece_type])/2;
+                scores[i] += (piece_values[captured_piece_type]*10 - piece_values[piece_type]/2)/2;
                 if(to == move_to(pos->last_move))
                 {
                     scores[i] += 100;
@@ -539,7 +545,75 @@ int move_scoring(Position* pos,int* scores,uint16_t *moves, int size) {
     }
     return 1;
 }
+//Iterative see implementation
+int see(Position* pos, uint16_t move)
+{
+    if(move_type(move) >=2 && move_type(move) != CAPTURE)
+        return 1000;
+    uint64_t attackers[15] = {0,};
+    int gain[32] = {0,};
+    int d = 0;
+    int from = move_from(move);
+    int to = move_to(move);
+    int side = pos->side_to_move;
+    int attacking_piece = pos->board[from];
+    int square=from, unit_vector;
+    if( (attacking_piece & 7 ) == KING)
+        return 0;
 
+    gain[0] = piece_values[pos->board[to]];
+    square_attacked_by(pos, to, &attackers[0]);
+    
+  do
+  {
+    d++;
+    gain[d]  = see_values[attacking_piece] - gain[d-1];
+    if ( max(-gain[d-1], gain[d]) < 0){
+      break;
+    }
+    if((attacking_piece & 7) != KNIGHT && (attacking_piece & 7) != KING)
+    {
+        unit_vector = vector_to_unit_vector[square - to +77]; 
+        if(!unit_vector)
+            assert(0);
+        int piece = EMPTY;
+        int i = 0;
+        while(piece == EMPTY)
+        {
+            i++;
+            piece =  pos->board[ square + i*unit_vector] ;
+        }
+        if(piece != OFF)
+        {
+            if(ortogonal_or_diagonal[unit_vector + 21 ] == 1) // ortogonal
+            {
+                switch(piece)
+                {
+                    case ROOK: case BLACK_ROOK: case QUEEN: case BLACK_QUEEN: add_to_attackers(&attackers[0], piece, square + i*unit_vector ); break;
+                    default: break;
+                }
+            }
+            else if(ortogonal_or_diagonal[unit_vector + 21 ] == -1 )// diagonal
+            {
+                switch(piece)
+                {
+                    case BISHOP: case BLACK_BISHOP: case QUEEN: case BLACK_QUEEN: add_to_attackers(&attackers[0], piece, square + i*unit_vector ); break;
+                    default: break;
+                }
+            }
+        }
+    }
+    side = !side;
+    attackers[attacking_piece] = attackers[attacking_piece] ^ ( ONE <<  mailbox[square] ); //delete the played move from attack table
+    attacking_piece = get_smallest_attacker(attackers, &square,  side);
+  } while (attacking_piece);
+
+  while (--d){
+    gain[d-1] = - max(-gain[d-1], gain[d]);
+  }
+
+  return 10*gain[0];
+}
 int is_repetition(Position * pos)
 {
     for(int i=pos_history.n-2 ; i>= 0; i--) 
@@ -563,15 +637,14 @@ int is_repetition(Position * pos)
     {
         if(moves[i] & CAPTURE )
         {
-            moves[k++]=moves[i];
+            moves[k++] = moves[i];
         }
     }
     return k;
 }
-int non_pawn_pieces(Position* pos)
+int non_pawn_pieces()
 {
-
-    if(!(PieceList[B_KNIGHT][0] || PieceList[B_ROOK][0] || PieceList[B_BISHOP][0] || PieceList[B_QUEEN][0] ))
+    if(!(PieceList[BLACK_KNIGHT][0] || PieceList[BLACK_ROOK][0] || PieceList[BLACK_BISHOP][0] || PieceList[BLACK_QUEEN][0] ))
         return 0;
     if(PieceList[KNIGHT][0] || PieceList[ROOK][0] || PieceList[BISHOP][0] || PieceList[QUEEN][0] )
         return 1;
@@ -607,7 +680,6 @@ int UciCheck(search_info* info)
 {
     if(InputAvaliable())
     {
-         int bytes;
          char input[256] = "";
 		 fgets(input, 256, stdin);
 		if (strlen(input) > 0) {

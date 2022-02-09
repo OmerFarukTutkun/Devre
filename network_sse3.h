@@ -1,7 +1,7 @@
 #ifndef _NETWORK_H_
 #define _NETWORK_H_
 #include <stdalign.h>
-#include "board.h"
+#include "movegen.h"
 #define INPUT_SIZE 32*704
 #define L1 128
 #define L2 8
@@ -9,17 +9,18 @@
 #define OUTPUT 1
 
 #define SCALE 260 // SCALING FACTOR to turn centipawn to win probability,    wdl = sigmoid(cp/SCALE)
-//sigmoid(output[0]) = sigmoid(cp/SCALE) -> cp = output[0] * SCALE at the end of neural network
+// sigmoid(output[0]) = sigmoid(cp/SCALE) -> cp = output[0] * SCALE at the end of neural network
 #define SCALE_WEIGHT 8192 // SCALE weights for float32 -> int16 quantization
 #define WEIGHT_FILE "network_128x2_8.10.2021.bin"
 
 int weight_indices[2][32];
 int active_neurons[2][32];
 int sz;
-int game_phase;
+int game_phase = 0;
 
 int8_t nn_indices[2][15] = {{ 0, 0 , 1 ,2 ,3 ,4 ,-1 ,0 , 0 , 5 ,6, 7, 8 ,9 ,10 },{ 0, 5 ,6 ,7, 8 ,9, 10 ,0 , 0 , 0, 1 ,2 ,3,4 , -1 }};
 int piece_values[15]={ 0, 10 , 32,35 ,53 ,98 ,100 ,0 , 0, 10 , 32,35 ,53 ,98 ,100 };
+int see_values[15]={ 0, 10 , 32,35 ,53 ,98 ,10000 ,0 , 0, 10 , 32,35 ,53 ,98 ,10000 };
 
  alignas(64) int16_t  feature_weights[2] [INPUT_SIZE*L1];
  alignas(64) int16_t  feature_biases [2] [L1];
@@ -34,18 +35,18 @@ int piece_values[15]={ 0, 10 , 32,35 ,53 ,98 ,100 ,0 , 0, 10 , 32,35 ,53 ,98 ,10
  alignas(64) int16_t  layer_1[2*L1];
  alignas(64) float  layer_2[L2];
  alignas(64) float  layer_3[L3];
- alignas(64) float  output[OUTPUT];
- alignas(64) int16_t accumulator[2*MAX_DEPTH][2][L1]; 
+ alignas(64) float  output_layer[OUTPUT];
 
-int Vertical_Mirror(int sq)
+ alignas(64) int16_t accumulator[2*MAX_DEPTH][2][L1]; 
+int HorizontalMirror(int sq)
 { 
     return((sq/8)*8 + 7-sq%8);
 }
-void Vertical_mirror_all_pieces(int side)
+void HorizontalMirrorAllPieces(int side)
 {
     for(int i=0; i<sz ; i++)
     {
-        active_neurons[side][i]  = Vertical_Mirror( active_neurons[side][i] );
+        active_neurons[side][i]  = HorizontalMirror( active_neurons[side][i] );
     }
 }
 int handle_king(uint8_t* king )  // does mirroring for all pieces is needed or not
@@ -95,7 +96,7 @@ void clipped_relu(float x[] , int dim)
       input[i+1] =  _mm_min_ps(max, input[i + 1]);
     }
 }
-int transpose_weights(int16_t* weights, int row, int column)
+void transpose_weights(int16_t* weights, int row, int column)
 {
     int16_t* matrix=(int16_t*) malloc(sizeof(int16_t)* row*column);
     for(int i=0; i<column ; i++)
@@ -133,9 +134,9 @@ int set_weights()
 }
 
 //Todo: write this with incremental update inside make_move. It is very slow in this way
-int calculate_indices(Position* pos)
+void calculate_indices()
 {
-    uint8_t b_king = mailbox[ PieceList[B_KING][0] ] ;
+    uint8_t b_king = mailbox[ PieceList[BLACK_KING][0] ] ;
     uint8_t w_king = mailbox [ PieceList[KING][0]  ];
     uint8_t sq;
     sz=0;
@@ -166,7 +167,7 @@ int calculate_indices(Position* pos)
         }
         while(PieceList[i][k])
         {
-            uint8_t sq = mailbox[ PieceList[i][k] ];
+            sq = mailbox[ PieceList[i][k] ];
             int index_w = nn_indices[0][i];
             int index_b =  nn_indices[1][i];
             active_neurons[0][sz] =  index_w*64+ sq ;
@@ -181,11 +182,11 @@ int calculate_indices(Position* pos)
 
     if(handle_king(&w_king))
     {
-        Vertical_mirror_all_pieces(0);
+        HorizontalMirrorAllPieces(0);
     }
     if(handle_king(&b_king))
     {
-        Vertical_mirror_all_pieces(1);
+        HorizontalMirrorAllPieces(1);
     }
         for(int k=0 ; k<sz ; k++)
     {
@@ -197,29 +198,29 @@ int calculate_indices(Position* pos)
     else
         game_phase=1;
 }
-int calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t move)
+void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t move)
 {
-    int activated_inputs[2];
+    int activated_inputs[2] ={-1,-1};
     int deactivated_inputs[2][2] = {{-1 , -1} , {-1, -1}};
     int move_type = (move & MOVE_TYPE) , captured_piece = stack->array[stack->top].captured_piece , piece_type = pos->board[move_to(move)];
-    uint8_t b_king = Mirror( mailbox[ PieceList[B_KING][0] ] ) ;
+    uint8_t b_king = Mirror( mailbox[ PieceList[BLACK_KING][0] ] ) ;
     uint8_t w_king = mailbox [ PieceList[KING][0]  ];
     int w_king_mirroring = 0 , b_king_mirroring =0;
     uint8_t from = mailbox[move_from(move)];
     uint8_t to = mailbox[ move_to(move) ];
     uint8_t w_sq[2] , b_sq[2];
 
-    w_king_mirroring =handle_king(&w_king);
-    b_king_mirroring =handle_king(&b_king);
+    w_king_mirroring = handle_king(&w_king);
+    b_king_mirroring = handle_king(&b_king);
     switch(move_type)
     {
         case 4:
             if(w_king_mirroring)
-                w_sq[1] = Vertical_Mirror(to);
+                w_sq[1] = HorizontalMirror(to);
             else
                 w_sq[1] = to;
             if(b_king_mirroring)
-                b_sq[1] = Vertical_Mirror(Mirror(to));
+                b_sq[1] = HorizontalMirror(Mirror(to));
             else
                 b_sq[1] = Mirror(to);
             deactivated_inputs[0][1] = w_king*704 + nn_indices[0][captured_piece]*64 + w_sq[1];
@@ -228,8 +229,8 @@ int calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mov
         case 0: case 1:
         if(w_king_mirroring)
         {
-            w_sq[0] = Vertical_Mirror(to);
-            w_sq[1] = Vertical_Mirror(from);
+            w_sq[0] = HorizontalMirror(to);
+            w_sq[1] = HorizontalMirror(from);
         }
         else
         {
@@ -238,8 +239,8 @@ int calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mov
         }
         if(b_king_mirroring)
         {
-            b_sq[0] = Vertical_Mirror(Mirror(to));
-            b_sq[1] = Vertical_Mirror(Mirror(from));
+            b_sq[0] = HorizontalMirror(Mirror(to));
+            b_sq[1] = HorizontalMirror(Mirror(from));
         }
         else
         {
@@ -261,8 +262,8 @@ int calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mov
     __m128i *weights2 = (__m128i*) &feature_weights[game_phase][L1*activated_inputs[1]];
     for(int i=0 ; i< L1/8 ; i++)
     {
-        outputs1[ 0]= _mm_add_epi16(outputs1[ 0] , weights1[ 0]);
-        outputs2[ 0]= _mm_add_epi16(outputs2[ 0] , weights2[ 0]);
+        outputs1[ i]= _mm_add_epi16(outputs1[ i] , weights1[ i]);
+        outputs2[ i]= _mm_add_epi16(outputs2[ i] , weights2[ i]);
     }
     for(int i=0 ; i<2 ; i++)
     {
@@ -271,62 +272,59 @@ int calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mov
 
             weights1 = (__m128i*) &feature_weights[game_phase][L1*deactivated_inputs[0][i]];
             weights2 = (__m128i*) &feature_weights[game_phase][L1*deactivated_inputs[1][i]];
-            for(int i=0 ; i< L1/8 ; i++)
+            for(int j=0 ; j< L1/8 ; j++)
             {
-                outputs1[ 0]= _mm_sub_epi16(outputs1[ 0] , weights1[ 0]);
-                outputs2[ 0]= _mm_sub_epi16(outputs2[ 0] , weights2[ 0]);
+                outputs1[ j]= _mm_sub_epi16(outputs1[ j] , weights1[ j]);
+                outputs2[ j]= _mm_sub_epi16(outputs2[ j] , weights2[ j]);
             }
         }
     }
-
+    pos->accumulator_cursor[pos->ply]= 1;
     memcpy(layer_1 + pos->side_to_move*L1 , accumulator[pos->ply][0] , 2*L1);
     memcpy(layer_1 + (!pos->side_to_move)*L1 , accumulator[pos->ply][1] , 2*L1);
     quan_clipped_relu(layer_1 , 2*L1);//activation func.
 }
-int calculate_input_layer(Position* pos)
+void calculate_input_layer(Position* pos)
 {
     __m128i *biases = (__m128i *) &feature_biases[game_phase][0];
     __m128i *outputs1 = (__m128i*) &layer_1[0];//side_to_move
     __m128i *outputs2 = (__m128i*) &layer_1[L1];//for enemy
-    if(L1 == 128)
+    for(int k=0 ; k<L1/8; k+=4)
     {
+        outputs1[k +0]= biases[k+ 0];
+        outputs1[k +1]= biases[k+ 1];
+        outputs1[k+ 2]= biases[k+ 2];
+        outputs1[k+ 3]= biases[k+ 3];
+
+        outputs2[k +0]= biases[k+ 0];
+        outputs2[k +1]= biases[k+ 1];
+        outputs2[k+ 2]= biases[k+ 2];
+        outputs2[k+ 3]= biases[k+ 3];
+    }
+    for(int j=0 ; j < sz; j++)
+    {
+        __m128i *weights1 = (__m128i*) &feature_weights[game_phase][weight_indices[pos->side_to_move][j]];
+        __m128i *weights2 = (__m128i*) &feature_weights[game_phase][weight_indices[!pos->side_to_move][j]];
+
         for(int k=0 ; k<L1/8; k+=4)
         {
-            outputs1[k +0]= biases[k+ 0];
-            outputs1[k +1]= biases[k+ 1];
-            outputs1[k+ 2]= biases[k+ 2];
-            outputs1[k+ 3]= biases[k+ 3];
+            outputs1[k +0]= _mm_add_epi16(outputs1[k +  0] , weights1[k + 0]);
+            outputs1[k +1]= _mm_add_epi16(outputs1[k +  1] , weights1[k + 1]);
+            outputs1[k+ 2]= _mm_add_epi16(outputs1[k +  2] , weights1[k + 2]);
+            outputs1[k+ 3]= _mm_add_epi16(outputs1[k +  3] , weights1[k + 3]);
 
-            outputs2[k +0]= biases[k+ 0];
-            outputs2[k +1]= biases[k+ 1];
-            outputs2[k+ 2]= biases[k+ 2];
-            outputs2[k+ 3]= biases[k+ 3];
+            outputs2[k +0]= _mm_add_epi16(outputs2[k +  0] , weights2[k + 0]);
+            outputs2[k +1]= _mm_add_epi16(outputs2[k +  1] , weights2[k + 1]);
+            outputs2[k+ 2]= _mm_add_epi16(outputs2[k +  2] , weights2[k + 2]);
+            outputs2[k+ 3]= _mm_add_epi16(outputs2[k +  3] , weights2[k + 3]);
         }
-        for(int j=0 ; j < sz; j++)
-        {
-            __m128i *weights1 = (__m128i*) &feature_weights[game_phase][weight_indices[pos->side_to_move][j]];
-            __m128i *weights2 = (__m128i*) &feature_weights[game_phase][weight_indices[!pos->side_to_move][j]];
-
-            for(int k=0 ; k<L1/8; k+=4)
-            {
-                outputs1[k +0]= _mm_add_epi16(outputs1[k +  0] , weights1[k + 0]);
-                outputs1[k +1]= _mm_add_epi16(outputs1[k +  1] , weights1[k + 1]);
-                outputs1[k+ 2]= _mm_add_epi16(outputs1[k +  2] , weights1[k + 2]);
-                outputs1[k+ 3]= _mm_add_epi16(outputs1[k +  3] , weights1[k + 3]);
-
-                outputs2[k +0]= _mm_add_epi16(outputs2[k +  0] , weights2[k + 0]);
-                outputs2[k +1]= _mm_add_epi16(outputs2[k +  1] , weights2[k + 1]);
-                outputs2[k+ 2]= _mm_add_epi16(outputs2[k +  2] , weights2[k + 2]);
-                outputs2[k+ 3]= _mm_add_epi16(outputs2[k +  3] , weights2[k + 3]);
-            }
-        }
-        
-        memcpy( accumulator[pos->ply][0] , layer_1 + pos->side_to_move*L1 ,     2*L1);
-        memcpy( accumulator[pos->ply][1] , layer_1 + ( 1-pos->side_to_move)*L1 , 2*L1);  
-        quan_clipped_relu(layer_1 , 2*L1);//activation func.
     }
+    pos->accumulator_cursor[pos->ply]= 1;
+    memcpy( accumulator[pos->ply][0] , layer_1 + pos->side_to_move*L1 ,     2*L1);
+    memcpy( accumulator[pos->ply][1] , layer_1 + ( 1-pos->side_to_move)*L1 , 2*L1);   
+    quan_clipped_relu(layer_1 , 2*L1);//activation func.
 }
-int quan_matrix_multp(int16_t weight_matrix[] ,int32_t biases[], int16_t input[] , float output[] , int input_dim , int output_dim )
+void quan_matrix_multp(int16_t weight_matrix[] ,int32_t biases[], int16_t input[] , float output[] , int input_dim , int output_dim )
 {
     if(output_dim == 8)
     {
@@ -366,9 +364,8 @@ int quan_matrix_multp(int16_t weight_matrix[] ,int32_t biases[], int16_t input[]
         }
         clipped_relu(output, 8);
     }
-    return 1;
 }
-int matrix_multp(float weight_matrix[] ,float biases[], float input[] , float output[] , int input_dim , int output_dim )
+void matrix_multp(float weight_matrix[] ,float biases[], float input[] , float output[] , int input_dim , int output_dim )
 {
     if(output_dim == 1)
     {   
@@ -380,7 +377,6 @@ int matrix_multp(float weight_matrix[] ,float biases[], float input[] , float ou
                 output[0] += input[i]*weight_matrix[i];
             }
         }
-        return 1;
     }
     else if(output_dim ==32)
     {
@@ -431,7 +427,6 @@ int matrix_multp(float weight_matrix[] ,float biases[], float input[] , float ou
         _mm_store_ps(&output[24] , out6);
         _mm_store_ps(&output[28] , out7);
         clipped_relu(output , output_dim);
-        return 1;
     }
     else if(output_dim == 8)
     {
@@ -456,7 +451,6 @@ int matrix_multp(float weight_matrix[] ,float biases[], float input[] , float ou
         _mm_store_ps(&output[0] , out0);
         _mm_store_ps(&output[4] , out1);
         clipped_relu(output , output_dim);
-        return 1;
     }
 }
 int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
@@ -464,35 +458,34 @@ int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
     if(pos->half_move >= 100)
         return 0;
     if(black_pawns == 0 && white_pawns == 0 
-     && PieceList[QUEEN][0] == 0 && PieceList[B_QUEEN][0] == 0
-     && PieceList[ROOK][0] == 0 && PieceList[B_ROOK][0] == 0
-     && PieceList[B_BISHOP][1] == 0 && PieceList[BISHOP][1] == 0 
-     && PieceList[B_KNIGHT][1] == 0 && PieceList[KNIGHT][1] == 0  )//insufficent material detection 
+     && PieceList[QUEEN][0] == 0 && PieceList[BLACK_QUEEN][0] == 0
+     && PieceList[ROOK][0] == 0 && PieceList[BLACK_ROOK][0] == 0
+     && PieceList[BLACK_BISHOP][1] == 0 && PieceList[BISHOP][1] == 0 
+     && PieceList[BLACK_KNIGHT][1] == 0 && PieceList[KNIGHT][1] == 0  )//insufficent material detection 
     {       
             int k=0;
             k += (PieceList[BISHOP][0] > 0 );
-            k += (PieceList[B_BISHOP][0] > 0);
+            k += (PieceList[BLACK_BISHOP][0] > 0);
             k += (PieceList[KNIGHT][0] > 0);
-            k += (PieceList[B_KNIGHT][0] > 0);
+            k += (PieceList[BLACK_KNIGHT][0] > 0);
             if(k<= 1)
             {
                 return 0;
             }
     }
     game_phase = !(pos->piece_count > 20);
-    if(pos->ply && !((move & CAPTURE) && pos->piece_count == 20) && pos->accumulator_cursor[pos->ply-1 ] == 1 && (pos->board[move_to(move)] & 7) != KING && (move & MOVE_TYPE) < 5 && move != 0 && move != NULL_MOVE)
+    if(pos->ply && !((move & CAPTURE) && pos->piece_count == 20 ) && pos->accumulator_cursor[pos->ply-1 ] == 1 && (pos->board[move_to(move)] & 7) != KING && (move & MOVE_TYPE) < 5 && move != 0 && move != NULL_MOVE)
     {
         calculate_input_layer_incrementally(pos ,stack , move);
     }
     else
     {
-        calculate_indices(pos);
+        calculate_indices();
         calculate_input_layer(pos);
     }
     quan_matrix_multp(layer1_weights[game_phase] ,layer1_biases[game_phase] , layer_1, layer_2 , 2*L1 ,L2);
     matrix_multp(layer2_weights[game_phase] ,layer2_biases[game_phase] , layer_2, layer_3 , L2 ,L3);
-    matrix_multp(layer3_weights[game_phase] ,layer3_biases[game_phase] , layer_3, output ,  L3 , 1);
-    return output[0]*SCALE * ((100.0 -pos->half_move)/100.0);
-
+    matrix_multp(layer3_weights[game_phase] ,layer3_biases[game_phase] , layer_3, output_layer ,  L3 , 1);
+    return output_layer[0]*SCALE * ((100.0 -pos->half_move)/100.0);
 }
 #endif

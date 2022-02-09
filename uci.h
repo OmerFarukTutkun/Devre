@@ -4,14 +4,15 @@
 #include "search.h"
 #include "hash.h"
 #include "test.h"
-
+const char VERSION[] = "2.20";
 
 // The library forked from Vice chess engine.
 int string_compare(char* str1, char* str2, int size);
 void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 
-	int depth = MAX_DEPTH, movestogo = 8 ,movetime = -1;
+	int depth = MAX_DEPTH, movestogo = 8 ,movetime = -1 ;
 	int time = 20000000, inc = 0;
+	uint64_t fixed_nodes = ((uint64_t)1 ) << 40;
     char *ptr = NULL;
 	info->quit = 0;
 
@@ -51,12 +52,18 @@ void go(char* line, search_info *info, Position *pos ,Stack* stack) {
 		if(depth > MAX_DEPTH)
 			depth= MAX_DEPTH;
 	}
+	if ((ptr = strstr(line,"nodes"))) {
+		info->search_type = FIX_NODES;
+		if(atoi(ptr +6) > 0)
+			fixed_nodes = atoi(ptr + 6);
+	}
 	info->start_time = clock();
 	info->depth = depth;
 	info->stopped = FALSE;
+	info->nodes = fixed_nodes;
 	if(inc == 0 && movestogo==8)
 	{
-		movestogo = 20;
+		movestogo = 25;
 	}
 	if(time != -1) {
 		time /= movestogo+1;
@@ -93,7 +100,6 @@ void set_position(char* lineIn, Position *pos ,Stack* stack) {
 	pos_history.position_keys[pos_history.n++] = pos->key;
 	ptrChar = strstr(lineIn, "moves");
 	uint16_t move;
-	int k=0;
 	if(ptrChar != NULL) {
         ptrChar += 6;
         while(*ptrChar) {
@@ -122,20 +128,18 @@ void Uci_Loop() {
 	fflush(stdout);
 	Position * pos= (Position*)malloc(sizeof(Position));
 	search_info *info=(search_info*)malloc(sizeof(search_info));
-	memset(info, 0, sizeof(info));
+	memset(info, 0, sizeof(search_info));
 	info->quit = 0;
 	Stack* stack=createStack();
-	int length;
 
 	init_keys(); 
 	set_weights();
 	hash_table= (TTentry * )malloc(sizeof(TTentry)*HASH_SIZE);
 	memset(hash_table,0, 16*HASH_SIZE);
 	set_position("position startpos\n",pos,stack);
-	printf("id name Devre 2.15\n");
-        printf("id author Omer Faruk Tutkun\n");
+	printf("id name Devre %s\n" ,VERSION);
+    printf("id author Omer Faruk Tutkun\n");
 	fflush(stdout);
-	int l=0;
 
 	while (TRUE) {
 		memset(&line[0], 0, sizeof(line));
@@ -170,10 +174,15 @@ void Uci_Loop() {
 			}
         }else if (string_compare(line, "go", 2)) {
             go(line , info,pos,stack );
+		}
+		else if (string_compare(line, "see move", 8)) {
+            uint16_t move = string_to_move(pos, line +9);
+			assert(move);
+			printf("see value:  %d\n", see(pos, move));
         }else if (string_compare(line, "quit", 4)) {
             break;
         }else if (string_compare(line, "uci", 3)) {
-		printf("id name Devre 2.15\n");
+		printf("id name Devre %s\n", VERSION);
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 2 max 512\n");
             printf("uciok\n");
@@ -192,7 +201,7 @@ void Uci_Loop() {
 			hash_table =(TTentry*) malloc( HASH_SIZE*sizeof(TTentry));	
 			if(hash_table == NULL)
 			{
-				printf("malloc returns NULL\n");
+				printf("info string malloc returns NULL\n");
 			}	
 			else
 			{
@@ -200,7 +209,7 @@ void Uci_Loop() {
 				{
 					hash_table[i].key = 0;
 				}
-				printf("Hash table size %dMB\n" ,hash_size);
+				printf("info string Hash table size %dMB\n" ,hash_size);
 				fflush(stdout);
 			}	
 		}
@@ -225,7 +234,7 @@ void Uci_Loop() {
 				for(int j = 8; j >0 ;j--)
 				{
 					uint8_t sq = 10*i+ j;
-					if(pos -> board[sq] != EMPTY && pos->board[sq] != B_KING && pos->board[sq] != KING)
+					if(pos -> board[sq] != EMPTY && pos->board[sq] != BLACK_KING && pos->board[sq] != KING)
 					{
 						uint8_t piece = pos->board[sq];
 						pos->board[sq] = 0;
@@ -244,6 +253,10 @@ void Uci_Loop() {
 			printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a','b','c', 'd', 'e','f', 'g' , 'h');
 			printf("\n\nScore: %.2f\n" ,score/100.0);
 		}
+		else
+		{
+			printf("unknown command\n");
+		}
     }
 	free(hash_table);
 	free(pos);
@@ -255,9 +268,9 @@ int string_compare(char* str1, char* str2, int size)
 	for(int i=0; i<size ; i++ )
 	{
 		if(str1[i] != str2[i])
-			return 0;
+			return FALSE;
 	}
-	return 1;
+	return TRUE;
 }
 
 #endif
