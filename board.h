@@ -17,29 +17,32 @@
 #define ROOK 4
 #define QUEEN 5 
 #define KING 6 // for black 4. bit is 1  
-#define B_PAWN 9 
-#define B_KNIGHT 10
-#define B_BISHOP 11
-#define B_ROOK 12
-#define B_QUEEN 13 
-#define B_KING 14
+#define BLACK_PAWN 9 
+#define BLACK_KNIGHT 10
+#define BLACK_BISHOP 11
+#define BLACK_ROOK 12
+#define BLACK_QUEEN 13 
+#define BLACK_KING 14
 
 #define WHITE 0
 #define BLACK 1
 
 #define PIECE_TYPE  8 // 00000111
-#define W_KING_CASTLING 1 
-#define B_KING_CASTLING 4 
-#define W_CASTLING      3 
-#define B_CASTLING      12
-#define W_QUEEN_CASTLING 2
-#define B_QUEEN_CASTLING 8
+#define WHITE_SHORT_CASTLE 1 
+#define BLACK_SHORT_CASTLE 4 
+#define WHITE_CASTLE     3 
+#define BLACK_CASTLE     12
+#define WHITE_LONG_CASTLE 2
+#define BLACK_LONG_CASTLE 8
 
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 #define MAX_PIECE_NUMBER 10 //the  maximum number of same pieces in a legal chess position. It is 10 for knights,rooks...
 //It will cause problems for illegal positions
 #define MAX_DEPTH 100 
+
+#define TRUE 1
+#define FALSE 0
 
 #define Mirror(sq)  ((7-sq/8)*8 +sq%8)
 #define pop(stack) (stack->top--)
@@ -54,7 +57,7 @@
      uint16_t full_move; 
      uint64_t key; 
      uint8_t ply;
-     uint8_t incheck;
+     uint8_t inCheck;
      uint16_t last_move;
      uint16_t bestmove;
      uint8_t search_depth;
@@ -63,6 +66,7 @@
      uint16_t counter_moves[2][64][64]; // a counter move for move ordering
      uint8_t  accumulator_cursor[2*MAX_DEPTH];
      uint8_t piece_count;
+     int scores[MAX_DEPTH];
 
  }Position;
  
@@ -174,17 +178,17 @@ void fen_to_board ( Position* pos , char fen[])
                 switch(fen[k])
                 {
                     case 'Q' : pos->board[10*i + j] = QUEEN; break;
-                    case 'q' : pos->board[10*i + j] = B_QUEEN; break;
+                    case 'q' : pos->board[10*i + j] = BLACK_QUEEN; break;
                     case 'R' : pos->board[10*i + j] = ROOK; break;
-                    case 'r' : pos->board[10*i + j] = B_ROOK; break;
+                    case 'r' : pos->board[10*i + j] = BLACK_ROOK; break;
                     case 'K' : pos->board[10*i + j] = KING; break;
-                    case 'k' : pos->board[10*i + j] = B_KING; break;
+                    case 'k' : pos->board[10*i + j] = BLACK_KING; break;
                     case 'N' : pos->board[10*i + j] = KNIGHT; break;
-                    case 'n' : pos->board[10*i + j] = B_KNIGHT; break;
+                    case 'n' : pos->board[10*i + j] = BLACK_KNIGHT; break;
                     case 'B' : pos->board[10*i + j] = BISHOP; break;
-                    case 'b' : pos->board[10*i + j] = B_BISHOP; break;
+                    case 'b' : pos->board[10*i + j] = BLACK_BISHOP; break;
                     case 'P' : pos->board[10*i + j] = PAWN; break;
-                    case 'p' : pos->board[10*i + j] = B_PAWN; break;
+                    case 'p' : pos->board[10*i + j] = BLACK_PAWN; break;
                     case '/' : j++; break; //ignore '/'
                     case ' ' : goto out_of_for; break;
                     case '1' : case '2' :case '3' :case '4' :case '5' :case '6' :case '7' : case '8': 
@@ -214,10 +218,10 @@ void fen_to_board ( Position* pos , char fen[])
     {
         switch (fen[k])
         {
-        case 'K' : pos->castlings |= W_KING_CASTLING;    break;
-        case 'Q' : pos->castlings |= W_QUEEN_CASTLING;  break;
-        case 'k' : pos->castlings |= B_KING_CASTLING; break;
-        case 'q' : pos->castlings |= B_QUEEN_CASTLING; break;       
+        case 'K' : pos->castlings |= WHITE_SHORT_CASTLE;    break;
+        case 'Q' : pos->castlings |= WHITE_LONG_CASTLE;  break;
+        case 'k' : pos->castlings |= BLACK_SHORT_CASTLE; break;
+        case 'q' : pos->castlings |= BLACK_LONG_CASTLE; break;       
         default:          break;
         }
         k++;
@@ -233,7 +237,7 @@ void fen_to_board ( Position* pos , char fen[])
 
     int i = 0;
     char number[5] = "";
-    while(fen[k] != ' ')//5- half move
+    while(fen[k] != ' ' && fen[k] != '\n' && fen[k] != '\0')//5- half move
     {
            number[i] = fen[k];
            i++;
@@ -252,44 +256,76 @@ void fen_to_board ( Position* pos , char fen[])
     number[i] = 0;
     pos->full_move =(uint16_t)atoi(number);
 }
-void print_Board(Position* pos)
+void board_to_fen(Position* pos, char* fen)
 {
-    if(pos->side_to_move == 0)
-        printf("White moves. \n");
-    else if(pos->side_to_move == 1)
-        printf("Black moves. \n");
-    
-    uint8_t white_castlings = pos->castlings & (W_CASTLING);
-    uint8_t black_castlings = pos->castlings & (B_CASTLING);
-    printf("Castling: ");
+    char fen_notation[15]=" PNBRQK  pnbrqk";
+    int counter=0;
+    int empty=0;
+    //1-pieces
+     for(int i = 9 ; i>=2 ; i--)
+    {
+        for( int j = 8 ; j >= 1 ; j-- )
+        {
+            if(pos->board[10*i +j])
+            {
+                if(empty)
+                    fen[counter++] = empty +'0';
+                fen[counter++] = fen_notation[pos->board[10*i + j]];
+                empty=0;
+            }
+            else
+            {
+                empty++;
+            }
+        }
+        if(empty )
+        {
+            fen[counter++] = empty +'0';
+            empty=0;
+        }
+        if(i> 2)
+            fen[counter++] = '/';
+    }
+    fen[counter++] = ' ';
 
+    //2-side to move
+    if(pos->side_to_move)
+        fen[counter++] = 'b';
+    else
+        fen[counter++] = 'w';
+
+    fen[counter++] = ' ';
+
+    //3-castlings
+    uint8_t white_castlings = pos->castlings & (WHITE_CASTLE);
+    uint8_t black_castlings = pos->castlings & (BLACK_CASTLE);
     switch (white_castlings)
     {
-    case 1 : printf("K"); break;
-    case 2 : printf("Q"); break;
-    case 3 : printf("KQ"); break;  
+        case 3 : fen[counter++] = 'K';   
+        case 2 : fen[counter++] = 'Q'; break;
+        case 1 : fen[counter++] = 'K'; break; 
     }
     switch (black_castlings )
     {
-    case 4 : printf("k"); break;
-    case 8 : printf("q"); break;
-    case 12 : printf("kq"); break;   
+        case 12 : fen[counter++] = 'k';   
+        case 8 : fen[counter++] =  'q'; break;
+        case 4 : fen[counter++] =  'k'; break; 
     }
+    if(pos->castlings == 0)
+        fen[counter++] = '-';
 
-    printf("\nEn passant: ");
-    if(pos->en_passant == 0)
-        printf("-\n");
-    else
-    {
-            char en_passant[2];
-            en_passant[0] = 'h' +1 -  pos->en_passant%10;
-            en_passant[1] = '0' -1 +  pos->en_passant/10;
-            printf(" %c%c\n", en_passant[0],en_passant[1]);
-    }
-    printf("Half move: %u\n", pos->half_move);
-    printf("Full moves: %u\n", pos->full_move);
+    //4-5-6 en-passsant, halfmove , fullmove
+    fen[counter++] = ' ';
+    sprintf(fen + counter, "%s %d %d", pos->en_passant ? mailbox_to_fen[pos->en_passant] : "-", pos->half_move, pos->full_move);
+}
 
+void print_Board(Position* pos )
+{
+    char fen[100];
     char fen_notation[15]=" PNBRQK  pnbrqk";
+    printf("fen:  ");
+    board_to_fen(pos,fen);
+    printf("%s\n", fen);
     for(int i=9 ; i>1 ;i--)
     {
         printf("\n  |----|----|----|----|----|----|----|----|\n");
@@ -298,8 +334,7 @@ void print_Board(Position* pos)
               printf("%5c" , fen_notation[pos->board[10*i +j]]);
          }
     }
-     printf("\n  |----|----|----|----|----|----|----|----|\n");
-    printf("\n%5c%5c%5c%5c%5c%5c%5c%5c", 'a','b','c', 'd', 'e','f', 'g' , 'h');
-    printf("\n");
+    printf("\n  |----|----|----|----|----|----|----|----|\n");
+    printf("\n%5c%5c%5c%5c%5c%5c%5c%5c\n", 'a','b','c', 'd', 'e','f', 'g' , 'h');
 }
 #endif

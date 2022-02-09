@@ -34,34 +34,28 @@ uint64_t perft_test(Position* pos,Stack* stack, int depth)
     start_t = clock();
 
     uint64_t total = 0;
-    uint64_t nodes = 0;
-
-    uint16_t moves[MAX_MOVES_NUMBER];
-    uint8_t from;
-    uint8_t to;  
+    uint64_t perft_nodes = 0;
+    uint16_t moves[MAX_MOVES_NUMBER]; 
     int moves_count = 0;
 
     moves_count= generate_moves(pos , moves);
 
     for(int i = 0 ; i < moves_count ; i++)
     {
-         from  = move_from(moves[i]) ;
-         to = move_to(moves[i]);
         perft_counter = 0;
         make_move(pos, moves[i] , stack);
-
         if(is_legal(pos) )
         {
-            nodes = perft(pos, stack , depth -1);
+            perft_nodes = perft(pos, stack , depth -1);
             print_move(moves[i]);
-            printf(": %llu \n" , nodes);
-            total = total + nodes;
+            printf(": %llu \n" , perft_nodes);
+            total = total + perft_nodes;
        }
             unmake_move(pos , stack , moves[i] );
     } 
     end_t = clock();
     total_t = (end_t - start_t) ;
-    printf("Time: %u\t" , total_t);
+    printf("Time: %ld\t" , total_t);
     printf("Speed: %.2f Mnps\t" ,total/(total_t*1000.0) );
     printf("Total position: %llu\n" , total);
     return total;

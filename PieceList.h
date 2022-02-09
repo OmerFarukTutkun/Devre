@@ -7,19 +7,19 @@
 uint8_t PieceList[15][MAX_PIECE_NUMBER]; 
 uint64_t black_pawns= 0; // use bitboard for just pawns
 uint64_t white_pawns = 0;
-uint64_t one = 1; 
+const uint64_t ONE = 1; 
 
 void add_piece(uint8_t piece_type, uint8_t square) //add a piece to PieceList
 {
     if(piece_type == PAWN)
     {
         uint8_t sq = mailbox[square] ;
-        white_pawns = white_pawns | (one<<sq);
+        white_pawns = white_pawns | (ONE<<sq);
     }
-    else if(piece_type == B_PAWN)
+    else if(piece_type == BLACK_PAWN)
     {
         uint8_t sq = mailbox[square] ;
-        black_pawns = black_pawns | (one<<sq);
+        black_pawns = black_pawns | (ONE<<sq);
     }
     else
     {
@@ -37,13 +37,11 @@ void delete_piece( uint8_t piece_type, uint8_t square)//delete a piece from Piec
 {
     if(piece_type == PAWN)
     {
-        uint8_t sq = mailbox[square] ;
-        white_pawns = white_pawns ^ (one<<sq);
+        white_pawns = white_pawns ^ (ONE<< mailbox[square]);
     }
-    else if(piece_type == B_PAWN)
+    else if(piece_type == BLACK_PAWN)
     {
-        uint8_t sq = mailbox[square] ;
-        black_pawns = black_pawns ^ (one<<sq);
+        black_pawns = black_pawns ^ (ONE << mailbox[square]);
     }
     else
     {
@@ -72,15 +70,15 @@ void change_piece(uint8_t piece_type , uint8_t from , uint8_t to )// change the 
     {
          from = mailbox[from];
          to = mailbox [ to] ;
-        white_pawns = white_pawns ^ (one<<from);
-        white_pawns = white_pawns  | (one<< to); 
+        white_pawns = white_pawns ^ (ONE<<from);
+        white_pawns = white_pawns  | (ONE<< to); 
     }
-    else if(piece_type == B_PAWN)
+    else if(piece_type == BLACK_PAWN)
     {
          from = mailbox[from];
          to = mailbox [ to] ;
-        black_pawns = black_pawns ^ (one<<from);
-        black_pawns = black_pawns  | (one<< to);
+        black_pawns = black_pawns ^ (ONE<<from);
+        black_pawns = black_pawns  | (ONE<< to);
     }
     else
     {

@@ -1,7 +1,6 @@
 #ifndef _HASH_H_
 #define _HASH_H_
 
-#include "movegen.h"
 #include "board.h"
 #define TT_ALPHA 1
 #define TT_BETA 2
@@ -12,8 +11,6 @@
 #define MOVE_TYPE  15 // binary form : 0000000000001111 
 #define FROM 1008// binary form :      0000001111110000 
 #define TO   64512 // binary form:     1111110000000000
-#define move_to(move )   mailbox64[((move & TO)>>10)]
-#define move_from(move ) mailbox64[((move & FROM)>>4)]
 
 uint64_t PieceKeys[15][120];// PieceKeys[0][sq] is used for en-passant
 uint64_t SideToPlayKey;
@@ -40,7 +37,6 @@ uint64_t rand_u64()
     seed *= a;
     return seed;
 }
-
 typedef struct{
     uint64_t position_keys[4*MAX_DEPTH];
     uint64_t n;
@@ -97,55 +93,6 @@ void updateHashTable(Position* pos , int score ,char flag,uint8_t depth,uint16_t
         hash_table[ind].depth = depth;
         hash_table[ind].flag = flag + TT_NEW;
         hash_table[ind].move = move;
-    }
-}
-void updateZobristKey(Position* pos, uint16_t move ,Stack * stack)
-{
-    uint8_t from = move_from(move);
-    uint8_t to   = move_to(move);
-    uint8_t move_type  = move & MOVE_TYPE;
-
-    uint8_t piece_type = pos->board[to];
-    uint8_t captured_piece = stack->array[stack->top].captured_piece;
-
-    if(stack->array[stack->top].en_passant) //remove the last ep hash key 
-    {
-        pos->key ^= PieceKeys[0][ stack->array[stack->top].en_passant ] ;
-    }
-    if(pos->en_passant)// xor if there is en passant
-    {
-        pos->key  ^= PieceKeys[0][ pos->en_passant ] ;
-    }
-    if(stack->array[stack->top].castlings != pos->castlings) //xor if there is a change in castling rights
-    {
-        pos->key ^= CastlingKeys[ stack->array[stack->top].castlings] ^ CastlingKeys[pos->castlings];
-    }
-    pos->key ^= SideToPlayKey;
-     switch(move_type)
-     {
-         case 0:  case 1:
-        pos->key ^= PieceKeys[piece_type][from] ^ PieceKeys[piece_type][to]; break;
-         case 2: 
-         if(!pos->side_to_move)
-            pos->key ^= PieceKeys[B_KING][e8] ^ PieceKeys[B_KING][g8] ^ PieceKeys[B_ROOK][h8]^ PieceKeys[B_ROOK][f8] ;
-          else
-           pos->key ^= PieceKeys[KING][e1] ^ PieceKeys[KING][g1] ^ PieceKeys[ROOK][h1]^ PieceKeys[ROOK][f1] ;
-        break;
-        case 3:
-        if(!pos->side_to_move)
-            pos->key ^= PieceKeys[B_KING][e8] ^ PieceKeys[B_KING][c8] ^ PieceKeys[B_ROOK][a8]^ PieceKeys[B_ROOK][d8] ;
-          else
-           pos->key ^= PieceKeys[KING][e1] ^ PieceKeys[KING][c1] ^ PieceKeys[ROOK][a1]^ PieceKeys[ROOK][d1] ;
-        break;
-         case 4:
-           pos->key ^= PieceKeys[piece_type][from] ^ PieceKeys[piece_type][to] ^ PieceKeys[captured_piece][to];  break;
-         case 5:
-           pos->key ^= PieceKeys[piece_type][from] ^ PieceKeys[piece_type][to] ^ PieceKeys[captured_piece][(from/10)*10 + to%10];   break;
-        case 12: case 13: case 14: case 15:
-           pos->key ^= PieceKeys[captured_piece][to];
-        case  8: case 9: case 10: case 11:
-            pos->key  ^= PieceKeys[B_PAWN-8*pos->side_to_move][from] ^ PieceKeys[piece_type][to];
-            break;        
     }
 }
 #endif
