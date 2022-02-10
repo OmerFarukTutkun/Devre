@@ -255,6 +255,8 @@ void fen_to_board ( Position* pos , char fen[])
     }
     number[i] = 0;
     pos->full_move =(uint16_t)atoi(number);
+    if(pos->full_move <= 0)
+        pos->full_move = 1;
 }
 void board_to_fen(Position* pos, char* fen)
 {

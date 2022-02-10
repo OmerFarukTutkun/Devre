@@ -40,7 +40,7 @@ int only_captures(uint16_t moves[], int size);
 int InputAvaliable();
 int UciCheck(search_info* info);
 int see(Position* pos,uint16_t move);
-
+void divideHistoryTable(Position* pos, int x); // divide history table by 2^x
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
@@ -135,6 +135,10 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     if( (nodes & 2047) == 0 )
     {
         UciCheck(info);
+    }
+    if((nodes & 65535) == 0)
+    {
+        divideHistoryTable(pos, 4);
     }
     if( ( ( nodes & 255 ) == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) 
             || info->stopped 
@@ -450,17 +454,6 @@ void search(Position* pos, Stack* stack,search_info* info )
         hash_table[i].hit = 0;
         hash_table[i].flag =(hash_table[i].flag &TT_NODE_TYPE)+ TT_OLD;
     }
-
-    for(int i=0 ; i<2 ; i++)
-    {
-        for(int j=0 ; j<64 ; j++)
-        {
-            for(int k=0 ; k<64 ; k++)
-            {
-                pos->history[i][j][k] /= 16;
-            }
-        }
-    }
 }
 int pick_move(int* scores,int size ,int *score_of_move)
 {
@@ -675,6 +668,19 @@ int InputAvaliable()
 		GetNumberOfConsoleInputEvents(inh, &dw);
 		return dw <= 1 ? 0 : dw;
 	}
+}
+void divideHistoryTable(Position* pos, int x)
+{
+    for(int i=0 ; i<2 ; i++)
+    {
+        for(int j=0 ; j<64 ; j++)
+        {
+            for(int k=0 ; k<64 ; k++)
+            {
+                pos->history[i][j][k] >>= x;
+            }
+        }
+    }
 }
 int UciCheck(search_info* info)
 {
