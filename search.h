@@ -698,6 +698,11 @@ int UciCheck(search_info* info)
 			  info->stopped = TRUE;
               return 1;
 			}
+            else if (!strncmp(input, "isready", 7))    {
+			  printf("readyok\n");
+			  fflush(stdout);
+              return 1;
+			}
 		}
     }
     return 0;
