@@ -60,6 +60,7 @@ void delete_piece( uint8_t piece_type, uint8_t square)//delete a piece from Piec
                     }
                         
                 }
+                PieceList[piece_type][MAX_PIECE_NUMBER - 1] = 0;
             }
         }
     }
@@ -96,7 +97,7 @@ void set_PieceList(Position* pos)// initialize PieceList
 {
     white_pawns=0;
     black_pawns=0;
-    memset(PieceList , 0 ,150*sizeof(uint8_t));
+    memset(PieceList , 0 ,15*MAX_PIECE_NUMBER*sizeof(uint8_t));
     for(int k = 21; k<99 ;k++)
     {
         if(pos->board[k] != EMPTY)
