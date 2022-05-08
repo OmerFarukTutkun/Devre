@@ -15,7 +15,6 @@
 
 uint64_t nodes = 0;
 uint64_t qnodes =0;
-
 #define INF 15000
 #define MATE 14000
 
@@ -466,7 +465,7 @@ int pick_move(int* scores,int size ,int *score_of_move)
         }
     }
     score_of_move[0] = scores[max_index];
-    scores[max_index]= -10000000;
+    scores[max_index]= -INF;
     return max_index;
 }
 int move_scoring(Position* pos, int* scores,uint16_t *moves, int size) {
@@ -532,6 +531,8 @@ int move_scoring(Position* pos, int* scores,uint16_t *moves, int size) {
                 {
                     scores[i] += 100;
                 }
+                if(see(pos,moves[i]) < 0)
+                    scores[i] -= 1000;
             }
         }
 
