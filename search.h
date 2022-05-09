@@ -259,6 +259,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             played++;
             continue;
         }
+        int see_reduction = (played >1 && depth > 2 && see(pos, move) < 0);
         make_move(pos, move, stack);
         if( !is_legal(pos) )
         {
@@ -277,6 +278,8 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             lmr -= min( 2, pos->history[pos->side_to_move][(move&FROM)>>4][(move & TO)>>10] / 500);//less reduction for the moves with good history score
             lmr = max(1, min(depth-1 , lmr)); 
         }
+        if(lmr != depth -1)
+            lmr += see_reduction;
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
         {
             score= -AlphaBeta( -(alpha+1), -alpha, pos, stack, depth -lmr,info, NullMoveAllowed);
