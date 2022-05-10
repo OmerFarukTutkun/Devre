@@ -2,6 +2,7 @@
 #define _NETWORK_H_
 #include <stdalign.h>
 #include "movegen.h"
+#include "incbin/incbin.h"
 #define INPUT_SIZE 32*704
 #define L1 128
 #define L2 8
@@ -12,6 +13,7 @@
 // sigmoid(output[0]) = sigmoid(cp/SCALE) -> cp = output[0] * SCALE at the end of neural network
 #define SCALE_WEIGHT 8192 // SCALE weights for float32 -> int16 quantization
 #define WEIGHT_FILE "network_128x2_8.10.2021.bin"
+INCBIN(EmbeddedWeights, WEIGHT_FILE);
 
 int weight_indices[2][32];
 int active_neurons[2][32];
@@ -111,25 +113,38 @@ void transpose_weights(int16_t* weights, int row, int column)
 }
 int set_weights()
 {
-    //Todo: Embed the weights in to the exe
-    FILE* file = fopen(WEIGHT_FILE , "rb");
-    if(file == NULL)
-    {
-        printf("Network file could not open\n");
-    }
+    int16_t* data_int16;
+    int32_t* data_int32;
+    float* data_float = (float* )gEmbeddedWeightsData;
     for(int i=0 ; i<2 ; i++)
     {
-        fread(feature_weights[i] , sizeof(int16_t) , INPUT_SIZE*L1 ,file);
-        fread(feature_biases[i] , sizeof(int16_t) , L1 ,file); 
-        fread(layer1_weights[i], sizeof (int16_t) , 2*L1*L2 ,file); 
-        fread(layer1_biases[i] , sizeof(int32_t) , L2 ,file); 
-        fread(layer2_weights[i] , sizeof(float) , L2*L3 ,file); 
-        fread(layer2_biases[i] , sizeof(float) , L3 ,file);
-        fread(layer3_weights[i] , sizeof(float) , L3 ,file); 
-        fread(layer3_biases[i] , sizeof(float) , 1 ,file); 
+        data_int16 = (int16_t*)( data_float);
+
+        for(int j=0; j<INPUT_SIZE*L1; j++)
+            feature_weights[i][j] = (*data_int16++);
+        for(int j=0; j<L1; j++)
+            feature_biases[i][j] = (*data_int16++);
+
+        for(int j=0; j<2*L1*L2; j++)
+            layer1_weights[i][j] = (*data_int16++);
+
+        data_int32 = (int32_t*)(data_int16);
+        for(int j=0; j<L2; j++)
+            layer1_biases[i][j] = (*data_int32++);
+
+        data_float= (float* )(data_int32);
+        for(int j=0; j<L3*L2; j++)
+            layer2_weights[i][j] = (*data_float++);
+        for(int j=0; j<L3; j++)
+            layer2_biases[i][j] = (*data_float++);
+
+        for(int j=0; j<L3; j++)
+            layer3_weights[i][j] = (*data_float++);
+        for(int j=0; j<1; j++)
+            layer3_biases[i][j] = (*data_float++);
+
         transpose_weights(layer1_weights[i] , 2*L1 , L2);
     }
-    fclose(file);
     return 1;
 }
 

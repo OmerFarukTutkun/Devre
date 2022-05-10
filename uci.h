@@ -184,7 +184,7 @@ void Uci_Loop() {
         }else if (string_compare(line, "uci", 3)) {
 		printf("id name Devre %s\n", VERSION);
     		printf("id author Omer Faruk Tutkun\n");
-			printf("option name Hash type spin default 16 min 2 max 512\n");
+			printf("option name Hash type spin default 16 min 2 max 2048\n");
             printf("uciok\n");
 			fflush(stdout);
         }
@@ -192,8 +192,8 @@ void Uci_Loop() {
 			int hash_size = atoi(line + 26);//in mb
 			if(hash_size < 2)
 				hash_size =2;
-			else if(hash_size > 512)
-				hash_size=512;
+			else if(hash_size > 2048)
+				hash_size=2048;
 			hash_size = 1<<(int)(log(hash_size + 0.1)/log(2.0));
 			HASH_SIZE= hash_size*1024*1024 / 16;// HASH_SIZE = number of TT entry,  size of one entry is 16 byte.
 			HASH_SHIFT= 64 - 16 - (int)(log(hash_size + 0.1)/log(2.0));
