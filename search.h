@@ -88,7 +88,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     {
         move= moves[pick_move(moves_score, number_of_moves, &score_of_move)];
 	int value = see(pos, move);
-        if(value < 0 || (value == 0 && stand_pat + 200 < alpha))
+        if(value < 0 || (value == 0 && stand_pat + 300 < alpha))
             continue;
         make_move(pos, move, stack);
         if( is_legal(pos) == 0)
