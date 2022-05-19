@@ -563,7 +563,7 @@ int see(Position* pos, uint16_t move)
     if( (attacking_piece & 7 ) == KING)
         return see_values[pos->board[to]];
 
-    gain[0] = piece_values[pos->board[to]];
+    gain[0] = see_values[pos->board[to]];
     square_attacked_by(pos, to, &attackers[0]);
     
   do
