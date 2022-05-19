@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
-#include <immintrin.h>
 #include "time.h"
 
 #define OFF 255
@@ -27,7 +26,7 @@
 #define WHITE 0
 #define BLACK 1
 
-#define PIECE_TYPE  8 // 00000111
+#define PIECE_TYPE  7 // 00000111
 #define WHITE_SHORT_CASTLE 1 
 #define BLACK_SHORT_CASTLE 4 
 #define WHITE_CASTLE     3 
@@ -48,6 +47,9 @@
 #define pop(stack) (stack->top--)
 #define bitScanForward(bb) ( __builtin_ffsll(bb)-1)  //used in pawn bitboards
 
+int see_values[15]={ 0, 100 , 325 , 325 , 500 ,1000 ,10000 ,0 ,  0, 100 , 325 , 325 , 500 ,1000 ,10000};
+int piece_values[15]={ 0, 10 , 32,35 ,53 ,98 ,100 ,0 , 0, 10 , 32,35 ,53 ,98 ,100 };
+
  typedef struct Position{
      uint8_t board[120] ;
      uint8_t castlings ;
@@ -66,7 +68,7 @@
      uint16_t counter_moves[2][64][64]; // a counter move for move ordering
      uint8_t  accumulator_cursor[2*MAX_DEPTH];
      uint8_t piece_count;
-     int scores[MAX_DEPTH];
+     int evals[MAX_DEPTH];
 
  }Position;
  

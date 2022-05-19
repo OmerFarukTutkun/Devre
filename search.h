@@ -6,12 +6,7 @@
 #include "legal.h"
 #include "hash.h"
 #include <windows.h>
-
-#if defined (USE_AVX2)
-    #include "network_avx2.h"
-#elif defined (USE_SSE3)
-    #include "network_sse3.h"
-#endif
+#include "nnue.h"
 
 uint64_t nodes = 0;
 uint64_t qnodes =0;
@@ -47,7 +42,9 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     int oldalpha,stand_pat,best_score , score ,flag,val,number_of_moves,score_of_move;
     uint16_t move ,bestmove = 0;
 
-      if(hash_table[index].key== pos->key)
+    // calculate network before probing TT so that incremental update would be possible for child nodes.
+    stand_pat = evaluate_network(pos ,stack, pos->last_move); 
+    if(hash_table[index].key== pos->key)
     {
         flag = hash_table[index].flag & TT_NODE_TYPE;
         val = hash_table[index].score;
@@ -65,7 +62,6 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
             return val;
     }
     oldalpha = alpha;
-    stand_pat = evaluate_network(pos ,stack, pos->last_move);
     if(stand_pat == 0)
         stand_pat = 1;
     best_score = stand_pat;
@@ -87,7 +83,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves, &score_of_move)];
-	int value = see(pos, move);
+	    int value = see(pos, move);
         if(value < 0 || (value == 0 && stand_pat + 300 < alpha))
             continue;
         make_move(pos, move, stack);
@@ -129,7 +125,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     int PVNode = (alpha != beta -1) ,ttdepth=0;
     uint8_t flag = 0;
     uint16_t move,best_move=0;
-    int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, inCheck,improving;
+    int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, inCheck,improving,eval;
     int index = (pos->key<<HASH_SHIFT)>>HASH_SHIFT;
 
     if( (nodes & 2047) == 0 )
@@ -142,7 +138,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     }
     if( ( ( nodes & 255 ) == 0  && ((clock() + 50) > info->stop_time ) && pos->search_depth > 1) 
             || info->stopped 
-            || ( info->search_type == FIX_NODES && (nodes +qnodes) > info->nodes))  //at least do 1 depth search
+            || ( info->search_type == FIX_NODES && (nodes +qnodes) > info->nodes))  
     {
         info->stopped =TRUE;
         return 0;
@@ -173,7 +169,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     if(depth > 0 && pos->ply && !PVNode && hash_table[index].key== pos->key )
     {
         flag = hash_table[index].flag & TT_NODE_TYPE;
-        score = hash_table[index].score;
+        eval = score = hash_table[index].score;
         if(hash_table[index].hit < 255)
             hash_table[index].hit++;
         ttdepth = hash_table[index].depth;
@@ -206,20 +202,21 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     }
      if(flag != TT_EXACT )
     {
-        score = qsearch(alpha ,beta , pos, stack);
+        eval = qsearch(alpha ,beta , pos, stack);
     }
-    pos->scores[pos->ply] = score;
+    pos->evals[pos->ply] = eval;
     if(pos->ply >= 2)
-        improving = !inCheck &&  score > pos->scores[pos->ply - 2];
+        improving = !inCheck &&  eval > pos->evals[pos->ply - 2];
+
     if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
     {
-        if( (pos->last_move & MOVE_TYPE) <2 &&  score < alpha - depth*200) // fail-low
+        if( (pos->last_move & MOVE_TYPE) <2 &&  eval < alpha - depth*200) // fail-low
         {
-            return score;
+            return eval;
         }
-        if((score > beta + depth*125 )) //fail-high
+        if(eval > beta + depth*125 ) //fail-high
         {
-            return score;
+            return eval;
         }
     }
 
@@ -227,14 +224,12 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     //Todo : tune the parameters.
     if(!PVNode && NullMoveAllowed && !inCheck && pos->ply 
     && depth>=2 && beta > -1000 && alpha< 1000 
-    && ( score > beta) && non_pawn_pieces(pos) )
+    && ( eval > beta) && non_pawn_pieces(pos) )
     {
         //Use very similar formula to Stockfish
         int R= 4+ depth/4;
-        if(score > beta)
-        {
-            R += min(2 ,(score- beta)/200);
-        }
+        R += min(2 ,(eval- beta)/200);
+
         make_move(pos, NULL_MOVE, stack);
         score = -AlphaBeta( -(beta), -(beta -1), pos, stack, depth -R,info, FALSE);
         unmake_move(pos,stack, NULL_MOVE);
@@ -254,7 +249,14 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
     for (int i=0 ; i<number_of_moves ; i++)
     {
         move= moves[pick_move(moves_score, number_of_moves , &score_of_move)];
-        if(!improving && !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && see(pos,move) < 0)
+        //see pruning
+        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && see(pos,move) < 0)
+        {
+            played++;
+            continue;
+        }
+        // futility pruning
+        if( !PVNode && depth <=8 && !inCheck && move_type(move) < 2 && played > 5 && eval + depth*40 + 200 < alpha)
         {
             played++;
             continue;
@@ -424,12 +426,14 @@ void search(Position* pos, Stack* stack,search_info* info )
         t_nodes[i] = nodes +qnodes;
         nps= (total_nodes * 1000) / (clock() + 1 - start_t);
         if( abs(last_score) < MATE - MAX_DEPTH)
-            printf("info depth %d  nps %d nodes %llu score cp %d time %ld pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);
-
+        {
+            printf("info depth %d  nps %d nodes %llu score cp %d time %ld pv ",i,nps,total_nodes, last_score,clock() + 1 - start_t);       
+        }
         else
         {
             int mate= (MATE-abs(last_score) +1)* (2*(last_score > 0) -1 ) /2;
             printf("info depth %d  nps %d nodes %llu score mate %d time %ld pv ",i,nps,total_nodes, mate,clock() + 1 - start_t);
+             
         }
         getPV(pos, stack,i);
         printf("\n");
@@ -610,7 +614,7 @@ int see(Position* pos, uint16_t move)
     gain[d-1] = - max(-gain[d-1], gain[d]);
   }
 
-  return 10*gain[0];
+  return gain[0];
 }
 int is_repetition(Position * pos)
 {
@@ -640,6 +644,7 @@ int is_repetition(Position * pos)
     }
     return k;
 }
+
 int non_pawn_pieces()
 {
     if(!(PieceList[BLACK_KNIGHT][0] || PieceList[BLACK_ROOK][0] || PieceList[BLACK_BISHOP][0] || PieceList[BLACK_QUEEN][0] ))
@@ -647,6 +652,19 @@ int non_pawn_pieces()
     if(PieceList[KNIGHT][0] || PieceList[ROOK][0] || PieceList[BISHOP][0] || PieceList[QUEEN][0] )
         return 1;
     return 0;
+}
+void divideHistoryTable(Position* pos, int x)
+{
+    for(int i=0 ; i<2 ; i++)
+    {
+        for(int j=0 ; j<64 ; j++)
+        {
+            for(int k=0 ; k<64 ; k++)
+            {
+                pos->history[i][j][k] >>= x;
+            }
+        }
+    }
 }
 
 int InputAvaliable()
@@ -673,19 +691,6 @@ int InputAvaliable()
 		GetNumberOfConsoleInputEvents(inh, &dw);
 		return dw <= 1 ? 0 : dw;
 	}
-}
-void divideHistoryTable(Position* pos, int x)
-{
-    for(int i=0 ; i<2 ; i++)
-    {
-        for(int j=0 ; j<64 ; j++)
-        {
-            for(int k=0 ; k<64 ; k++)
-            {
-                pos->history[i][j][k] >>= x;
-            }
-        }
-    }
 }
 int UciCheck(search_info* info)
 {

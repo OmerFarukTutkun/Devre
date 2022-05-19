@@ -6,8 +6,8 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 
 | Version  | [CCRL (Blitz)](http://ccrl.chessdom.com/ccrl/404/) | [Owl Chess Blitz](http://chessowl.blogspot.com/) | [BRUCE](https://www.e4e6.com/)
 | ------------- | ------------- |----------|----------|
-| Devre 2.0  | 3095  | 3034 | 3074
-| Devre 1.0  | 2954  | 2872 |
+| Devre 2.0  | 3102  | 3035 | 3066
+| Devre 1.0  | 2954  | 2874 |
 
 
 ## Movegen
@@ -42,7 +42,8 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 
 ## Evaluation
 
-Devre uses two small NNUE for evaluation. The nets were trained using Stockfish and Leela data with my own trainer in Tensorflow/Keras. Current nets were trained with ~600 million positions from Leela data. The training resources and other useful information about NNUE can be found in stockfish discord.
+Devre uses a small NNUE for evaluation. The Network architure is 768 x (512x2) x 1.
+The default net was trained with 1 billion positions from Leela data. The training resources and other useful information about NNUE can be found in stockfish discord.
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 ## Compiling 
