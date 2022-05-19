@@ -49,15 +49,6 @@ int8_t nn_indices[2][15] = {{ 0, 0 , 1 ,2 ,3 ,4 ,11 ,0 , 0 , 5 ,6, 7, 8 ,9 ,10 }
 #endif
 
 alignas(64) int16_t accumulator[2*MAX_DEPTH][2][L1]; 
-void quan_relu(int16_t x[] , int dim)
-{
-    vector zero = vector_set_zero(); 
-    vector* input = (vector*) &x[0];
-    for (int i = 0; i < dim/vector_size; i++)
-    {
-      input[i] =  vector_max (zero, input[i ]);
-    }
-}
 int set_weights()
 {
     int16_t* data_int16;
@@ -92,8 +83,8 @@ void calculate_indices()
     {
         sq = bitScanForward(temp);
         temp =  (temp>>(sq+1)) << (sq +1);
-        active_neurons[0][sz] =  (5*64)+ sq ;
-        active_neurons[1][sz] =   Mirror(sq) ;
+        active_neurons[WHITE][sz] =  (5*64)+ sq ;
+        active_neurons[BLACK][sz] =   Mirror(sq) ;
         sz++;
     }
     temp = white_pawns;
@@ -101,8 +92,8 @@ void calculate_indices()
     {
         sq = bitScanForward(temp);
         temp =  (temp>>(sq+1)) << (sq +1);
-        active_neurons[0][sz] =   sq ;
-        active_neurons[1][sz] = 5*64+  Mirror(sq) ;
+        active_neurons[WHITE][sz] =   sq ;
+        active_neurons[BLACK][sz] = 5*64+  Mirror(sq) ;
         sz++;
     }
     for(int i=2 ; i<= 13 ; i++)
@@ -115,23 +106,23 @@ void calculate_indices()
         while(PieceList[i][k])
         {
             sq = mailbox[ PieceList[i][k] ];
-            int index_w = nn_indices[0][i];
-            int index_b =  nn_indices[1][i];
-            active_neurons[0][sz] =  index_w*64+ sq ;
-            active_neurons[1][sz] =  index_b*64+  Mirror(sq) ;
+            int index_w =  nn_indices[WHITE][i];
+            int index_b =  nn_indices[BLACK][i];
+            active_neurons[WHITE][sz] =  index_w*64+ sq ;
+            active_neurons[BLACK][sz] =  index_b*64+  Mirror(sq) ;
             sz++;
             k++;
         }
     }
-    active_neurons[0][sz] = 10*64+ b_king;
-    active_neurons[1][sz++] = 10*64+ Mirror(w_king);
-    active_neurons[0][sz] = 11*64+ w_king;
-    active_neurons[1][sz++] = 11*64+ Mirror(b_king);
+    active_neurons[WHITE][sz] = 10*64+ b_king;
+    active_neurons[BLACK][sz++] = 10*64+ Mirror(w_king);
+    active_neurons[WHITE][sz] = 11*64+ w_king;
+    active_neurons[BLACK][sz++] = 11*64+ Mirror(b_king);
     b_king = Mirror(b_king);
     for(int k=0 ; k<sz ; k++)
     {
-        weight_indices[0][k] = L1*active_neurons[0][k];
-        weight_indices[1][k] = L1*active_neurons[1][k];
+        weight_indices[WHITE][k] = L1*active_neurons[WHITE][k];
+        weight_indices[BLACK][k] = L1*active_neurons[BLACK][k];
     }
 }
 void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t move)
@@ -144,22 +135,23 @@ void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mo
     switch(move_type)
     {
         case 4:
-            deactivated_inputs[0][1] = nn_indices[0][captured_piece]*64 + to;
-            deactivated_inputs[1][1] = nn_indices[1][captured_piece]*64 +  Mirror(to);
+            deactivated_inputs[WHITE][1] = nn_indices[WHITE][captured_piece]*64 + to;
+            deactivated_inputs[BLACK][1] = nn_indices[BLACK][captured_piece]*64 +  Mirror(to);
         case 0: case 1:
-            activated_inputs[0] =  nn_indices[0][piece_type]*64 + to;
-            activated_inputs[1] =  nn_indices[1][piece_type]*64 + Mirror(to);
-            deactivated_inputs[0][0] = nn_indices[0][piece_type]*64 + from;
-            deactivated_inputs[1][0] = nn_indices[1][piece_type]*64 + Mirror(from);
+            activated_inputs[WHITE] =  nn_indices[WHITE][piece_type]*64 + to;
+            activated_inputs[BLACK] =  nn_indices[BLACK][piece_type]*64 + Mirror(to);
+            deactivated_inputs[WHITE][0] = nn_indices[WHITE][piece_type]*64 + from;
+            deactivated_inputs[BLACK][0] = nn_indices[BLACK][piece_type]*64 + Mirror(from);
         break;
     }
     pos->accumulator_cursor[pos->ply ]= 1;
-     memcpy(accumulator[pos->ply][0] , accumulator[pos->ply -1][0] , 2*L1);
-     memcpy(accumulator[pos->ply][1] , accumulator[pos->ply -1][1] , 2*L1);
-    vector *outputs1 = (vector *) &accumulator[pos->ply][0];   //white
-    vector *outputs2 = (vector *) &accumulator[pos->ply][1];  //black
-    vector *weights1 = (vector *) &feature_weights[L1*activated_inputs[0]];
-    vector *weights2 = (vector *) &feature_weights[L1*activated_inputs[1]];
+    memcpy(accumulator[pos->ply][WHITE] , accumulator[pos->ply -1][WHITE] , 2*L1);
+    memcpy(accumulator[pos->ply][BLACK] , accumulator[pos->ply -1][BLACK] , 2*L1);
+
+    vector *outputs1 = (vector *) &accumulator[pos->ply][WHITE];   
+    vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK];  
+    vector *weights1 = (vector *) &feature_weights[L1*activated_inputs[WHITE]];
+    vector *weights2 = (vector *) &feature_weights[L1*activated_inputs[BLACK]];
     for(int i=0; i< L1/vector_size; i++)
     {
         outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
@@ -170,8 +162,8 @@ void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mo
     {
         if(deactivated_inputs[0][i] != -1)
         {
-            weights1 = (vector *) &feature_weights[L1*deactivated_inputs[0][i]];
-            weights2 = (vector *) &feature_weights[L1*deactivated_inputs[1][i]];
+            weights1 = (vector *) &feature_weights[L1*deactivated_inputs[WHITE][i]];
+            weights2 = (vector *) &feature_weights[L1*deactivated_inputs[BLACK][i]];
             for(int i=0; i< L1/vector_size; i++)
             {
                 outputs1[ i] = vector_sub(outputs1[ i] , weights1[ i]);
@@ -179,17 +171,12 @@ void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mo
             }
         }
     }
-
-    memcpy(layer_1 + pos->side_to_move*L1 , accumulator[pos->ply][0] , 2*L1);
-    memcpy(layer_1 + (!pos->side_to_move)*L1 , accumulator[pos->ply][1] , 2*L1);
-    quan_relu(layer_1 , 2*L1);//activation func.
 }
 void calculate_input_layer(Position* pos)
 {
     vector *biases =   (vector *) &feature_biases[0];
-    vector *outputs1 = (vector *) &layer_1[0];  //side_to_move
-    vector *outputs2 = (vector *) &layer_1[L1]; //for enemy
-
+    vector *outputs1 = (vector *) &accumulator[pos->ply][WHITE][0];  //white
+    vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK][0];  //black
     for(int i=0; i< L1/vector_size; i++)
     {
         outputs2[i] = biases[i];
@@ -197,8 +184,8 @@ void calculate_input_layer(Position* pos)
     }
     for(int k=0 ; k < sz; k++)
     {
-        vector *weights1 = (vector *) &feature_weights [weight_indices[pos->side_to_move][k]];
-        vector *weights2 = (vector *) &feature_weights[weight_indices[!pos->side_to_move][k]];
+        vector *weights1 = (vector *) &feature_weights [weight_indices[WHITE][k]];
+        vector *weights2 = (vector *) &feature_weights[weight_indices[BLACK][k]];
         for(int i=0; i< L1/vector_size; i++)
         {
             outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
@@ -206,33 +193,41 @@ void calculate_input_layer(Position* pos)
         }
     }
     pos->accumulator_cursor[pos->ply]= 1;
-    memcpy( accumulator[pos->ply][0] , layer_1 + pos->side_to_move*L1 ,     2*L1);
-    memcpy( accumulator[pos->ply][1] , layer_1 + ( 1-pos->side_to_move)*L1 , 2*L1); 
-    quan_relu(layer_1 , 2*L1);//activation func.
 }
-int32_t quan_matrix_multp(int16_t weight_matrix[] ,int32_t bias, int16_t input[], int input_dim)
+int32_t quan_matrix_multp(int ply,int side)
 {
-    vector* input_vector=(vector *)&input[0];
-    vector* weights = (vector *)&weight_matrix[0];
+    vector* acc_us=   (vector *)&accumulator[ply][side][0];
+    vector* acc_enemy=(vector *)&accumulator[ply][!side][0];
+    vector* weights = (vector *)&layer1_weights[0];
+    vector zero = vector_set_zero(); 
     alignas(64) int32_t result[4];
-    vector out0= vector_multipy(input_vector[0 ] , weights[0 ]);
-    vector out1= vector_multipy(input_vector[1 ] , weights[1 ]);
-    vector out2= vector_multipy(input_vector[2 ] , weights[2 ]);
-    vector out3= vector_multipy(input_vector[3 ] , weights[3 ]);
-    vector out4= vector_multipy(input_vector[4 ] , weights[4 ]);
-    vector out5= vector_multipy(input_vector[5 ] , weights[5 ]);
-    vector out6= vector_multipy(input_vector[6 ] , weights[6 ]);
-    vector out7= vector_multipy(input_vector[7 ] , weights[7 ]);
-    for(int i=8; i<input_dim/(vector_size) ; i+=8)
+    vector* acc = acc_us;
+
+    vector out0= vector_multipy(  vector_max(acc[0], zero) , weights[0 ]);
+    vector out1= vector_multipy(  vector_max(acc[1], zero) , weights[1 ]);
+    vector out2= vector_multipy(  vector_max(acc[2], zero) , weights[2 ]);
+    vector out3= vector_multipy(  vector_max(acc[3], zero) , weights[3 ]);
+    vector out4= vector_multipy(  vector_max(acc[4], zero) , weights[4 ]);
+    vector out5= vector_multipy(  vector_max(acc[5], zero) , weights[5 ]);
+    vector out6= vector_multipy(  vector_max(acc[6], zero) , weights[6 ]);
+    vector out7= vector_multipy(  vector_max(acc[7], zero) , weights[7 ]);
+    int j=8;
+    for(int i=8; i< 2*L1/(vector_size) ; i+=8)
     {
-        out0= vector_epi32_add(out0 , vector_multipy(input_vector[i + 0 ] , weights[i + 0 ]));
-        out1= vector_epi32_add(out1 , vector_multipy(input_vector[i + 1 ] , weights[i + 1 ]));
-        out2= vector_epi32_add(out2 , vector_multipy(input_vector[i + 2 ] , weights[i + 2 ]));
-        out3= vector_epi32_add(out3 , vector_multipy(input_vector[i + 3 ] , weights[i + 3 ]));
-        out4= vector_epi32_add(out4 , vector_multipy(input_vector[i + 4 ] , weights[i + 4 ]));
-        out5= vector_epi32_add(out5 , vector_multipy(input_vector[i + 5 ] , weights[i + 5 ]));
-        out6= vector_epi32_add(out6 , vector_multipy(input_vector[i + 6 ] , weights[i + 6 ]));
-        out7= vector_epi32_add(out7 , vector_multipy(input_vector[i + 7 ] , weights[i + 7 ]));
+        if(i*vector_size == L1)
+        {
+            j=0;
+            acc = acc_enemy;
+        }
+        out0= vector_epi32_add(out0 , vector_multipy( vector_max( acc[j + 0 ] , zero) , weights[i + 0 ]));
+        out1= vector_epi32_add(out1 , vector_multipy( vector_max( acc[j + 1 ] , zero) , weights[i + 1 ]));
+        out2= vector_epi32_add(out2 , vector_multipy( vector_max( acc[j + 2 ] , zero) , weights[i + 2 ]));
+        out3= vector_epi32_add(out3 , vector_multipy( vector_max( acc[j + 3 ] , zero) , weights[i + 3 ]));
+        out4= vector_epi32_add(out4 , vector_multipy( vector_max( acc[j + 4 ] , zero) , weights[i + 4 ]));
+        out5= vector_epi32_add(out5 , vector_multipy( vector_max( acc[j + 5 ] , zero) , weights[i + 5 ]));
+        out6= vector_epi32_add(out6 , vector_multipy( vector_max( acc[j + 6 ] , zero) , weights[i + 6 ]));
+        out7= vector_epi32_add(out7 , vector_multipy( vector_max( acc[j + 7 ] , zero) , weights[i + 7 ]));
+        j +=8;
     }
     vector out01 = vector_epi32_add(out0 ,out1);
     vector out23 = vector_epi32_add(out2 ,out3);
@@ -248,7 +243,7 @@ int32_t quan_matrix_multp(int16_t weight_matrix[] ,int32_t bias, int16_t input[]
     #elif defined(USE_SSE3)
         *(__m128i*) &result[0] = sum;
     #endif
-    return (bias + result[0] + result[1] +result[2] +result[3])* ((SCALE) / (SCALE_WEIGHT*SCALE_WEIGHT*1.0)); 
+    return (layer1_bias+ result[0] + result[1] +result[2] +result[3])* ((SCALE) / (SCALE_WEIGHT*SCALE_WEIGHT*1.0)); 
 }
 int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
 {
@@ -279,7 +274,7 @@ int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
         calculate_indices();
         calculate_input_layer(pos);
     }
-    int eval = quan_matrix_multp(layer1_weights ,layer1_bias , layer_1, 2*L1);
+    int eval = quan_matrix_multp(pos->ply, pos->side_to_move);
     return eval * ((100.0 -pos->half_move)/100.0);
 }
 #endif
