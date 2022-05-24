@@ -275,6 +275,7 @@ int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
         calculate_input_layer(pos);
     }
     int eval = quan_matrix_multp(pos->ply, pos->side_to_move);
+    eval = max(-12000 , min(12000, eval)); // clip network score as it can go very high values
     return eval * ((100.0 -pos->half_move)/100.0);
 }
 #endif
