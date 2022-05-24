@@ -256,7 +256,7 @@ int AlphaBeta(int alpha, int beta, Position* pos,Stack* stack, int depth,search_
             continue;
         }
         // futility pruning
-        if( !PVNode && depth <=8 && !inCheck && move_type(move) < 2 && played > 5 && eval + depth*40 + 200 < alpha)
+        if( !PVNode && depth <=8 && !inCheck && move_type(move) < 2 && played > 5 && eval + depth*40 + 130 < alpha)
         {
             played++;
             continue;
