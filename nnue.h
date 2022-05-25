@@ -74,6 +74,8 @@ int set_weights()
 //Todo: write this with incremental update inside make_move. It is very slow in this way
 void calculate_indices()
 {
+    uint8_t b_king = mailbox[ PieceList[BLACK_KING][0] ] ;
+    uint8_t w_king = mailbox [ PieceList[KING][0]  ];
     uint8_t sq;
     sz=0;
     uint64_t temp = black_pawns;
@@ -82,7 +84,8 @@ void calculate_indices()
         sq = bitScanForward(temp);
         temp =  (temp>>(sq+1)) << (sq +1);
         active_neurons[WHITE][sz] =  (5*64)+ sq ;
-        active_neurons[BLACK][sz++] =   Mirror(sq) ;
+        active_neurons[BLACK][sz] =   Mirror(sq) ;
+        sz++;
     }
     temp = white_pawns;
     while(temp)
@@ -90,12 +93,13 @@ void calculate_indices()
         sq = bitScanForward(temp);
         temp =  (temp>>(sq+1)) << (sq +1);
         active_neurons[WHITE][sz] =   sq ;
-        active_neurons[BLACK][sz++] = 5*64+  Mirror(sq) ;
+        active_neurons[BLACK][sz] = 5*64+  Mirror(sq) ;
+        sz++;
     }
-    for(int i=2 ; i<= 14 ; i++)
+    for(int i=2 ; i<= 13 ; i++)
     {
         int k=0;
-        if(i == 7)
+        if(i == 6)
         {
             i = 10;
         }
@@ -105,10 +109,16 @@ void calculate_indices()
             int index_w =  nn_indices[WHITE][i];
             int index_b =  nn_indices[BLACK][i];
             active_neurons[WHITE][sz] =  index_w*64+ sq ;
-            active_neurons[BLACK][sz++] =  index_b*64+  Mirror(sq) ;
+            active_neurons[BLACK][sz] =  index_b*64+  Mirror(sq) ;
+            sz++;
             k++;
         }
     }
+    active_neurons[WHITE][sz] = 10*64+ b_king;
+    active_neurons[BLACK][sz++] = 10*64+ Mirror(w_king);
+    active_neurons[WHITE][sz] = 11*64+ w_king;
+    active_neurons[BLACK][sz++] = 11*64+ Mirror(b_king);
+    b_king = Mirror(b_king);
     for(int k=0 ; k<sz ; k++)
     {
         weight_indices[WHITE][k] = L1*active_neurons[WHITE][k];
