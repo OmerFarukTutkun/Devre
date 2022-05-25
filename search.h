@@ -396,6 +396,8 @@ void search(Position* pos, Stack* stack,search_info* info )
             score = AlphaBeta((last_score-window_size), last_score+window_size, pos,stack,i,info, TRUE);
             while(1)
             {
+	        if(info->stopped)
+		     break;
                 if(score >= last_score+window_size) 
                 {
                     score = AlphaBeta(last_score -2*window_size, last_score+2*window_size, pos,stack,i,info, TRUE);
@@ -416,7 +418,7 @@ void search(Position* pos, Stack* stack,search_info* info )
             score = AlphaBeta(-INF, INF, pos, stack,i,info, TRUE);
         }
         last_score = score;
-        if(info->stopped == TRUE )
+        if(info->stopped)
             break;
 
         best_move = pos->bestmove;
