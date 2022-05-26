@@ -4,7 +4,7 @@
 #include "search.h"
 #include "hash.h"
 #include "test.h"
-const char VERSION[] = "2.55";
+const char VERSION[] = "2.60";
 
 // The library forked from Vice chess engine.
 int string_compare(char* str1, char* str2, int size);

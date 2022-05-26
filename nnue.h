@@ -127,21 +127,51 @@ void calculate_indices()
 }
 void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t move)
 {
-    int activated_inputs[2]={-1,-1};
+    if(move == NULL_MOVE)
+    {
+        pos->accumulator_cursor[pos->ply ]= 1;
+	    memcpy(accumulator[pos->ply][WHITE] , accumulator[pos->ply -1][WHITE] , 2*L1);
+    	memcpy(accumulator[pos->ply][BLACK] , accumulator[pos->ply -1][BLACK] , 2*L1);
+	    return;
+    }
+    int activated_inputs[2][2]   = {{-1 , -1} , {-1, -1}};
     int deactivated_inputs[2][2] = {{-1 , -1} , {-1, -1}};
     int move_type = move_type(move) , captured_piece = stack->array[stack->top].captured_piece , piece_type = pos->board[move_to(move)];
     uint8_t from = mailbox[move_from(move)];
     uint8_t to = mailbox[ move_to(move) ];
+    activated_inputs[WHITE][0] =  nn_indices[WHITE][piece_type]*64 + to;
+    activated_inputs[BLACK][0] =  nn_indices[BLACK][piece_type]*64 + Mirror(to);
+    if(move_type >= KNIGHT_PROMOTION)
+    {
+        deactivated_inputs[WHITE][0] = nn_indices[WHITE][BLACK_PAWN- 8*pos->side_to_move]*64 + from;
+        deactivated_inputs[BLACK][0] = nn_indices[BLACK][BLACK_PAWN- 8*pos->side_to_move]*64 + Mirror(from);
+    }
+    else
+    {
+        deactivated_inputs[WHITE][0] = nn_indices[WHITE][piece_type]*64 + from;
+        deactivated_inputs[BLACK][0] = nn_indices[BLACK][piece_type]*64 + Mirror(from);
+    }
     switch(move_type)
     {
-        case 4:
+        case CAPTURE: case KNIGHT_PROMOTION_CAPTURE: case BISHOP_PROMOTION_CAPTURE: case ROOK_PROMOTION_CAPTURE: case QUEEN_PROMOTION_CAPTURE:
             deactivated_inputs[WHITE][1] = nn_indices[WHITE][captured_piece]*64 + to;
             deactivated_inputs[BLACK][1] = nn_indices[BLACK][captured_piece]*64 +  Mirror(to);
-        case 0: case 1:
-            activated_inputs[WHITE] =  nn_indices[WHITE][piece_type]*64 + to;
-            activated_inputs[BLACK] =  nn_indices[BLACK][piece_type]*64 + Mirror(to);
-            deactivated_inputs[WHITE][0] = nn_indices[WHITE][piece_type]*64 + from;
-            deactivated_inputs[BLACK][0] = nn_indices[BLACK][piece_type]*64 + Mirror(from);
+        break;
+        case ENPASSANT:
+            deactivated_inputs[WHITE][1] = nn_indices[WHITE][captured_piece]*64 + (from/8)*8 + to%8;
+            deactivated_inputs[BLACK][1] = nn_indices[BLACK][captured_piece]*64 + Mirror((from/8)*8 + to%8);
+        break;
+        case SHORT_CASTLE:
+            activated_inputs[WHITE][1]  =  nn_indices[WHITE][BLACK_ROOK - 8*pos->side_to_move]*64 + to + 1;
+            activated_inputs[BLACK][1]  =  nn_indices[BLACK][BLACK_ROOK - 8*pos->side_to_move]*64 + Mirror(to + 1);
+            deactivated_inputs[WHITE][1] = nn_indices[WHITE][BLACK_ROOK - 8*pos->side_to_move]*64 + to - 1;
+            deactivated_inputs[BLACK][1] = nn_indices[BLACK][BLACK_ROOK - 8*pos->side_to_move]*64 + Mirror(to -1);
+        break;
+        case LONG_CASTLE:
+            activated_inputs[WHITE][1]  =  nn_indices[WHITE][BLACK_ROOK - 8*pos->side_to_move]*64 + to - 1;
+            activated_inputs[BLACK][1]  =  nn_indices[BLACK][BLACK_ROOK - 8*pos->side_to_move]*64 + Mirror(to - 1);
+            deactivated_inputs[WHITE][1] = nn_indices[WHITE][BLACK_ROOK - 8*pos->side_to_move]*64 + to + 2;
+            deactivated_inputs[BLACK][1] = nn_indices[BLACK][BLACK_ROOK - 8*pos->side_to_move]*64 + Mirror(to + 2);
         break;
     }
     pos->accumulator_cursor[pos->ply ]= 1;
@@ -149,13 +179,22 @@ void calculate_input_layer_incrementally(Position* pos,Stack* stack, uint16_t mo
     memcpy(accumulator[pos->ply][BLACK] , accumulator[pos->ply -1][BLACK] , 2*L1);
 
     vector *outputs1 = (vector *) &accumulator[pos->ply][WHITE];   
-    vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK];  
-    vector *weights1 = (vector *) &feature_weights[L1*activated_inputs[WHITE]];
-    vector *weights2 = (vector *) &feature_weights[L1*activated_inputs[BLACK]];
-    for(int i=0; i< L1/vector_size; i++)
+    vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK];
+    vector* weights1;
+    vector* weights2;
+
+    for(int i=0 ; i<2 ; i++)
     {
-        outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
-        outputs2[ i] = vector_add(outputs2[ i] , weights2[ i]);
+        if(activated_inputs[0][i] != -1)
+        {
+            weights1 = (vector *) &feature_weights[L1*activated_inputs[WHITE][i]];
+            weights2 = (vector *) &feature_weights[L1*activated_inputs[BLACK][i]];
+            for(int i=0; i< L1/vector_size; i++)
+            {
+                outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
+                outputs2[ i] = vector_add(outputs2[ i] , weights2[ i]);
+            }
+        }
     }
 
     for(int i=0 ; i<2 ; i++)
@@ -265,7 +304,7 @@ int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
                 return 0;
             }
     }
-    if(pos->ply && pos->accumulator_cursor[pos->ply-1 ] == 1 && move != 0 && move != NULL_MOVE && ( move_type(move) < 2 || move_type(move) == CAPTURE ) )
+    if(pos->ply && pos->accumulator_cursor[pos->ply-1 ] == 1 && move != 0 )
     {
         calculate_input_layer_incrementally(pos ,stack , move);
     }

@@ -43,7 +43,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#define Mirror(sq)  ((7-sq/8)*8 +sq%8)
+#define Mirror(sq)  ((7-(sq)/8)*8 +(sq)%8)
 #define pop(stack) (stack->top--)
 #define bitScanForward(bb) ( __builtin_ffsll(bb)-1)  //used in pawn bitboards
 
