@@ -123,7 +123,7 @@ void Uci_Loop() {
 	setbuf(stdin, NULL);
 	setbuf(stdout, NULL);
 	
-	char line[2500];
+	char line[8000];
 	char *ptr = NULL;
 	fflush(stdout);
 	Position * pos= (Position*)malloc(sizeof(Position));
