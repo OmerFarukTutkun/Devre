@@ -1,2 +1,2 @@
-clang -march=native  -Wall   -Ofast -D USE_AVX2  main.c -o devre-avx2.exe 
-clang -march=barcelona  -Wall   -Ofast -D USE_SSE3  main.c -o devre-sse3.exe
+gcc -march=native  -Wall -Ofast -flto -D USE_AVX2 *.c -o devre-avx2.exe
+gcc -march=barcelona  -Wall -Ofast -flto -D USE_SSE3 *.c -o devre-sse3.exe

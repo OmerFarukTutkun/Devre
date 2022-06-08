@@ -1,5 +1,6 @@
-#ifndef _NETWORK_H_
-#define _NETWORK_H_
+#ifndef _NNUE_H_
+#define _NNUE_H_
+
 #include <stdalign.h>
 #include "movegen.h"
 #include "incbin/incbin.h"
@@ -11,6 +12,7 @@
 #define SCALE 275 
 #define SCALE_WEIGHT 512 
 #define WEIGHT_FILE "devre.nnue"
+<<<<<<< Updated upstream
 INCBIN(EmbeddedWeights, WEIGHT_FILE);
 
 int weight_indices[2][32];
@@ -25,6 +27,8 @@ int8_t nn_indices[2][15] = {{ 0, 0 , 1 ,2 ,3 ,4 ,11 ,0 , 0 , 5 ,6, 7, 8 ,9 ,10 }
 
  alignas(64) int16_t  layer_1[2*L1];
  alignas(64) float  output_layer[OUTPUT];
+=======
+>>>>>>> Stashed changes
 
  #if defined(USE_AVX2)
     #include <immintrin.h>
@@ -47,6 +51,7 @@ int8_t nn_indices[2][15] = {{ 0, 0 , 1 ,2 ,3 ,4 ,11 ,0 , 0 , 5 ,6, 7, 8 ,9 ,10 }
     #define vector_epi32_add _mm_add_epi32
     #define vector_size      8
 #endif
+<<<<<<< Updated upstream
 
 alignas(64) int16_t accumulator[2*MAX_DEPTH][2][L1]; 
 int set_weights()
@@ -318,3 +323,8 @@ int16_t evaluate_network(Position* pos ,Stack* stack  , uint16_t move)
     return eval * ((100.0 -pos->half_move)/100.0);
 }
 #endif
+=======
+void set_weights();
+int16_t evaluate_nnue(Position* pos);
+#endif
+>>>>>>> Stashed changes

@@ -1,40 +1,35 @@
 #ifndef _SEARCH_H_
 #define _SEARCH_H_
 
-#include "movegen.h"
-#include "board.h"
-#include "legal.h"
-#include "hash.h"
-#include <windows.h>
+#include "move.h"
 #include "nnue.h"
-
-uint64_t nodes = 0;
-uint64_t qnodes =0;
-#define INF 15000
-#define MATE 14000
+#include "tt.h"
+#define INF  31000
+#define MATE 30000
 
 enum {NORMAL_GAME=0, FIX_DEPTH , FIX_NODES, FIX_TIME 
 };
-
-typedef struct search_info {
-    int depth;
-    uint64_t nodes;
-    int quit;
-    clock_t start_time;
-    clock_t stop_time;
-    int stopped;
-    int search_type;
-} search_info;
-
-int non_pawn_pieces();
-int pick_move(int* scores,int size, int* score_of_move);
-int move_scoring(Position* pos, int* scores,uint16_t *moves, int size);
-int is_repetition(Position* pos);
-int only_captures(uint16_t moves[], int size);
-int InputAvaliable();
-int UciCheck(search_info* info);
-int see(Position* pos,uint16_t move);
+typedef struct {
+  int fixed_depth;
+  int fixed_nodes;
+  int search_depth;
+  uint64_t nodes;
+  uint64_t qnodes;
+  uint64_t node_history[MAX_DEPTH];
+  int16_t  bestmove_history[MAX_DEPTH];
+  int16_t  score_history[MAX_DEPTH];
+  int seldepth;
+  int quit;
+  long long int start_time;
+  long long int stop_time;
+  int stopped;
+  int search_type;
+} SearchInfo; 
+int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info);
+int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info);
+void search(Position* pos, SearchInfo* info );
 void divideHistoryTable(Position* pos, int x); // divide history table by 2^x
+<<<<<<< Updated upstream
 int16_t qsearch(int alpha, int beta, Position* pos,Stack* stack)
 {
     qnodes++;
@@ -720,3 +715,7 @@ int UciCheck(search_info* info)
     return 0;
 }
 #endif
+=======
+int UciCheck(SearchInfo* info);
+#endif
+>>>>>>> Stashed changes
