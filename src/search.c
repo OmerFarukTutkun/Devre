@@ -169,11 +169,11 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
 
     if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
     {
-        if( move_type(pos->move_history[pos->ply]) < 2 &&  eval < alpha - depth*200) // fail-low
+        if( move_type(pos->move_history[pos->ply]) < 2 &&  eval < alpha -depth*200) // fail-low
         {
             return eval;
         }
-        if(eval > beta + depth*125 ) //fail-high
+        if(eval > beta +depth*125 ) //fail-high
         {
             return eval;
         }
