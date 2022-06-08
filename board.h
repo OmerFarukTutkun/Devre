@@ -16,18 +16,12 @@
 #define TRUE 1
 #define FALSE 0
 
-<<<<<<< Updated upstream
-#define Mirror(sq)  ((7-(sq)/8)*8 +(sq)%8)
-#define pop(stack) (stack->top--)
-#define bitScanForward(bb) ( __builtin_ffsll(bb)-1)  //used in pawn bitboards
-=======
 #define  WHITE_SHORT_CASTLE  1
 #define  WHITE_LONG_CASTLE   2 
 #define  BLACK_SHORT_CASTLE  4
 #define  BLACK_LONG_CASTLE   8
 #define  WHITE_CASTLE        3
 #define  BLACK_CASTLE        12
->>>>>>> Stashed changes
 
 typedef struct UnMake_Info
 {
