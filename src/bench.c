@@ -20,7 +20,7 @@ void bench(int argc, char **argv) {
     double time;
     uint64_t totalNodes = 0ull;
 
-    int depth     = argc > 2 ? atoi(argv[2]) : 13;
+    int depth     = argc > 2 ? atoi(argv[2]) : 10;
     int megabytes = argc > 4 ? atoi(argv[4]) : 16;
 
     tt_init(megabytes);
