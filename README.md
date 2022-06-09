@@ -1,6 +1,6 @@
 ## Devre
 
-Devre is an open-source UCI compatible chess engine written in C as a hobby project.The code is a bit badly written now but I'll try to make it cleaner and more efficent in my free time. Although Devre is an original chess engine written from scratch, I got great help from chessprogramming wiki , talkchess forum,stcokfish discord ,and some open-source C engines: Ethereal, Vice, CPW. 
+Devre is an open-source UCI compatible chess engine written in C as a hobby project. While writing the engine, I got great help from chessprogramming wiki , talkchess forum,stcokfish discord ,and some open-source engines: Ethereal, Vice, Koivisto. 
 
 ## Rating
 
@@ -12,8 +12,7 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 
 ## Movegen
 
-* 12x10 mailbox board representation 
-* Piece lists
+* Fancy magic bitboards
 * pseduo-legal movegen with make/unmake.
 
 
@@ -29,15 +28,12 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 * Late Move Reduction
 * Check Extension
 ## Move ordering
-* Hash move
-* Promotion Capture
-* Promotion
-*  Ep-capture
-*  Captures sorted by MVV-LVA
+*  Hash move
+*  Good Captures sorted by MVV-LVA
 *  Killer move
-*  Castlings
 *  countermove
 *  History heuristic
+*  Bad Captures sorted by MVV-LVA
 
 
 ## Evaluation
@@ -49,5 +45,5 @@ Thanks to Stockfish and Leela teams for publishing their training data in public
 ## Compiling 
  To compile in Windows with a cpu that supports AVX2 or SSE3:
 
- * gcc -march=native -Ofast -D USE_AVX2 main.c -o devre_avx2
- * gcc -march=native -Ofast -D USE_SSE3 main.c -o devre_sse3
+ * gcc -march=native -Ofast -flto -D USE_AVX2 *.c -o devre_avx2
+ * gcc -march=native -Ofast -flto -D USE_SSE3 *.c -o devre_sse3
