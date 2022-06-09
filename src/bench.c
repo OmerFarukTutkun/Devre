@@ -13,7 +13,7 @@ void bench(int argc, char **argv) {
     fen_to_board(&pos, STARTING_FEN); 
     initZobristKey(&pos);
     SearchInfo info;
-	memset(&info, 0, sizeof(SearchInfo));
+    memset(&info, 0, sizeof(SearchInfo));
 
     uint64_t nodes[256];
 
@@ -27,12 +27,13 @@ void bench(int argc, char **argv) {
     time = timeInMilliseconds();
     for (int i = 0; strcmp(Benchmarks[i], ""); i++) {
         fen_to_board(&pos, Benchmarks[i]);
-        memset(&info, 0, sizeof(SearchInfo));
         char line[256];
         sprintf(line , "go depth %d\n", depth);
         go(line, &info, &pos);
         nodes[i] = info.qnodes + info.nodes;
         tt_clear(); 
+        memset(&info, 0, sizeof(SearchInfo));
+        memset(&pos, 0,  sizeof(Position));
     }
 
     time = timeInMilliseconds() - time;
