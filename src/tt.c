@@ -70,7 +70,7 @@ void tt_save(Position* pos , int score ,char flag,uint8_t depth,uint16_t move)
 {
     TTentry* entry= & TranspositionTable[pos->key & TT_MASK];
     if( entry->key == 0ull  
-    || entry->depth < depth + 2*(!entry->hit + is_old(entry->flag))*( (entry->flag & TT_NODE_TYPE) != TT_EXACT)
+    || entry->depth < depth
     || (entry->depth == depth  && (flag == TT_EXACT || (entry->flag & TT_NODE_TYPE) != TT_EXACT) ))
     {
         if( score >  MATE - MAX_DEPTH)
