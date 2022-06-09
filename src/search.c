@@ -320,7 +320,15 @@ int getPV(Position* pos, int depth) //get PV from hash table. It is generally sh
         uint16_t move = entry->move;
         if(move == 0)
             return 0;
-
+        MoveList move_list;
+        move_list.num_of_moves = generate_moves(pos, move_list.moves, 1);
+        for(int i=0 ; i <= move_list.num_of_moves ; i++)
+        {
+           if(i ==  move_list.num_of_moves)
+                return 0;
+            if(move_list.moves[i] == move)
+                break;
+        }
         make_move(pos, move);
         if( is_legal(pos ) == 0)
         {
