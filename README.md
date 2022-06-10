@@ -27,6 +27,8 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 * Mate Distance Pruning
 * Late Move Reduction
 * Check Extension
+* Futility prunings
+* SEE reduction and pruning
 ## Move ordering
 *  Hash move
 *  Good Captures sorted by MVV-LVA
