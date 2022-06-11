@@ -15,7 +15,7 @@ void print_move(uint16_t move);
 uint16_t string_to_move(Position* pos ,char* str);
 void make_move(Position* pos, uint16_t move);
 void unmake_move(Position* pos,  uint16_t move);
-uint16_t pick_move(MoveList* move_list);
+uint16_t pick_move(MoveList* move_list, int index);
 void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int flag);
 int calculate_SEE(Position* pos, uint16_t move);
 #endif

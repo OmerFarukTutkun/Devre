@@ -45,10 +45,10 @@ uint16_t string_to_move(Position* pos ,char* str)
     }
     return NULL_MOVE;
 }
-uint16_t pick_move(MoveList* move_list)
+uint16_t pick_move(MoveList* move_list, int index)
 {
     int max_index=0;
-    for(int i=1 ; i < move_list->num_of_moves ; i++)
+    for(int i=1 ; i < move_list->num_of_moves -index ; i++)
     {
         if(move_list->move_scores[i] > move_list->move_scores[max_index])
         {
@@ -56,8 +56,12 @@ uint16_t pick_move(MoveList* move_list)
         }
     }
     move_list->score_of_move = move_list->move_scores[max_index];
-    move_list->move_scores[max_index] = -INT_MAX;
-    return move_list->moves[max_index];
+    uint16_t move = move_list->moves[max_index];
+
+    move_list->move_scores[max_index] =  move_list->move_scores[move_list->num_of_moves - index -1];
+    move_list->moves[max_index] =  move_list->moves[move_list->num_of_moves - index -1];
+    
+    return move;
 }
 void make_move(Position* pos, uint16_t move)
 {
