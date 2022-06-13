@@ -256,7 +256,7 @@ int calculate_SEE(Position* pos, uint16_t move)
     gain[d]  = see_values[piece] - gain[d-1];
     clear_bit(&occ, from);
     clear_bit(&attackers, from);
-    if ( max(-gain[d-1], gain[d]) < 0){
+    if ( MAX(-gain[d-1], gain[d]) < 0){
         break;
     }
     if (piece == PAWN || piece == BISHOP || piece == QUEEN) 
@@ -268,7 +268,7 @@ int calculate_SEE(Position* pos, uint16_t move)
   } while (from != NO_SQ);
 
   while (--d)
-    gain[d-1] = -max(-gain[d-1], gain[d]);
+    gain[d-1] = -MAX(-gain[d-1], gain[d]);
 
   return gain[0];
 }

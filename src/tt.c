@@ -11,7 +11,7 @@ TTentry* TranspositionTable;
 #define is_old(flag) ( ( (flag) & TT_OLD) >> 2)
 void tt_init(int megabyte)
 {
-    megabyte = min(4096 , max(1, megabyte));
+    megabyte = MIN(4096 , MAX(1, megabyte));
     int size = (MB*megabyte )/sizeof(TTentry);
     int keySize = log2( size );
     TT_MASK = (ONE << keySize) - ONE;

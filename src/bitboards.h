@@ -3,7 +3,18 @@
 
 #include "stdint.h"
 #include "stdbool.h"
-#include "Windows.h"
+
+#ifdef WIN32
+    #include <Windows.h>
+    #include <io.h>
+#else
+    #include <sys/time.h>
+    #include <unistd.h>
+#endif
+
+#define MAX(a,b) (((a) > (b)) ? (a) : (b))
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+
 enum Colors{
     WHITE,
     BLACK,

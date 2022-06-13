@@ -150,7 +150,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     //check extension
     if(inCheck && pos->ply)
     {
-        depth = max(1, 1+ depth);
+        depth = MAX(1, 1+ depth);
     }
 
     if (depth <= 0)
@@ -186,7 +186,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     && ( eval > beta) && has_non_pawn_pieces(pos) )
     {
         int R= 4 + depth/4;
-        R += min(3 ,(eval- beta)/200);
+        R += MIN(3 ,(eval- beta)/200);
 
         make_move(pos, NULL_MOVE);
         score = -AlphaBeta( -(beta), -(beta -1), pos, depth -R, info);
@@ -236,8 +236,8 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             lmr += !PVNode;
             lmr += inCheck && piece_type(pos->board[move_to(move)]) == KING;
             lmr -= move_list.score_of_move > 7*Mil; // reduce less for killer and counter move
-            lmr -= min( 2, pos->history[pos->side][move_from(move)][move_to(move)] / 500);//less reduction for the moves with good history score
-            lmr =  max(1, min(depth-1 , lmr)); 
+            lmr -= MIN( 2, pos->history[pos->side][move_from(move)][move_to(move)] / 500);//less reduction for the moves with good history score
+            lmr =  MAX(1, MIN(depth-1 , lmr)); 
         }
         if(lmr != depth -1)
             lmr += see_reduction;
@@ -441,28 +441,39 @@ void divideHistoryTable(Position* pos, int x)
 
 int InputAvaliable()
 {
-//the code taken from Vice 
-  static int init = 0, pipe;
-	static HANDLE inh;
-	DWORD dw;
+    #ifndef WIN32
+        struct timeval tv;
+        fd_set readfds;
 
-	if (!init) {
-		init = 1;
-		inh = GetStdHandle(STD_INPUT_HANDLE);
-		pipe = !GetConsoleMode(inh, &dw);
-		if (!pipe) {
-			SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
-			FlushConsoleInputBuffer(inh);
-		}
-	}
-	if (pipe) {
-		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL))
-			return 1;
-		return dw;
-	} else {
-		GetNumberOfConsoleInputEvents(inh, &dw);
-		return dw <= 1 ? 0 : dw;
-	}
+        FD_ZERO (&readfds);
+        FD_SET (fileno(stdin), &readfds);
+        tv.tv_sec=0; tv.tv_usec=0;
+        select(16, &readfds, 0, 0, &tv);
+
+        return (FD_ISSET(fileno(stdin), &readfds));
+    #else
+        static int init = 0, pipe;
+        static HANDLE inh;
+        DWORD dw;
+
+        if (!init) {
+            init = 1;
+            inh = GetStdHandle(STD_INPUT_HANDLE);
+            pipe = !GetConsoleMode(inh, &dw);
+            if (!pipe) {
+                SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
+                FlushConsoleInputBuffer(inh);
+            }
+        }
+        if (pipe) {
+            if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL))
+                return 1;
+            return dw;
+        } else {
+            GetNumberOfConsoleInputEvents(inh, &dw);
+            return dw <= 1 ? 0 : dw;
+        }
+    #endif
 }
 int UciCheck(SearchInfo* info)
 {

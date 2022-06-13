@@ -1,8 +1,15 @@
 CC       = gcc
-CFLAGS   =  -march=native -Wall -Ofast -flto -D USE_AVX2
+CFLAGS   =  -Wall -Ofast -flto 
+AVX2   += -march=native -D USE_AVX2
+SSE3   += -march=barcelona -D USE_SSE3
 EXE      = devre
 SRC      = *.c
-EXT      = .exe
-RELEASE  = $(CC) $(CFLAGS) $(SRC) -o $(EXE)
-release: 
-	$(RELEASE)$(EXT)
+LIBS     = -lm
+EXT      =
+ifeq ($(OS),Windows_NT)
+	EXT += .exe
+endif
+avx2: 
+	$(CC) $(CFLAGS) $(AVX2) $(SRC) $(LIBS) -o $(EXE)-avx2$(EXT)
+sse3:
+	$(CC) $(CFLAGS) $(SSE3) $(SRC) $(LIBS) -o $(EXE)-sse3$(EXT)
