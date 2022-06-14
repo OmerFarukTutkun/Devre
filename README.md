@@ -45,7 +45,7 @@ The default net was trained with 1 billion positions from Leela data. The triani
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 ## Compiling 
- To compile in Windows with a cpu that supports AVX2 or SSE3:
+ To compile in Linux/Windows with a cpu that supports AVX2 or SSE3:
 
- * gcc -march=native -Ofast -flto -D USE_AVX2 *.c -o devre_avx2
- * gcc -march=native -Ofast -flto -D USE_SSE3 *.c -o devre_sse3
+ * gcc -march=native -Ofast -flto -D USE_AVX2 *.c -lm -o devre_avx2
+ * gcc -march=native -Ofast -flto -D USE_SSE3 *.c -lm -o devre_sse3
