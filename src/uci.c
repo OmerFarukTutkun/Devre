@@ -162,7 +162,7 @@ void Uci_Loop() {
 		else if (string_compare(line, "see move", 8)) {
             uint16_t move = string_to_move(&pos, line +9);
 			assert(move);
-			printf("see value:  %d\n", calculate_SEE(&pos, move));
+			printf("see value:  %d\n", SEE(&pos, move));
         }else if (string_compare(line, "quit", 4)) {
             break;
         }else if (string_compare(line, "uci", 3)) {

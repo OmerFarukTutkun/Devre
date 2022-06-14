@@ -44,7 +44,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info)
     for (int i=0 ; i < move_list.num_of_moves ; i++)
     {
         move= pick_move(&move_list, i);
-	    int see = calculate_SEE(pos, move);
+	    int see = SEE(pos, move);
         if(see < 0 || (see == 0 && stand_pat + 300 < alpha))
             continue;
         make_move(pos, move);
@@ -209,7 +209,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
 
         move= pick_move(&move_list,i);
         //see pruning
-        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && calculate_SEE(pos,move) < 0)
+        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && SEE(pos,move) < 0)
         {
             played++;
             continue;
@@ -220,7 +220,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             played++;
             continue;
         }
-        int see_reduction = (played >1 && depth > 2 && calculate_SEE(pos, move) < 0);
+        int see_reduction = (played >1 && depth > 2 && SEE(pos, move) < 0);
         make_move(pos, move);
         if( !is_legal(pos) )
         {

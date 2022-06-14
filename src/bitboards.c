@@ -20,7 +20,7 @@ int bitScanForward(uint64_t bb)
     return __builtin_ctzll(bb);
 }
 int poplsb(uint64_t *bb) {
-    int lsb = __builtin_ctzll(*bb);
+    int lsb = bitScanForward(*bb);
     *bb &= *bb - 1;
     return lsb;
 }

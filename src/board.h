@@ -38,12 +38,6 @@ typedef struct Position_History{
     int index;
 }Position_History;
 
-typedef struct NNUE_Changes
-{
-    int additions[2][2];
-    int removals [2][2];
-}NNUE_Changes;
-
 typedef struct Position{
     uint8_t   board[64] ;
     uint64_t  bitboards[12];
@@ -63,7 +57,6 @@ typedef struct Position{
     UnMake_Info unmakeStack[2*MAX_DEPTH];
     uint16_t move_history[2*MAX_DEPTH];
     Position_History pos_history;
-    NNUE_Changes  nnue_changes;
  }Position;
 
 //piece values for mvv-lva

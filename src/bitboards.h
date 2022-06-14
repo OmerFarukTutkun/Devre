@@ -20,19 +20,19 @@ enum Colors{
     BLACK,
 };
 enum Pieces{
-    PAWN   = 0u, 
-    KNIGHT = 1u, 
-    BISHOP = 2u, 
-    ROOK   = 3u,  
-    QUEEN  = 4u, 
-    KING   = 5u,
-    BLACK_PAWN   = 6u, 
-    BLACK_KNIGHT = 7u,
-    BLACK_BISHOP = 8u, 
-    BLACK_ROOK   = 9u, 
-    BLACK_QUEEN  = 10u,  
-    BLACK_KING   = 11u,
-    EMPTY = 255u,
+    PAWN   = 0, 
+    KNIGHT = 1, 
+    BISHOP = 2, 
+    ROOK   = 3,  
+    QUEEN  = 4, 
+    KING   = 5,
+    BLACK_PAWN   = 6, 
+    BLACK_KNIGHT = 7,
+    BLACK_BISHOP = 8, 
+    BLACK_ROOK   = 9, 
+    BLACK_QUEEN  = 10,  
+    BLACK_KING   = 11,
+    EMPTY = 255,
 };
 
 static const char piece_notations[] = "PNBRQKpnbrqk";

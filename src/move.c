@@ -1,7 +1,7 @@
 #include "move.h"
 #include "tt.h"
 
-const int move_type_scores[16] = {Mil, Mil, 3*Mil, 2*Mil, 10*Mil, 10*Mil, 0, 0,-10*Mil,-9*Mil,-8*Mil, 20*Mil,-7*Mil,-6*Mil,-5*Mil, 25*Mil};
+const int move_type_scores[16] = {Mil, Mil, 3*Mil, 2*Mil, 10*Mil, 10*Mil, 0, 0, -10*Mil, -9*Mil, -8*Mil, 20*Mil, -7*Mil, -6*Mil, -5*Mil, 25*Mil};
 const int see_values[12]   = { 100 , 325 , 325 , 500 ,1000 ,10000 , 100 , 325 , 325 , 500 ,1000 ,10000};
 void print_move(uint16_t move)
 {
@@ -81,7 +81,6 @@ void make_move(Position* pos, uint16_t move)
     uint8_t move_type = move_type(move);
     uint8_t piece = pos->board[from]; // moving piece
     uint8_t captured_piece = pos->board[to]; // Captured piece type 
-    memset(&pos->nnue_changes, 0, sizeof(NNUE_Changes));
     if(move_type == EN_PASSANT)
     {
        captured_piece = piece_index(!pos->side , PAWN);
@@ -231,7 +230,7 @@ void unmake_move(Position* pos,  uint16_t move)
             break;
     }
 }
-int calculate_SEE(Position* pos, uint16_t move)
+int SEE(Position* pos, uint16_t move)
 {
   // Do not calculate SEE for castlings, ep, promotions
   if (move_type(move) >= KING_CASTLE && move_type(move) != CAPTURE){
@@ -306,7 +305,7 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
                 uint8_t to   = move_to(move);
                 uint8_t piece = pos->board[from];
                 uint8_t captured_piece= pos->board[to];
-                if(flag != QSEARCH && calculate_SEE(pos, move) < 0 )
+                if(flag != QSEARCH && SEE(pos, move) < 0 )
                     scores[i]  =  Mil + piece_values[captured_piece]*100 - piece_values[piece];
                 else
                     scores[i]  += piece_values[captured_piece]*100 - piece_values[piece];

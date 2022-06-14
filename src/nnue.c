@@ -2,7 +2,7 @@
 #include "board.h"
 int weight_indices[2][32];
 int sz;
-int8_t nn_indices[2][12] = {{0 , 1 ,2 ,3 ,4 ,5  ,6, 7, 8 ,9 ,10, 11 },{ 6 ,7, 8 ,9, 10 , 11, 0, 1 ,2 ,3,4 , 5 }};
+const int8_t nn_indices[2][12] = {{0 , 1 ,2 ,3 ,4 ,5  ,6, 7, 8 ,9 ,10, 11 },{ 6 ,7, 8 ,9, 10 , 11, 0, 1 ,2 ,3,4 , 5 }};
 
  alignas(64) int16_t  feature_weights[INPUT_SIZE*L1];
  alignas(64) int16_t  feature_biases  [L1];

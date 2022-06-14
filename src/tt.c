@@ -7,8 +7,11 @@ uint64_t EnPassantKeys[64];
 
 #define MB 1024*1024
 uint64_t  TT_MASK;
-TTentry* TranspositionTable;
 #define is_old(flag) ( ( (flag) & TT_OLD) >> 2)
+
+TTentry* TranspositionTable;
+
+
 void tt_init(int megabyte)
 {
     megabyte = MIN(4096 , MAX(1, megabyte));
@@ -68,7 +71,7 @@ void initZobristKey(Position* pos)
 }
 void tt_save(Position* pos , int score ,char flag,uint8_t depth,uint16_t move)
 {
-    TTentry* entry= & TranspositionTable[pos->key & TT_MASK];
+    TTentry* entry = &TranspositionTable[pos->key & TT_MASK];
     if( entry->key == 0ull  
     || entry->depth < depth
     || (entry->depth == depth  && (flag == TT_EXACT || (entry->flag & TT_NODE_TYPE) != TT_EXACT) ))
