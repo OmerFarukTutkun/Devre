@@ -65,12 +65,17 @@ uint16_t pick_move(MoveList* move_list, int index)
 }
 void make_move(Position* pos, uint16_t move)
 {
+    
     if(move == NULL_MOVE)//do null move
     {
         push(pos, EMPTY);
         pos->ply++;
         pos->side = !pos->side;
         pos->key ^= SideToPlayKey;
+        if(pos->unmakeStack[pos->ply -1].en_passant != -1) //remove the last en passant key 
+        {
+            pos->key ^= EnPassantKeys[ pos->unmakeStack[pos->ply -1].en_passant] ;
+        }
         pos->en_passant = -1;
         pos->half_move = 0;
         pos->move_history[pos->ply] = NULL_MOVE;
@@ -135,9 +140,12 @@ void make_move(Position* pos, uint16_t move)
         case DOUBLE_PAWN_PUSH:
             move_piece(pos, piece , from,to);
             pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to];
-            uint64_t ep= pos->bitboards[piece_index(!pos->side , PAWN)] & PawnAttacks[pos->side][(from + to)/2]; 
+            uint64_t ep= pos->bitboards[piece_index(!pos->side , PAWN)] & PawnAttacks[pos->side][(from + to)/2];
             if(ep)
+            {
                 pos->en_passant = (from + to)/2;
+                pos->key ^= EnPassantKeys[  (from + to)/2] ;
+            }
             break;
         case KING_CASTLE:
             move_piece(pos, piece, from, to);
