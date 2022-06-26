@@ -1,6 +1,7 @@
 #include "bench.h"
 void bench(int argc, char **argv) {
 
+    //bench file is taken from Ethereal
     static const char *Benchmarks[] = {
         #include "bench.csv"
         ""
