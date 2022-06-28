@@ -209,6 +209,7 @@ bool is_repetition(Position * pos)
             return FALSE;
         }
     }
+    return FALSE;
 }
 bool is_material_draw(Position* pos)
 {
