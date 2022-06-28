@@ -192,18 +192,23 @@ bool has_non_pawn_pieces(Position* pos)
 }
 bool is_repetition(Position * pos)
 {
+    int count = 0;
     for(int i = pos->pos_history.index - 2 ; i>= 0; i--) 
     {
         if(pos->key == pos->pos_history.keys[i])
         {
             return TRUE;
+            count++;
         }
+        if(count == 1 && (pos->pos_history.index - i) <= pos->ply)
+            return TRUE;
+        if(count == 2)
+            return TRUE;
         if( pos->pos_history.index  - i > pos->half_move)
         {
             return FALSE;
         }
     }
-    return FALSE;
 }
 bool is_material_draw(Position* pos)
 {
