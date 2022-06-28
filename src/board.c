@@ -216,8 +216,6 @@ bool is_material_draw(Position* pos)
     int total = bishop_counts[0] + bishop_counts[1] + knight_counts[0] + knight_counts[1] ;
     if(total <= 1)
         return TRUE;
-    if(total == 2 && (bishop_counts[0] != 2 && bishop_counts[1] != 2) )
-        return TRUE; 
     return FALSE;
 }
 bool is_draw(Position* pos)
