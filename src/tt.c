@@ -7,10 +7,9 @@ uint64_t EnPassantKeys[64];
 
 #define MB 1024*1024
 uint64_t  TT_MASK;
-#define is_old(flag) ( ( (flag) & TT_OLD) >> 2)
 
 TTentry* TranspositionTable;
-
+uint8_t age;
 
 void tt_init(int megabyte)
 {
@@ -23,6 +22,7 @@ void tt_init(int megabyte)
 }
 void tt_clear()
 {
+    age = 0;
     memset(TranspositionTable , 0, (TT_MASK + ONE)*sizeof(TTentry));
 }
 void tt_free()
@@ -73,21 +73,20 @@ void tt_save(Position* pos , int score ,char flag,uint8_t depth,uint16_t move)
 {
     TTentry* entry = &TranspositionTable[pos->key & TT_MASK];
     if( entry->key == 0ull  
-    || entry->depth < depth
-    || (flag == TT_EXACT && ( (entry->flag & TT_OLD)))
-    || (entry->depth == depth  && (flag == TT_EXACT || (entry->flag & TT_NODE_TYPE) != TT_EXACT) ))
+    ||   entry->depth - 2*(age - entry->age)  + (flag != TT_EXACT && entry->flag  == TT_EXACT) <= depth
+    || (flag == TT_EXACT && entry->age < age))
     {
         if( score >  MATE - MAX_DEPTH)
             score += pos->ply;
         else if( -score > MATE - MAX_DEPTH)
             score -= pos->ply;
-        if(pos->key != entry->key)
-            entry->hit = 0;
+
         entry->key   = pos->key;
         entry->score = score;
         entry->depth = depth;
-        entry->flag  = flag + TT_NEW;
+        entry->flag  = flag;
         entry->move  = move;
+        entry->age   = age;
     }
 }
 TTentry* tt_probe(uint64_t key)
@@ -98,13 +97,7 @@ TTentry* tt_probe(uint64_t key)
     else
         return NULL;
 }
-void tt_clear_old_entries()
+void update_age()
 {
-    for(int i=0; i<= TT_MASK ; i++)
-    {
-        if( TranspositionTable[i].hit == 0  &&  is_old(TranspositionTable[i].flag)) 
-            TranspositionTable[i].key=0;
-        TranspositionTable[i].hit = 0;
-        TranspositionTable[i].flag = (TranspositionTable[i].flag & TT_NODE_TYPE) + TT_OLD;
-    }
+    age +=1;
 }

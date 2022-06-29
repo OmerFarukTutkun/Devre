@@ -12,16 +12,13 @@ int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info)
     TTentry* entry = tt_probe(pos->key);
     if(entry)
     {
-        char flag   = entry->flag & TT_NODE_TYPE;
+        char flag   = entry->flag ;
         int16_t val =  entry->score;
         ttMove = entry->move;
         if(val > MATE -MAX_DEPTH)
                 val -= pos->ply;
         else if(val < -MATE + MAX_DEPTH)
                 val +=pos->ply;
-
-        if(entry->hit < 255)
-            entry->hit++;
         if( flag == TT_EXACT
         || (flag == TT_ALPHA && alpha >= val)
         || ( flag == TT_BETA && beta <= val))
@@ -129,11 +126,9 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     TTentry* entry = tt_probe(pos->key);
     if(entry && depth > 0 && pos->ply && !PVNode)
     {
-        tt_flag= entry->flag & TT_NODE_TYPE;
+        tt_flag= entry->flag;
         eval = score = entry->score;
         ttMove = entry->move;
-        if(entry->hit < 255)
-            entry->hit++;
         if( entry->depth >= depth)
         {
             if(score > MATE -MAX_DEPTH)
@@ -416,7 +411,7 @@ void search(Position* pos, SearchInfo* info )
     print_move(best_move);
     printf("\n");
     fflush(stdout);
-    tt_clear_old_entries();
+    update_age();
 }
 void divideHistoryTable(Position* pos, int x)
 {
