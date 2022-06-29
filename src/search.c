@@ -413,14 +413,7 @@ void search(Position* pos, SearchInfo* info )
     }
 
     printf("bestmove  ");
-    if( best_move)
-    {
-        print_move(best_move);
-    }
-    else
-    {
-        getPV(pos, 1);
-    }
+    print_move(best_move);
     printf("\n");
     fflush(stdout);
     tt_clear_old_entries();
