@@ -1,5 +1,6 @@
 #include "move.h"
 #include "tt.h"
+#include "history.h"
 
 const int move_type_scores[16] = {Mil, Mil, 3*Mil, 2*Mil, 10*Mil, 10*Mil, 0, 0, -10*Mil, -9*Mil, -8*Mil, 20*Mil, -7*Mil, -6*Mil, -5*Mil, 25*Mil};
 const int see_values[12]   = { 100 , 325 , 325 , 500 ,1000 ,10000 , 100 , 325 , 325 , 500 ,1000 ,10000};
@@ -71,6 +72,7 @@ void make_move(Position* pos, uint16_t move)
         push(pos, EMPTY);
         pos->ply++;
         pos->side = !pos->side;
+        pos->threat = allAttackedSquares(pos, !pos->side); 
         pos->key ^= SideToPlayKey;
         if(pos->unmakeStack[pos->ply -1].en_passant != -1) //remove the last en passant key 
         {
@@ -170,8 +172,9 @@ void make_move(Position* pos, uint16_t move)
             add_piece(pos, piece_index(pos->side, KNIGHT + ( move_type & 3)), to);
               pos->key  ^= PieceKeys[piece][from] ^ PieceKeys[ piece_index(pos->side, KNIGHT + ( move_type & 3)) ][to];
         break;
-    }  
+    } 
     pos->side = !pos->side;
+    pos->threat = allAttackedSquares(pos, !pos->side); 
     if(is_capture(move) || piece_type(piece) == PAWN )
     {
         pos->half_move = 0;
@@ -191,6 +194,7 @@ void unmake_move(Position* pos,  uint16_t move)
     pos->half_move          = unmake_info.half_move;
     pos-> side              = !pos->side;
     pos-> key               = unmake_info.key;  
+    pos->threat             = unmake_info.threat;
     pos->accumulator_cursor[pos->ply ] = 0;
     pos->ply--;
     if(move == NULL_MOVE)
@@ -305,7 +309,7 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
             }
             else if(move_type(move)< 2) //history heuristic
             {
-                scores[i] += pos->history[pos->side][move_from(move)][move_to(move)];
+                scores[i] += get_history(pos, move);
             }
             else if(move_type(move) == CAPTURE )
             {

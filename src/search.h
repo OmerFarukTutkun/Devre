@@ -4,11 +4,13 @@
 #include "move.h"
 #include "nnue.h"
 #include "tt.h"
+#include "history.h"
 #define INF  31000
 #define MATE 30000
 
 enum {NORMAL_GAME=0, FIX_DEPTH , FIX_NODES, FIX_TIME 
 };
+
 typedef struct {
   int fixed_depth;
   int fixed_nodes;
@@ -25,9 +27,9 @@ typedef struct {
   int stopped;
   int search_type;
 } SearchInfo; 
+
 int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info);
 int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info);
 void search(Position* pos, SearchInfo* info );
-void divideHistoryTable(Position* pos, int x); // divide history table by 2^x
 int UciCheck(SearchInfo* info);
 #endif

@@ -31,6 +31,7 @@ typedef struct UnMake_Info
     uint8_t  captured_piece;
     uint8_t  half_move;
     uint64_t key;
+    uint64_t threat;
 }UnMake_Info;
 
 typedef struct Position_History{
@@ -46,11 +47,14 @@ typedef struct Position{
     int8_t    en_passant;
     uint16_t  full_move;
     uint64_t  key; 
+    uint64_t  threat;
     uint16_t  bestmove;
     uint8_t   ply;
-    uint32_t  history[2][64][64];   // history table for ordering quiet moves
+    int16_t   history[2][2][2][64][64];   // history table for ordering quiet moves
+    int16_t   conthist[2][6][64][6][64];  
     uint16_t  killer[MAX_DEPTH]; // a killer move for move ordering
     uint16_t  counter_moves[2][64][64]; // a counter move for move ordering
+
     uint8_t   accumulator_cursor[2*MAX_DEPTH];
     uint8_t   piece_count;
     int16_t   evals[MAX_DEPTH];

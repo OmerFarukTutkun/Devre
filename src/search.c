@@ -89,10 +89,6 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     {
         UciCheck(info);
     }
-    if((info->nodes & 65535) == 0)
-    {
-        divideHistoryTable(pos, 4);
-    }
     if( ( ( info->nodes & 255 ) == 0  && ((timeInMilliseconds() + 50) > info->stop_time ) && info->search_depth > 1) 
             || info->stopped 
             || ( info->search_type == FIX_NODES && info->nodes + info->qnodes > info->fixed_nodes))  
@@ -111,7 +107,6 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         beta = mating_value;
         if (alpha >= mating_value) return mating_value;
     }
-
     mating_value = -MATE + pos->ply;
 
     if (mating_value > alpha) {
@@ -164,7 +159,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
 
     if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
     {
-        if( move_type(pos->move_history[pos->ply]) < 2 &&  eval < alpha -depth*200) // fail-low
+        if( eval < alpha -depth*200) // fail-low
         {
             return eval;
         }
@@ -199,10 +194,11 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
 
     int number_of_illegal_moves=0;
     int played = 0;
+    uint16_t played_moves[256];
     for (int i=0 ; i < move_list.num_of_moves ; i++)
     {
 
-        move= pick_move(&move_list,i);
+        played_moves[played] = move = pick_move(&move_list,i);
         //see pruning
         if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && SEE(pos,move) < 0)
         {
@@ -211,6 +207,12 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         }
         // futility pruning
         if( !PVNode && depth <=8 && !inCheck && move_type(move) < 2 && played > 5 && eval + depth*40 + 200 < alpha)
+        {
+            played++;
+            continue;
+        }
+        // history pruning
+        if( !PVNode && depth <=5 && !inCheck && move_type(move) < 2 && played > 5 && get_history(pos, move) < -10000)
         {
             played++;
             continue;
@@ -231,7 +233,6 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             lmr += !PVNode;
             lmr += inCheck && piece_type(pos->board[move_to(move)]) == KING;
             lmr -= move_list.score_of_move > 7*Mil; // reduce less for killer and counter move
-            lmr -= MIN( 2, pos->history[pos->side][move_from(move)][move_to(move)] / 500);//less reduction for the moves with good history score
             lmr =  MAX(1, MIN(depth-1 , lmr)); 
         }
         if(lmr != depth -1)
@@ -269,13 +270,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         {
             if(move_type(move) < 2)
             {
-                if(pos->move_history[pos->ply] > NULL_MOVE)
-                    pos->counter_moves[pos->side][move_from(pos->move_history[pos->ply])][move_to(pos->move_history[pos->ply])] = move;//update counter move heuristic
-                pos->killer[pos->ply] = move;
-                if( depth > 2 )
-                {
-                    pos->history[pos->side][move_from(move)][move_to(move)] += depth*depth;
-                }
+                update_histories(pos, depth , played_moves, played );
             }
             tt_save(pos,best_score, TT_BETA, depth, move);
             return best_score;
@@ -413,20 +408,6 @@ void search(Position* pos, SearchInfo* info )
     fflush(stdout);
     update_age();
 }
-void divideHistoryTable(Position* pos, int x)
-{
-    for(int i=0 ; i<2 ; i++)
-    {
-        for(int j=0 ; j<64 ; j++)
-        {
-            for(int k=0 ; k<64 ; k++)
-            {
-                pos->history[i][j][k] >>= x;
-            }
-        }
-    }
-}
-
 int InputAvaliable()
 {
     #ifndef WIN32

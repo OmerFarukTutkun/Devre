@@ -116,13 +116,18 @@ void Uci_Loop() {
     init_attacks();
     set_weights();
     init_keys();
+
     Position pos;
     fen_to_board(&pos, STARTING_FEN); 
+
     initZobristKey(&pos);
+
     SearchInfo info;
 	memset(&info, 0, sizeof(SearchInfo));
     info.quit = FALSE;
+
 	tt_init(16);
+
 	set_position("position startpos\n", &pos);
 	printf("id name Devre %s\n" ,VERSION);
     printf("id author Omer Faruk Tutkun\n");
@@ -145,17 +150,10 @@ void Uci_Loop() {
             set_position(line, &pos);
         }else  if (string_compare(line, "ucinewgame", 10)) {
 			tt_clear();
-			for(int i=0 ; i<2 ; i++)
-			{
-				for(int j=0 ; j<64; j++)
-				{
-					for(int k=0 ; k<64 ; k++)
-					{
-						pos.history[i][j][k] =0;
-						pos.counter_moves[i][j][k] = 0;
-					}
-				}
-			}
+			memset(&pos.history[0][0][0][0][0], 0 ,2*2*2*64*64 * sizeof(int16_t));
+			memset(&pos.conthist[0][0][0][0][0], 0 ,2*6*64*6*64 * sizeof(int16_t));
+			memset(&pos.counter_moves[0][0][0], 0 ,2*64*64* sizeof(uint16_t));
+			
         }else if (string_compare(line, "go", 2)) {
             go(line , &info, &pos);
 		}
@@ -166,7 +164,7 @@ void Uci_Loop() {
         }else if (string_compare(line, "quit", 4)) {
             break;
         }else if (string_compare(line, "uci", 3)) {
-		printf("id name Devre %s\n", VERSION);
+			printf("id name Devre %s\n", VERSION);
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 1 max 4096\n");
             printf("uciok\n");

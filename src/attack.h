@@ -183,4 +183,5 @@ uint64_t square_attacked_by(Position *pos, uint8_t square);
 uint8_t getLeastValuablePiece(Position* pos, uint64_t attackers, int side);
 uint64_t rook_attacks(uint64_t occ, int sq);
 uint64_t bishop_attacks(uint64_t occ, int sq);
+uint64_t allAttackedSquares(Position* pos, int colour);
 #endif

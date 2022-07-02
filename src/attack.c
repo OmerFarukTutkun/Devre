@@ -110,6 +110,39 @@ uint8_t getLeastValuablePiece(Position* pos, uint64_t attackers, int side)
     }
     return NO_SQ;
 }
+uint64_t allAttackedSquares(Position* pos, int colour) {
+
+    uint64_t occupied = pos->occupied[0] | pos->occupied[1];
+
+    uint64_t pawns ,knights,bishops,rooks , kings, threats = 0ull; 
+    if(colour == WHITE)
+    { 
+
+        pawns   = pos->bitboards[PAWN  ];
+        knights = pos->bitboards[KNIGHT];
+        bishops = pos->bitboards[BISHOP] | pos->bitboards[QUEEN];
+        rooks   = pos->bitboards[ROOK  ] | pos->bitboards[QUEEN];
+        kings   = pos->bitboards[KING  ];
+        threats =  (( pawns & ~FILE_H) <<9 ) | (( pawns &  ~FILE_A) << 7 );
+    }
+    else
+    {
+        pawns   = pos->bitboards[BLACK_PAWN  ];
+        knights = pos->bitboards[BLACK_KNIGHT];
+        bishops = pos->bitboards[BLACK_BISHOP] | pos->bitboards[BLACK_QUEEN];
+        rooks   = pos->bitboards[BLACK_ROOK  ] | pos->bitboards[BLACK_QUEEN];
+        kings   = pos->bitboards[BLACK_KING  ];
+        threats = ( ( pawns & ~FILE_H) >> 7) | (( pawns &  ~FILE_A) >> 9 );
+    }
+
+    while (knights) threats |= KnightAttacks[poplsb(&knights)];
+    while (bishops) threats |= bishop_attacks(occupied, poplsb(&bishops));
+    while (rooks)   threats |= rook_attacks(occupied, poplsb(&rooks));
+    while (kings)   threats |= KingAttacks[(poplsb(&kings))];
+
+    return threats;
+}
+
 uint64_t square_attacked_by(Position *pos, uint8_t square)
 {
     uint64_t occupied = pos->occupied[0] | pos->occupied[1];
@@ -117,7 +150,7 @@ uint64_t square_attacked_by(Position *pos, uint8_t square)
     uint64_t horizontal_attacks = get_attacks(occupied, square, ROOK);
     uint64_t knight_attacks     = get_attacks(occupied, square, KNIGHT);
     uint64_t king_attacks       = get_attacks(occupied, square, KING);
-
+    
     uint64_t attackers = ( knight_attacks     & ( pos->bitboards[KNIGHT]  |  pos->bitboards[BLACK_KNIGHT] ))
                         |( diagonal_attacks   & ( pos->bitboards[BISHOP]  |  pos->bitboards[BLACK_BISHOP] |  pos->bitboards[QUEEN] | pos->bitboards[BLACK_QUEEN] ))
                         |( horizontal_attacks & ( pos->bitboards[ROOK]    |  pos->bitboards[BLACK_ROOK]   |  pos->bitboards[QUEEN] | pos->bitboards[BLACK_QUEEN] ))

@@ -6,6 +6,7 @@ void push( Position* pos , uint8_t capture)
     pos->unmakeStack[pos->ply].captured_piece = capture;
     pos->unmakeStack[pos->ply].half_move      = pos->half_move;
     pos->unmakeStack[pos->ply].key            = pos->key;
+    pos->unmakeStack[pos->ply].threat         = pos->threat;
 }
 void add_piece(Position* pos, uint8_t piece_type, uint8_t sq) 
 {
@@ -35,6 +36,7 @@ void fen_to_board ( Position* pos , const char* fen)
     pos->killer[0]= 0;
     pos->piece_count = 64;
     pos->pos_history.index = 0;
+    pos->threat = 0ull;
     memset(pos->accumulator_cursor , 0, 2*MAX_DEPTH);
     memset(pos->bitboards, 0, 12*sizeof(uint64_t));
     memset(pos->occupied, 0, 2*sizeof(uint64_t));
@@ -215,12 +217,7 @@ bool is_material_draw(Position* pos)
 {
     if(pos->bitboards[PAWN] || pos->bitboards[BLACK_PAWN] || pos->bitboards[ROOK] || pos->bitboards[BLACK_ROOK] || pos->bitboards[QUEEN] || pos->bitboards[BLACK_QUEEN])
         return FALSE;
-        
-    int bishop_counts[2] ={ popcount64(pos->bitboards[BISHOP]) ,  popcount64(pos->bitboards[BLACK_BISHOP]) }; 
-    int knight_counts[2] ={ popcount64(pos->bitboards[KNIGHT]) ,  popcount64(pos->bitboards[BLACK_KNIGHT]) };
-
-    int total = bishop_counts[0] + bishop_counts[1] + knight_counts[0] + knight_counts[1] ;
-    if(total <= 1)
+    if( pos->piece_count <= 3)
         return TRUE;
     return FALSE;
 }
