@@ -33,6 +33,8 @@ enum MoveGenerationTypes{
 #define move_to(move )    (((move) >> 4) & 63)
 #define move_from(move)   (((move) >> 10) & 63)
 #define move_type(move)   ((move) & 15)
+
+#define piece(move)   ((move >> 16) & 15)
 #define create_move(from, to, type) ( (from)<<10 | (to)<<4 | (type))
 
 #define is_promotion(move) ( ((move) >> 3) & ONE )

@@ -41,7 +41,7 @@ void fen_to_board ( Position* pos , const char* fen)
     memset(pos->bitboards, 0, 12*sizeof(uint64_t));
     memset(pos->occupied, 0, 2*sizeof(uint64_t));
     memset(pos->board, EMPTY, 64*sizeof(uint8_t));
-    memset(pos->move_history , 0, sizeof(uint64_t)*2*MAX_DEPTH);
+    memset(pos->move_history , 0, sizeof(uint32_t)*2*MAX_DEPTH);
     int k=0;
     //1: pieces
     for(int i = 7 ; i>=0 ; i--)

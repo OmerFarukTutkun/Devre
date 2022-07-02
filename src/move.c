@@ -98,7 +98,7 @@ void make_move(Position* pos, uint16_t move)
     pos->half_move++; 
     pos->full_move += pos->side;
     pos->ply++;
-    pos->move_history[pos->ply] = move;
+    pos->move_history[pos->ply] = move + ((uint32_t)piece << 16);
 
     if(is_capture(move))
         pos->piece_count--;
@@ -307,7 +307,7 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
             {
                 scores[i] = 8*Mil;
             }
-            else if(move_type(move)< 2) //history heuristic
+            else if(move_type(move) < 2) //history heuristic
             {
                 scores[i] += get_history(pos, move);
             }

@@ -51,7 +51,8 @@ typedef struct Position{
     uint16_t  bestmove;
     uint8_t   ply;
     int16_t   history[2][2][2][64][64];   // history table for ordering quiet moves
-    int16_t   conthist[2][6][64][6][64];  
+    int16_t   conthist[2][6][64][6][64]; 
+    int16_t   followuphist[2][6][64][6][64]; 
     uint16_t  killer[MAX_DEPTH]; // a killer move for move ordering
     uint16_t  counter_moves[2][64][64]; // a counter move for move ordering
 
@@ -59,7 +60,7 @@ typedef struct Position{
     uint8_t   piece_count;
     int16_t   evals[MAX_DEPTH];
     UnMake_Info unmakeStack[2*MAX_DEPTH];
-    uint16_t move_history[2*MAX_DEPTH];
+    uint32_t move_history[2*MAX_DEPTH];
     Position_History pos_history;
  }Position;
 

@@ -152,6 +152,7 @@ void Uci_Loop() {
 			tt_clear();
 			memset(&pos.history[0][0][0][0][0], 0 ,2*2*2*64*64 * sizeof(int16_t));
 			memset(&pos.conthist[0][0][0][0][0], 0 ,2*6*64*6*64 * sizeof(int16_t));
+			memset(&pos.followuphist[0][0][0][0][0], 0 ,2*6*64*6*64 * sizeof(int16_t));
 			memset(&pos.counter_moves[0][0][0], 0 ,2*64*64* sizeof(uint16_t));
 			
         }else if (string_compare(line, "go", 2)) {
