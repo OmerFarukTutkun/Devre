@@ -53,6 +53,7 @@ typedef struct Position{
     int16_t   history[2][2][2][64][64];   // history table for ordering quiet moves
     int16_t   conthist[2][6][64][6][64]; 
     int16_t   followuphist[2][6][64][6][64]; 
+    int16_t   capturehist[2][6][64][6];
     uint16_t  killer[MAX_DEPTH]; // a killer move for move ordering
     uint16_t  counter_moves[2][64][64]; // a counter move for move ordering
 

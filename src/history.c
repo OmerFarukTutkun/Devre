@@ -42,6 +42,27 @@ void update_histories(Position* pos, int depth, uint16_t* moves, int length)
         }
     }
 }
+
+void update_capture_histories(Position* pos, int depth, uint16_t* moves, int length)
+{
+    for(int i=0 ; i< length ; i++)
+    {
+        if(move_type(moves[i]) == CAPTURE)
+        {
+            uint8_t from = move_from(moves[i]);
+            uint8_t to = move_to(moves[i]);
+            int16_t* current = &pos->capturehist[pos->side][ piece_type(pos->board[from])][to][piece_type(pos->board[to])];
+            update_history(current, depth, i == length - 1);
+        }
+    }
+}
+
+int32_t get_capture_history(Position* pos, uint16_t move)
+{
+    uint8_t from = move_from(move);
+    uint8_t to = move_to(move);
+    return pos->capturehist[pos->side][ piece_type(pos->board[from])][to][piece_type(pos->board[to])];
+}
 int32_t get_history(Position* pos, uint16_t move)
 {
     uint8_t from = move_from(move);

@@ -31,11 +31,11 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 * SEE reduction and pruning
 ## Move ordering
 *  Hash move
-*  Good Captures sorted by MVV-LVA
+*  Good Captures sorted by Capture History
 *  Killer move
 *  countermove
 *  History heuristic
-*  Bad Captures sorted by MVV-LVA
+*  Bad Captures sorted  by Capture History
 
 
 ## Evaluation

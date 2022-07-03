@@ -272,6 +272,10 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             {
                 update_histories(pos, depth , played_moves, played );
             }
+            if(move_type(move) <= CAPTURE)
+            {
+                update_capture_histories(pos, depth , played_moves, played );
+            }
             tt_save(pos,best_score, TT_BETA, depth, move);
             return best_score;
         }

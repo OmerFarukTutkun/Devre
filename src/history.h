@@ -4,4 +4,6 @@
 
 void update_histories(Position* pos, int depth, uint16_t* moves, int length);
 int32_t get_history(Position* pos, uint16_t move);
+void update_capture_histories(Position* pos, int depth, uint16_t* moves, int length);
+int32_t get_capture_history(Position* pos, uint16_t move);
 #endif

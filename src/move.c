@@ -313,14 +313,10 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
             }
             else if(move_type(move) == CAPTURE )
             {
-                uint8_t from = move_from(move);
-                uint8_t to   = move_to(move);
-                uint8_t piece = pos->board[from];
-                uint8_t captured_piece= pos->board[to];
                 if(flag != QSEARCH && SEE(pos, move) < 0 )
-                    scores[i]  =  Mil + piece_values[captured_piece]*100 - piece_values[piece];
+                    scores[i]  =  Mil + get_capture_history(pos, move);
                 else
-                    scores[i]  += piece_values[captured_piece]*100 - piece_values[piece];
+                    scores[i]  += get_capture_history(pos, move);
             }
         }
     }
