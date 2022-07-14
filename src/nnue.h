@@ -9,7 +9,7 @@
 #define L1 512
 #define OUTPUT 1
 
-#define SCALE 275 
+#define SCALE 273
 #define SCALE_WEIGHT 512 
 #define WEIGHT_FILE "devre.nnue"
 

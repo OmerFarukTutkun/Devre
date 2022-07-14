@@ -42,7 +42,7 @@ Devre is an open-source UCI compatible chess engine written in C as a hobby proj
 ## Evaluation
 
 Devre uses a small NNUE for evaluation. The Network architure is 768 x (512x2) x 1.
-The default net was trained with 1 billion positions from Leela data. The trianing code written in C,and can be found in https://github.com/OmerFarukTutkun/NNUETrainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
+The default net was trained with 1 billion positions from Leela data. The trianing code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 ## Compiling 
