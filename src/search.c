@@ -79,7 +79,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info)
 }
 int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
 {
-    int lmr, oldalpha =alpha , improving;
+    int lmr, oldalpha =alpha;
     int PVNode = (alpha != beta -1);
     uint16_t move,best_move= 0 ,ttMove = 0;
     int tt_flag = 0;
@@ -156,14 +156,14 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         eval = qsearch(alpha ,beta , pos, info);
     }
     pos->evals[pos->ply] = eval;
-    improving = !inCheck && (pos->ply >= 2) && (eval > pos->evals[pos->ply -2]);
+
     if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
     {
         if( eval < alpha -depth*200) // fail-low
         {
             return eval;
         }
-        if(eval > beta + depth*125 - 75*improving) //fail-high
+        if(eval > beta +depth*125 ) //fail-high
         {
             return eval;
         }
