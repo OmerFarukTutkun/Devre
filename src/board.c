@@ -199,7 +199,6 @@ bool is_repetition(Position * pos)
     {
         if(pos->key == pos->pos_history.keys[i])
         {
-            return TRUE;
             count++;
         }
         if(count == 1 && (pos->pos_history.index - i) <= pos->ply)
