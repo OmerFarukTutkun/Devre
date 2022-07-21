@@ -1,5 +1,15 @@
 #include "nnue.h"
 #include "board.h"
+int king_indices[64] = {
+    0, 1, 2, 3, 3, 2, 1, 0,
+    4, 5, 6, 7, 7, 6, 5, 4,
+    8, 9, 10, 11, 11, 10, 9, 8,
+    12, 13, 14, 15, 15, 14, 13, 12,
+    16, 17, 18, 19, 19, 18, 17, 16,
+    20, 21, 22, 23, 23, 22, 21, 20,
+    24, 25, 26, 27, 27, 26, 25, 24,
+    28, 29, 30, 31, 31, 30, 29, 28};
+
 int weight_indices[2][32];
 int sz;
 const int8_t nn_indices[2][12] = {{0 , 1 ,2 ,3 ,4 ,5  ,6, 7, 8 ,9 ,10, 11 },{ 6 ,7, 8 ,9, 10 , 11, 0, 1 ,2 ,3,4 , 5 }};
@@ -28,18 +38,34 @@ void set_weights()
     layer1_bias = *(int32_t*)(data_int16);
 }
 
+int nn_index(int king, int piece, int sq, int side)
+{
+    if (side == BLACK)
+    {
+        sq = mirror_vertically(sq);
+        king = mirror_vertically(king);
+    }
+    if (king % 8 < 4)
+        return king_indices[king] * 768 + nn_indices[side][piece] * 64 + mirror_horizontally(sq);
+    else
+        return king_indices[king] * 768 + nn_indices[side][piece] * 64 + sq;
+}
+
 void calculate_indices(Position* pos)
 {
+    int wking =bitScanForward( pos->bitboards[KING] );
+    int bking =bitScanForward( pos->bitboards[BLACK_KING] );
     sz= 0;
     for(int k=0 ; k<64 ; k++)
     {
         if(pos->board[k] != EMPTY)
         {        
-            weight_indices[WHITE][sz]   = L1*(nn_indices[WHITE][pos->board[k]]*64 + k);
-            weight_indices[BLACK][sz++] = L1*(nn_indices[BLACK][pos->board[k]]*64 + mirror_vertically( k) );
+            weight_indices[WHITE][sz]   = L1*nn_index(wking, pos->board[k], k , WHITE);
+            weight_indices[BLACK][sz++] = L1*nn_index(bking, pos->board[k], k , BLACK);
         }
     }
 }
+
 void calculate_input_layer_incrementally(Position* pos)
 {
     uint16_t move = pos->move_history[pos->ply];
@@ -50,45 +76,36 @@ void calculate_input_layer_incrementally(Position* pos)
     	memcpy(accumulator[pos->ply][BLACK] , accumulator[pos->ply -1][BLACK] , 2*L1);
 	    return;
     }
+    int wking =bitScanForward( pos->bitboards[KING] );
+    int bking =bitScanForward( pos->bitboards[BLACK_KING] );
+
     int activated_inputs[2][2]   = {{-1 , -1} , {-1, -1}};
     int deactivated_inputs[2][2] = {{-1 , -1} , {-1, -1}};
     uint8_t from = move_from(move);
     uint8_t to  = move_to(move);
     int move_type = move_type(move) , captured_piece = pos->unmakeStack[pos->ply -1].captured_piece , piece= pos->board[to];
 
-    activated_inputs[WHITE][0] =  nn_indices[WHITE][piece]*64 + to;
-    activated_inputs[BLACK][0] =  nn_indices[BLACK][piece]*64 + mirror_vertically(to);
+    activated_inputs[WHITE][0] =  nn_index(wking, piece , to , WHITE);
+    activated_inputs[BLACK][0] =  nn_index(bking, piece , to , BLACK);
     if(is_promotion(move))
     {
-        deactivated_inputs[WHITE][0] = nn_indices[WHITE][piece_index(!pos->side, PAWN)]*64 + from;
-        deactivated_inputs[BLACK][0] = nn_indices[BLACK][piece_index(!pos->side, PAWN)]*64 + mirror_vertically(from);
+        deactivated_inputs[WHITE][0] = nn_index(wking, piece_index(!pos->side, PAWN) , from , WHITE);
+        deactivated_inputs[BLACK][0] = nn_index(bking, piece_index(!pos->side, PAWN) , from , BLACK);
     }
     else
     {
-        deactivated_inputs[WHITE][0] = nn_indices[WHITE][piece]*64 + from;
-        deactivated_inputs[BLACK][0] = nn_indices[BLACK][piece]*64 + mirror_vertically(from);
+        deactivated_inputs[WHITE][0] = nn_index(wking, piece , from , WHITE);
+        deactivated_inputs[BLACK][0] = nn_index(bking, piece , from , BLACK);
     }
     switch(move_type)
     {
         case CAPTURE: case KNIGHT_PROMOTION_CAPTURE: case BISHOP_PROMOTION_CAPTURE: case ROOK_PROMOTION_CAPTURE: case QUEEN_PROMOTION_CAPTURE:
-            deactivated_inputs[WHITE][1] = nn_indices[WHITE][captured_piece]*64 + to;
-            deactivated_inputs[BLACK][1] = nn_indices[BLACK][captured_piece]*64 +  mirror_vertically(to);
+            deactivated_inputs[WHITE][1] = nn_index(wking, captured_piece , to , WHITE);
+            deactivated_inputs[BLACK][1] = nn_index(bking, captured_piece , to , BLACK);
         break;
         case EN_PASSANT:
-            deactivated_inputs[WHITE][1] = nn_indices[WHITE][captured_piece]*64 + square_index(rank_index(from), file_index(to));
-            deactivated_inputs[BLACK][1] = nn_indices[BLACK][captured_piece]*64 + mirror_vertically( square_index(rank_index(from), file_index(to)) );
-        break;
-        case KING_CASTLE:
-            activated_inputs[WHITE][1]  =  nn_indices[WHITE][piece_index(!pos->side, ROOK)]*64 + to - 1;
-            activated_inputs[BLACK][1]  =  nn_indices[BLACK][piece_index(!pos->side, ROOK)]*64 + mirror_vertically(to - 1);
-            deactivated_inputs[WHITE][1] = nn_indices[WHITE][piece_index(!pos->side, ROOK)]*64 + to + 1;
-            deactivated_inputs[BLACK][1] = nn_indices[BLACK][piece_index(!pos->side, ROOK)]*64 + mirror_vertically(to + 1);
-        break;
-        case QUEEN_CASTLE:
-            activated_inputs[WHITE][1]  =  nn_indices[WHITE][piece_index(!pos->side, ROOK)]*64 + to + 1;
-            activated_inputs[BLACK][1]  =  nn_indices[BLACK][piece_index(!pos->side, ROOK)]*64 + mirror_vertically(to + 1);
-            deactivated_inputs[WHITE][1] = nn_indices[WHITE][piece_index(!pos->side, ROOK)]*64 + to - 2;
-            deactivated_inputs[BLACK][1] = nn_indices[BLACK][piece_index(!pos->side, ROOK)]*64 + mirror_vertically(to - 2);
+            deactivated_inputs[WHITE][1] = nn_index(wking, captured_piece , square_index(rank_index(from), file_index(to)) , WHITE);
+            deactivated_inputs[BLACK][1] = nn_index(bking, captured_piece , square_index(rank_index(from), file_index(to)) , BLACK);
         break;
     }
     pos->accumulator_cursor[pos->ply ]= 1;
@@ -206,7 +223,8 @@ int32_t quan_matrix_multp(int ply, int side)
 }
 int16_t evaluate_nnue(Position* pos)
 {
-    if(pos->ply && pos->accumulator_cursor[pos->ply-1 ] == 1)
+    int piece = piece(pos->move_history[pos->ply]);
+    if(pos->ply && piece_type(piece) != KING &&  pos->accumulator_cursor[pos->ply-1 ] == 1)
     {
         calculate_input_layer_incrementally(pos );
     }

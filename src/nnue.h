@@ -5,7 +5,7 @@
 #include "movegen.h"
 #include "incbin/incbin.h"
 
-#define INPUT_SIZE 768
+#define INPUT_SIZE 32*768
 #define L1 512
 #define OUTPUT 1
 
