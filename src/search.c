@@ -389,12 +389,12 @@ void search(Position* pos, SearchInfo* info )
 
         if( abs(score) < MATE - MAX_DEPTH)
         {
-            printf("info depth %d  nps %d nodes %llu score cp %d time %lld pv ",i ,nps,  info->node_history[i], info->score_history[i], elapsed);      
+            printf("info depth %d nps %d nodes %llu score cp %d time %lld pv ",i ,nps,  info->node_history[i], info->score_history[i], elapsed);      
         }
         else
         {
             int mate= (MATE-abs(score) +1)* (2*(score > 0) -1 ) /2;
-            printf("info depth %d  nps %d nodes %llu score mate %d time %lld pv ",i ,nps,  info->node_history[i], mate, elapsed);
+            printf("info depth %d nps %d nodes %llu score mate %d time %lld pv ",i ,nps,  info->node_history[i], mate, elapsed);
              
         }   
         getPV(pos, i);
@@ -406,7 +406,7 @@ void search(Position* pos, SearchInfo* info )
         }
     }
 
-    printf("bestmove  ");
+    printf("bestmove ");
     print_move(best_move);
     printf("\n");
     fflush(stdout);
