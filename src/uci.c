@@ -30,7 +30,7 @@ void go(char* line, SearchInfo *info, Position *pos) {
 	}
 
 	if ((ptr = strstr(line,"movestogo"))) {
-		movestogo = MIN(20, atoi(ptr + 10));
+		movestogo = MIN(25, atoi(ptr + 10)/2 );
 	}
 
 	if ((ptr = strstr(line,"movetime"))) {
