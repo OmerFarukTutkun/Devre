@@ -79,34 +79,33 @@ void calculate_input_layer_incrementally(Position* pos)
     int wking =bitScanForward( pos->bitboards[KING] );
     int bking =bitScanForward( pos->bitboards[BLACK_KING] );
 
-    int activated_inputs[2][2]   = {{-1 , -1} , {-1, -1}};
-    int deactivated_inputs[2][2] = {{-1 , -1} , {-1, -1}};
+    int nnue_changes[2][3];
+    int k=0;
     uint8_t from = move_from(move);
     uint8_t to  = move_to(move);
     int move_type = move_type(move) , captured_piece = pos->unmakeStack[pos->ply -1].captured_piece , piece= pos->board[to];
 
-    activated_inputs[WHITE][0] =  nn_index(wking, piece , to , WHITE);
-    activated_inputs[BLACK][0] =  nn_index(bking, piece , to , BLACK);
+    nnue_changes[WHITE][k]   =  nn_index(wking, piece , to , WHITE);
+    nnue_changes[BLACK][k++] =  nn_index(bking, piece , to , BLACK);
     if(is_promotion(move))
     {
-        deactivated_inputs[WHITE][0] = nn_index(wking, piece_index(!pos->side, PAWN) , from , WHITE);
-        deactivated_inputs[BLACK][0] = nn_index(bking, piece_index(!pos->side, PAWN) , from , BLACK);
+        nnue_changes[WHITE][k]   =  nn_index(wking, piece_index(!pos->side, PAWN) , from , WHITE);
+        nnue_changes[BLACK][k++] =  nn_index(bking, piece_index(!pos->side, PAWN) , from , BLACK);
     }
     else
     {
-        deactivated_inputs[WHITE][0] = nn_index(wking, piece , from , WHITE);
-        deactivated_inputs[BLACK][0] = nn_index(bking, piece , from , BLACK);
+        nnue_changes[WHITE][k]    = nn_index(wking, piece , from , WHITE);
+        nnue_changes[BLACK][k++]  = nn_index(bking, piece , from , BLACK);
     }
-    switch(move_type)
+    if(is_capture(move))
     {
-        case CAPTURE: case KNIGHT_PROMOTION_CAPTURE: case BISHOP_PROMOTION_CAPTURE: case ROOK_PROMOTION_CAPTURE: case QUEEN_PROMOTION_CAPTURE:
-            deactivated_inputs[WHITE][1] = nn_index(wking, captured_piece , to , WHITE);
-            deactivated_inputs[BLACK][1] = nn_index(bking, captured_piece , to , BLACK);
-        break;
-        case EN_PASSANT:
-            deactivated_inputs[WHITE][1] = nn_index(wking, captured_piece , square_index(rank_index(from), file_index(to)) , WHITE);
-            deactivated_inputs[BLACK][1] = nn_index(bking, captured_piece , square_index(rank_index(from), file_index(to)) , BLACK);
-        break;
+        int sq ;
+        if( move_type != EN_PASSANT)
+            sq = to;
+        else
+            sq = square_index(rank_index(from), file_index(to));
+        nnue_changes[WHITE][k]    = nn_index(wking, captured_piece , sq , WHITE);
+        nnue_changes[BLACK][k++]  = nn_index(bking, captured_piece , sq , BLACK);
     }
     pos->accumulator_cursor[pos->ply ]= 1;
 
@@ -115,8 +114,8 @@ void calculate_input_layer_incrementally(Position* pos)
     vector *outputs1 = (vector *) &accumulator[pos->ply][WHITE];   
     vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK];
 
-    vector *weights1 = (vector *) &feature_weights[L1*activated_inputs[WHITE][0]];
-    vector *weights2 = (vector *) &feature_weights[L1*activated_inputs[BLACK][0]];
+    vector *weights1 = (vector *) &feature_weights[L1*nnue_changes[WHITE][0]];
+    vector *weights2 = (vector *) &feature_weights[L1*nnue_changes[BLACK][0]];
     
     for(int i=0; i< L1/vector_size; i++)
     {
@@ -124,27 +123,14 @@ void calculate_input_layer_incrementally(Position* pos)
         outputs2[ i] = vector_add(black_acc[ i] , weights2[ i]);
     }
 
-    if(activated_inputs[0][1] != -1)
+    for(int j=1 ; j<k ; j++)
     {
-        weights1 = (vector *) &feature_weights[L1*activated_inputs[WHITE][1]];
-        weights2 = (vector *) &feature_weights[L1*activated_inputs[BLACK][1]];
+        weights1 = (vector *) &feature_weights[L1*nnue_changes[WHITE][j]];
+        weights2 = (vector *) &feature_weights[L1*nnue_changes[BLACK][j]];
         for(int i=0; i< L1/vector_size; i++)
         {
-            outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
-            outputs2[ i] = vector_add(outputs2[ i] , weights2[ i]);
-        }
-    }
-    for(int i=0 ; i<2 ; i++)
-    {
-        if(deactivated_inputs[0][i] != -1)
-        {
-            weights1 = (vector *) &feature_weights[L1*deactivated_inputs[WHITE][i]];
-            weights2 = (vector *) &feature_weights[L1*deactivated_inputs[BLACK][i]];
-            for(int i=0; i< L1/vector_size; i++)
-            {
-                outputs1[ i] = vector_sub(outputs1[ i] , weights1[ i]);
-                outputs2[ i] = vector_sub(outputs2[ i] , weights2[ i]);
-            }
+            outputs1[ i] = vector_sub(outputs1[ i] , weights1[ i]);
+            outputs2[ i] = vector_sub(outputs2[ i] , weights2[ i]);
         }
     }
 }
