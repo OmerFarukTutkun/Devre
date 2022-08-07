@@ -199,6 +199,12 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     {
 
         played_moves[played] = move = pick_move(&move_list,i);
+        //lmp
+        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 + depth*5)
+        {
+            played++;
+            continue;
+        }
         //see pruning
         if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && SEE(pos,move) < 0)
         {
@@ -233,10 +239,14 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             lmr += !PVNode;
             lmr += inCheck && piece_type(pos->board[move_to(move)]) == KING;
             lmr -= move_list.score_of_move > 7*Mil; // reduce less for killer and counter move
-            lmr =  MAX(1, MIN(depth-1 , lmr)); 
+            
         }
-        if(lmr != depth -1)
-            lmr += see_reduction;
+        lmr += see_reduction;
+        if(move_type(move) == CAPTURE)
+        {
+            lmr -= get_capture_history(pos, move)/5000;
+        }
+        lmr =  MAX(1, MIN(depth-1 , lmr)); 
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
         {
             score= -AlphaBeta( -(alpha+1), -alpha, pos, depth -lmr, info);
