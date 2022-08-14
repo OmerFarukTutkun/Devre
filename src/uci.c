@@ -182,6 +182,41 @@ void Uci_Loop() {
 		{
 			print_Board(&pos);
 		}
+		else if ((ptr = strstr(line,"eval"))) 
+		{
+			int score = evaluate_nnue(&pos);
+			char fen_notation[15]="PNBRQKpnbrqk";
+			for(int i=7 ; i >=0 ;i--)
+			{
+				printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n" );
+				for(int j = 0; j <8 ;j++)
+				{
+					if(pos.board[8*i + j] != EMPTY)
+						printf("%8c",fen_notation[ pos.board[ 8*i + j]]);
+					else
+						printf("%8c",' ');
+				}
+				printf("%8d\n", i+1);
+				for(int j = 0; j <8 ;j++)
+				{
+					uint8_t sq = 8*i+ j;
+					if(pos.board[sq] != EMPTY && pos.board[sq] != BLACK_KING && pos.board[sq] != KING)
+					{
+						uint8_t piece = pos.board[sq];
+						remove_piece(&pos, piece , sq);
+						printf("%8.2f",(score - evaluate_nnue(&pos))/100.0);
+						add_piece(&pos, piece , sq);
+					}
+					else
+					{
+						printf("%8c",' ');
+					}
+				}
+			}
+			printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
+			printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a','b','c', 'd', 'e','f', 'g' , 'h');
+			printf("\n\nScore: %.2f\n" ,score/100.0);
+		}
 		else
 		{
 			printf("unknown command\n");

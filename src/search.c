@@ -399,7 +399,7 @@ void search(Position* pos, SearchInfo* info )
 
         if( abs(score) < MATE - MAX_DEPTH)
         {
-            printf("info depth %d nps %d nodes %llu score cp %d time %lld pv ",i ,nps,  info->node_history[i], info->score_history[i], elapsed);      
+            printf("info depth %d nps %d nodes %llu score cp %d time %lld pv ",i ,nps,  info->node_history[i], 2*info->score_history[i]/3, elapsed);      
         }
         else
         {
