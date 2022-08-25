@@ -237,9 +237,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         {
             lmr =  0.75 + log(depth)*log(played)/2.25;
             lmr += !PVNode;
-            lmr += inCheck && piece_type(pos->board[move_to(move)]) == KING;
             lmr -= move_list.score_of_move > 7*Mil; // reduce less for killer and counter move
-            
         }
         lmr += see_reduction;
         if(move_type(move) == CAPTURE)
