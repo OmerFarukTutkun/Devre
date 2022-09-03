@@ -6,10 +6,11 @@ Devre is a strong open-source UCI compatible chess engine written in C as a hobb
 
 | Version  | [CEGT](http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html) | [CCRL Blitz](http://ccrl.chessdom.com/ccrl/404/) |  [CCRL 40/15](http://ccrl.chessdom.com/ccrl/4040/) | [Owl Chess Blitz](http://chessowl.blogspot.com/) | [BRUCE](https://www.e4e6.com/)
 | ------------- | ------------- |----------|----------|----------|----------|
-| Devre 3.07 |       |       | 3290 |  |
-| Devre 3.0  | 3097  | 3222  |      |  |
-| Devre 2.0  |       | 3102  | | 3035 | 3066
-| Devre 1.0  |       | 2954  | |2874 |
+| Devre 4.0  | 3319     |       |  |  |
+| Devre 3.07 |       |       | 3292 |  |
+| Devre 3.0  | 3100  | 3223  |      |  |
+| Devre 2.0  |       | 3103  | | 3035 | 3066
+| Devre 1.0  |       | 2955  | |2874 |
 
 
 ## Movegen
@@ -42,8 +43,8 @@ Devre is a strong open-source UCI compatible chess engine written in C as a hobb
 
 ## Evaluation
 
-Devre uses a small NNUE for evaluation. The Network architure is 32*768 x (512x2) x 1.
-The default net was trained with 2 billion positions from Leela data. The trianing code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
+Devre uses a NNUE for evaluation. The Network architure is 32*768 -> (512x2) -> 1.
+The default net was trained with 2 billion positions from Leela data. The training code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 ## Compiling 
