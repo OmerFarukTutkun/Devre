@@ -4,13 +4,13 @@ Devre is a strong open-source UCI compatible chess engine written in C as a hobb
 
 ## Rating
 
-| Version  | [CEGT](http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html) | [CCRL Blitz](http://ccrl.chessdom.com/ccrl/404/) |  [CCRL 40/15](http://ccrl.chessdom.com/ccrl/4040/) | [Owl Chess Blitz](http://chessowl.blogspot.com/) | [BRUCE](https://www.e4e6.com/)
-| ------------- | ------------- |----------|----------|----------|----------|
-| Devre 4.0  | 3319     |       |  |  |
-| Devre 3.07 |       |       | 3292 |  |
-| Devre 3.0  | 3100  | 3223  |      |  |
-| Devre 2.0  |       | 3103  | | 3035 | 3066
-| Devre 1.0  |       | 2955  | |2874 |
+| Version  | [CEGT](http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html) | [CCRL Blitz](http://ccrl.chessdom.com/ccrl/404/) |  [CCRL 40/15](http://ccrl.chessdom.com/ccrl/4040/) | [Owl Chess Blitz](http://chessowl.blogspot.com/) | [BRUCE](https://www.e4e6.com/) | [SPCC](https://www.sp-cc.de/)
+| ------------- | ------------- |----------|----------|----------|----------|----------|
+| Devre 4.0  | 3319     |       | 3319  |  | | 3443
+| Devre 3.07 |       |       | 3292 |  | |
+| Devre 3.0  | 3100  | 3223  |      |  | |
+| Devre 2.0  |       | 3103  | | 3035 | 3066 |
+| Devre 1.0  |       | 2955  | |2874 | |
 
 
 ## Movegen
