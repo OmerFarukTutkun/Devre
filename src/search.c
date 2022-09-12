@@ -199,29 +199,30 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     {
 
         played_moves[played] = move = pick_move(&move_list,i);
-        //lmp
-        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 + depth*5)
+        if(best_score > -2000 && move_type(move) < 2)
         {
-            played++;
-            continue;
-        }
-        //see pruning
-        if( !PVNode && depth <=5 && move_type(move) < 2 && played > 10 && SEE(pos,move) < 0)
-        {
-            played++;
-            continue;
-        }
-        // futility pruning
-        if( !PVNode && depth <=8 && !inCheck && move_type(move) < 2 && played > 5 && eval + depth*40 + 200 < alpha)
-        {
-            played++;
-            continue;
-        }
-        // history pruning
-        if( !PVNode && depth <=5 && !inCheck && move_type(move) < 2 && played > 5 && get_history(pos, move) < -10000)
-        {
-            played++;
-            continue;
+            int skip= 0;
+            //lmp
+            if( !PVNode && depth <=5 && played > 10 + depth*5)
+                skip = 1;
+ 
+            //see pruning
+            else if( !PVNode && depth <=5 && played > 10 && SEE(pos,move) < 0)
+                skip = 1;
+
+            // futility pruning
+            else if( !PVNode && depth <=8 && !inCheck && played > 5 && eval + depth*40 + 200 < alpha)
+                skip = 1;
+
+            // history pruning
+            else if( !PVNode && depth <=5 && !inCheck && played > 5 && get_history(pos, move) < -10000)
+                skip = 1;
+
+            if(skip)
+            {
+                played++;
+                continue;
+            }
         }
         int see_reduction = (played >1 && depth > 2 && SEE(pos, move) < 0);
         make_move(pos, move);
