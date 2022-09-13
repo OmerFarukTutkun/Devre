@@ -84,7 +84,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     uint16_t move,best_move= 0 ,ttMove = 0;
     int tt_flag = 0;
     int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, inCheck, eval;
-
+    int rootNode = !pos->ply;
     if( (info->nodes & 2047) == 0 )
     {
         UciCheck(info);
@@ -119,7 +119,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         return 0;
     }
     TTentry* entry = tt_probe(pos->key);
-    if(entry && depth > 0 && pos->ply && !PVNode)
+    if(entry && depth > 0 && !rootNode && !PVNode)
     {
         tt_flag= entry->flag;
         eval = score = entry->score;
@@ -142,7 +142,6 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     {
         depth = MAX(1, 1+ depth);
     }
-
     if (depth <= 0)
     {
         return  qsearch(alpha, beta, pos, info);
@@ -157,7 +156,11 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     }
     pos->evals[pos->ply] = eval;
 
-    if(!PVNode && !inCheck && depth <= 5 && pos->ply && beta > -1000 && alpha< 1000)
+    //IIR
+    if(entry == NULL && depth >= 4)
+    	depth--;
+    
+    if(!PVNode && !inCheck && depth <= 5 && !rootNode && beta > -1000 && alpha< 1000)
     {
         if( eval < alpha -depth*200) // fail-low
         {
@@ -170,8 +173,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     }
 
     //Null Move Pruning 
-    //Todo : tune the parameters.
-    if(!PVNode && pos->move_history[pos->ply] != NULL_MOVE && !inCheck && pos->ply 
+    if(!PVNode && pos->move_history[pos->ply] != NULL_MOVE && !inCheck && !rootNode
     && depth>=2 && beta > -1000 && alpha< 1000 
     && ( eval > beta) && has_non_pawn_pieces(pos) )
     {
@@ -233,11 +235,10 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             continue;
         }
         lmr=1;
-        // The LMR code was taken from Ethereal, then modified
         if( played >1 && depth > 2  && move_type(move) < 2 )
         {
-            lmr =  0.75 + log(depth)*log(played)/2.25;
-            lmr += !PVNode;
+            lmr =  1.75 + log(depth)*log(played)/2.25;
+            lmr -= PVNode; //reduce less for PV nodes
         }
         lmr += see_reduction;
         if(move_type(move) == CAPTURE)
@@ -245,6 +246,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             lmr -= get_capture_history(pos, move)/5000;
         }
         lmr =  MAX(1, MIN(depth-1 , lmr)); 
+
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
         {
             score= -AlphaBeta( -(alpha+1), -alpha, pos, depth -lmr, info);
@@ -259,6 +261,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         }
         unmake_move(pos, move );
         played++;
+
         if(info->stopped == TRUE)
         {
             return 0;
@@ -267,13 +270,14 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         {
             best_move = move;
             best_score = score;
-            if(pos->ply == 0)
+            if(rootNode)
                 pos->bestmove = best_move;
             if(best_score > alpha)
             {
                 alpha = best_score;
             }
         }
+
         if( best_score >= beta)
         {
             if(move_type(move) < 2)
