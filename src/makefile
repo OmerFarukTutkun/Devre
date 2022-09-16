@@ -14,7 +14,7 @@ ifeq ($(OS),Windows_NT)
 endif
 
 ifeq ($(NATIVE),1)
-    AVX2 += -march=native
+	AVX2 += -march=native
 	SSE3 += -march=native
 else
 	SSE3 += -msse -msse2 -msse3 
