@@ -31,7 +31,7 @@ void bench(int argc, char **argv) {
         char line[256];
         sprintf(line , "go depth %d\n", depth);
         go(line, &info, &pos);
-        nodes[i] = info.qnodes + info.nodes;
+        nodes[i] = pos.nodes;
         tt_clear(); 
         memset(&info, 0, sizeof(SearchInfo));
         memset(&pos, 0,  sizeof(Position));

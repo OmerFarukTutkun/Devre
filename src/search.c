@@ -1,7 +1,6 @@
 #include "search.h"
 int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info)
 {
-    info->qnodes++;
     int oldalpha,stand_pat,best_score,score;
     uint16_t move ,bestmove = 0,ttMove = 0;
 
@@ -85,22 +84,17 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     int tt_flag = 0;
     int best_score = -INF,score=-INF, mating_value = MATE - pos->ply, inCheck, eval;
     int rootNode = !pos->ply;
-    if( (info->nodes & 2047) == 0 )
+    if( (pos->nodes & 2047) == 0 )
     {
         UciCheck(info);
     }
-    if( ( ( info->nodes & 255 ) == 0  && ((timeInMilliseconds() + 50) > info->stop_time ) && info->search_depth > 1) 
+    if( ( ( pos->nodes & 255 ) == 0  && ((timeInMilliseconds() + 50) > info->stop_time ) && info->search_depth > 1) 
             || info->stopped 
-            || ( info->search_type == FIX_NODES && info->nodes + info->qnodes > info->fixed_nodes))  
+            || ( info->search_type == FIX_NODES && pos->nodes > info->fixed_nodes))  
     {
         info->stopped =TRUE;
         return 0;
     }
-    if(depth > 0)
-    {
-        info->nodes++;
-    }
-
     //Mate Distance Pruning, the code taken from chessprogramming wiki
 
     if (mating_value < beta) {
@@ -351,8 +345,7 @@ int getPV(Position* pos, int depth) //get PV from hash table. It is generally sh
 void search(Position* pos, SearchInfo* info )
 {
     pos->ply = 0;
-    info->nodes = 0ull;
-    info->qnodes = 0ull;
+    pos->nodes = 0ull;
     info->stopped = info->quit = FALSE;
     long long int start_t= timeInMilliseconds();
     uint16_t best_move = 0;
@@ -392,7 +385,7 @@ void search(Position* pos, SearchInfo* info )
             break;
         info->score_history[i] = score;
         info->bestmove_history[i] = best_move =  pos->bestmove;
-        info->node_history[i] = info->nodes + info->qnodes;
+        info->node_history[i] = pos->nodes;
         long long int elapsed = (timeInMilliseconds() + 1 - start_t);
         int nps= (info->node_history[i] * 1000) / elapsed;
 

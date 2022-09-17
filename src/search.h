@@ -15,8 +15,6 @@ typedef struct {
   int fixed_depth;
   int fixed_nodes;
   int search_depth;
-  uint64_t nodes;
-  uint64_t qnodes;
   uint64_t node_history[MAX_DEPTH];
   int16_t  bestmove_history[MAX_DEPTH];
   int16_t  score_history[MAX_DEPTH];

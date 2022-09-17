@@ -66,7 +66,7 @@ uint16_t pick_move(MoveList* move_list, int index)
 }
 void make_move(Position* pos, uint16_t move)
 {
-    
+    pos->nodes++;
     if(move == NULL_MOVE)//do null move
     {
         push(pos, EMPTY);

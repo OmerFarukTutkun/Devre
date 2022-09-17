@@ -48,6 +48,7 @@ typedef struct Position{
     uint16_t  full_move;
     uint64_t  key; 
     uint64_t  threat;
+    uint64_t nodes;
     uint16_t  bestmove;
     uint8_t   ply;
     int16_t   history[2][2][2][64][64];   // history table for ordering quiet moves
