@@ -49,6 +49,8 @@ Thanks to Stockfish and Leela teams for publishing their training data in public
 
 ## Compiling 
  To compile in Linux/Windows with a cpu that supports AVX2 or SSE3:
- * First download the nnue from https://github.com/OmerFarukTutkun/DevreNets and put it into src directory.
+ * to compile with makefile you can use one ofthe options: ```make avx2``` , ```make sse3``` , ```make NATIVE=0 avx2``` ,```make NATIVE=0 sse3```
+ #### Or
+ * First download the default nnue from https://github.com/OmerFarukTutkun/DevreNets and put it into src directory.
  * gcc -march=native -Ofast -flto -D USE_AVX2 *.c -lm -o devre_avx2
  * gcc -march=native -Ofast -flto -D USE_SSE3 *.c -lm -o devre_sse3
