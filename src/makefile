@@ -6,7 +6,7 @@ EXE      = devre
 SRC      = *.c
 LIBS     = -lm
 EXT      =
-NETWORK  = devre.nnue
+NETWORK  = devre_18.09.22_ep122.nnue
 DOWNLOAD_NETWORK     = wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
 NATIVE   = 1
 ifeq ($(OS),Windows_NT)

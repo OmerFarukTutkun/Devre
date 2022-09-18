@@ -11,7 +11,7 @@
 
 #define SCALE 250
 #define SCALE_WEIGHT 512 
-#define WEIGHT_FILE "devre.nnue"
+#define WEIGHT_FILE "devre_18.09.22_ep122.nnue"
 
  #if defined(USE_AVX2)
     #include <immintrin.h>
