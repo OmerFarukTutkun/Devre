@@ -195,23 +195,23 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     {
 
         played_moves[played] = move = pick_move(&move_list,i);
-        if(best_score > -2000 && move_type(move) < 2)
+        if(best_score > -2000 && !inCheck && !PVNode && move_type(move) < 2 && played > 2)
         {
             int skip= 0;
             //lmp
-            if( !PVNode && depth <=5 && played > 10 + depth*5)
+            if( depth <=5 && played > 10 + depth*5)
                 skip = 1;
  
             //see pruning
-            else if( !PVNode && depth <=5 && played > 10 && SEE(pos,move) < 0)
+            else if( depth <=5 && SEE(pos,move) < -50*depth)
                 skip = 1;
 
             // futility pruning
-            else if( !PVNode && depth <=8 && !inCheck && played > 5 && eval + depth*40 + 200 < alpha)
+            else if(  depth <=8  && eval + depth*40 + 200 < alpha)
                 skip = 1;
 
             // history pruning
-            else if( !PVNode && depth <=5 && !inCheck && played > 5 && get_history(pos, move) < -10000)
+            else if( depth <=5 && get_history(pos, move) < -10000)
                 skip = 1;
 
             if(skip)
