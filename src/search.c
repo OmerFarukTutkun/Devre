@@ -183,7 +183,8 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         }
     }
 
-    pos->killer[pos->ply + 1] = 0;
+    pos->killers[pos->ply + 1][0] = 0;
+    pos->killers[pos->ply + 1][1] = 0;
     MoveList move_list;
     move_list.num_of_moves = generate_moves(pos, move_list.moves, 1);
     score_moves(pos, &move_list, ttMove , 1); 

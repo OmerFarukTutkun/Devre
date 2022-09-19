@@ -33,7 +33,7 @@ void fen_to_board ( Position* pos , const char* fen)
     pos ->half_move = 0;
     pos->bestmove= 0;
     pos->ply = 0;
-    pos->killer[0]= 0;
+    pos->killers[0][0]= pos->killers[0][1]= 0;
     pos->piece_count = 64;
     pos->pos_history.index = 0;
     pos->threat = 0ull;

@@ -35,7 +35,7 @@ Devre is a strong open-source UCI compatible chess engine written in C as a hobb
 ## Move ordering
 *  Hash move
 *  Good Captures sorted by Capture History
-*  Killer move
+*  Killer moves
 *  countermove
 *  History heuristic
 *  Bad Captures sorted  by Capture History
@@ -49,7 +49,7 @@ Thanks to Stockfish and Leela teams for publishing their training data in public
 
 ## Compiling 
  To compile in Linux/Windows with a cpu that supports AVX2 or SSE3:
- * to compile with makefile you can use one ofthe options: ```make avx2``` , ```make sse3``` , ```make NATIVE=0 avx2``` ,```make NATIVE=0 sse3```
+ * to compile with makefile you can use one of the options: ```make avx2``` , ```make sse3``` , ```make NATIVE=0 avx2``` ,```make NATIVE=0 sse3```
  #### Or
  * First download the default nnue from https://github.com/OmerFarukTutkun/DevreNets and put it into src directory.
  * gcc -march=native -Ofast -flto -D USE_AVX2 *.c -lm -o devre_avx2

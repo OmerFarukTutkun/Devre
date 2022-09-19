@@ -19,8 +19,12 @@ void update_histories(Position* pos, int depth, uint16_t* moves, int length)
     uint32_t penultimate = pos->move_history[pos->ply - 1];
     if(last > NULL_MOVE)
         pos->counter_moves[pos->side][move_from(last)][move_to(last)] = moves[length -1 ];//update counter move heuristic
-    
-    pos->killer[pos->ply] = moves[length - 1 ];
+    if(pos->killers[pos->ply][0] != moves[length-1] )
+    {
+        pos->killers[pos->ply][1] =  pos->killers[pos->ply][0]; 
+        pos->killers[pos->ply][0] = moves[length - 1 ];
+    }
+   
     for(int i=0 ; i< length ; i++)
     {
         if(move_type(moves[i]) < 2)

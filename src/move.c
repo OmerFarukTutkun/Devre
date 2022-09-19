@@ -287,7 +287,7 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
 {
     uint16_t move;
     int* scores = move_list->move_scores;
-    uint16_t killer = pos->killer[pos->ply];
+    uint16_t* killers = pos->killers[pos->ply];
     uint16_t counter= pos->counter_moves[pos->side][move_from(pos->move_history[pos->ply])][move_to(pos->move_history[pos->ply])];
     for(int i=0; i < move_list->num_of_moves ; i++)
     {
@@ -299,9 +299,13 @@ void score_moves(Position* pos, MoveList* move_list, uint16_t hash_move, int fla
         else
         {
             scores[i] = move_type_scores[move_type(move)];
-            if(killer == move)
+            if(killers[0] == move)
             {
                 scores[i] = 9*Mil;
+            }
+            else if(killers[1] == move)
+            {
+                scores[i] = 8.5*Mil;
             }
             else if(counter == move)
             {
