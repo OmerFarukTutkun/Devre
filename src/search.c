@@ -149,6 +149,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         eval = qsearch(alpha ,beta , pos, info);
     }
     pos->evals[pos->ply] = eval;
+    int improving = !inCheck && pos->ply >=2 &&  pos->evals[pos->ply]  >  pos->evals[pos->ply -2]; 
 
     //IIR
     if(entry == NULL && depth >= 4)
@@ -232,8 +233,9 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         lmr=1;
         if( played >1 && depth > 2  && move_type(move) < 2 )
         {
-            lmr =  1.75 + log(depth)*log(played)/2.25;
+            lmr =  1.75 + log(depth)*log(played)/2.25; 
             lmr -= PVNode; //reduce less for PV nodes
+            lmr += !improving;
         }
         lmr += see_reduction;
         if(move_type(move) == CAPTURE)
