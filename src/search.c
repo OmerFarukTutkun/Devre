@@ -41,7 +41,7 @@ int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info)
     {
         move= pick_move(&move_list, i);
 	    int see = SEE(pos, move);
-        if(see < 0 || (see == 0 && stand_pat + 300 < alpha))
+        if(see < 0)
             continue;
         make_move(pos, move);
         if( is_legal(pos) == 0)
