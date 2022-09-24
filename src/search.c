@@ -359,25 +359,27 @@ void search(Position* pos, SearchInfo* info )
         info->search_depth = i;
         if(i >= 4 ) // aspiration window search
         {
-            int window_size=20;
-            score = AlphaBeta((info->score_history[i -1 ]  -window_size), info->score_history[i -1 ] + window_size, pos , i, info);
+            int window_size=16;
+            int alpha = info->score_history[i -1 ]  - window_size;
+            int beta  = info->score_history[i -1 ]  + window_size;
             while(1)
             {
+                score = AlphaBeta(alpha, beta , pos , i, info);
                 if(info->stopped)
 		            break;
-                if(score >= info->score_history[i -1 ] + window_size) 
+                if(score <= alpha )
                 {
-                    score = AlphaBeta(info->score_history[i -1 ] -2*window_size, info->score_history[i -1 ] + 2*window_size, pos,i,info);
+                    alpha = MAX(-INF, alpha - window_size);
                 }
-                else if(score <= info->score_history[i -1 ]-window_size)
+                else if(score >= beta)
                 {
-                    score = AlphaBeta((info->score_history[i -1 ] - 2*window_size), info->score_history[i -1 ] + 2*window_size , pos, i,info);
+                    beta = MIN(INF, beta + window_size);
                 }
                 else
                 {
                     break;
                 }
-                window_size *=2;
+                window_size *= 2;
             }
         }
         else
