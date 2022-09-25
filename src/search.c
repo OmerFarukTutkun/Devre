@@ -201,7 +201,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
         {
             int skip= 0;
             //lmp
-            if( depth <=5 && played > 10 + depth*5)
+            if( depth <= 5 && played > 5 + (3 +2*improving)*depth)
                 skip = 1;
  
             //see pruning
