@@ -359,7 +359,7 @@ void search(Position* pos, SearchInfo* info )
         info->search_depth = i;
         if(i >= 4 ) // aspiration window search
         {
-            int window_size=16;
+            int window_size=20;
             int alpha = info->score_history[i -1 ]  - window_size;
             int beta  = info->score_history[i -1 ]  + window_size;
             while(1)
