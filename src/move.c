@@ -81,6 +81,7 @@ void make_move(Position* pos, uint16_t move)
         pos->en_passant = -1;
         pos->half_move = 0;
         pos->move_history[pos->ply] = NULL_MOVE;
+        tt_prefetch(pos->key);
         return ;
     }
     uint8_t from = move_from(move);
@@ -172,7 +173,8 @@ void make_move(Position* pos, uint16_t move)
             add_piece(pos, piece_index(pos->side, KNIGHT + ( move_type & 3)), to);
               pos->key  ^= PieceKeys[piece][from] ^ PieceKeys[ piece_index(pos->side, KNIGHT + ( move_type & 3)) ][to];
         break;
-    } 
+    }
+    tt_prefetch(pos->key); 
     pos->side = !pos->side;
     pos->threat = allAttackedSquares(pos, !pos->side); 
     if(is_capture(move) || piece_type(piece) == PAWN )

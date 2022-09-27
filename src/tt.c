@@ -25,6 +25,9 @@ void tt_clear()
     age = 0;
     memset(TranspositionTable , 0, (TT_MASK + ONE)*sizeof(TTentry));
 }
+void tt_prefetch(uint64_t hash) {
+    __builtin_prefetch(&TranspositionTable[hash & TT_MASK]); 
+}
 void tt_free()
 {
     free(TranspositionTable);

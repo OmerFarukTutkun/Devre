@@ -29,5 +29,6 @@ TTentry* tt_probe(uint64_t key);
 void tt_init(int megabyte);
 void tt_clear();
 void tt_free();
+void tt_prefetch(uint64_t hash);
 void update_age();
 #endif
