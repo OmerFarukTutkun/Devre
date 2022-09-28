@@ -5,7 +5,7 @@ const uint8_t PieceIndexs[2][6]= { {PAWN, KNIGHT,BISHOP,ROOK,QUEEN,KING}, {BLACK
 
 void set_bit(uint64_t* bb, uint8_t sq)
 {
-    *bb ^= (ONE << sq);
+    *bb |= (ONE << sq);
 }
 void clear_bit(uint64_t* bb, uint8_t sq)
 {
@@ -69,4 +69,15 @@ void print_bitboard(uint64_t bb)
         }
         printf("\n");
     }
+}
+int piece_color(int piece)
+{
+    return piece >= BLACK_PAWN;
+}
+uint64_t betweenMask(uint8_t from, uint8_t to)
+{
+    if(from > to)
+        return ( (ONE << from) -1 ) ^ ((ONE << (to + 1)) -1); 
+    else
+        return ( (ONE << to) -1 ) ^ ((ONE << (from + 1)) -1); 
 }

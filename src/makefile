@@ -1,5 +1,5 @@
 CC       = gcc
-CFLAGS   =  -Wall -Ofast -flto 
+CFLAGS   =  -Wall -Wformat=0 -Ofast -flto 
 AVX2     =  -D USE_AVX2
 SSE3     =  -D USE_SSE3
 EXE      = devre

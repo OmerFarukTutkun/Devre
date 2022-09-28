@@ -42,6 +42,7 @@ void fen_to_board ( Position* pos , const char* fen)
     memset(pos->occupied, 0, 2*sizeof(uint64_t));
     memset(pos->board, EMPTY, 64*sizeof(uint8_t));
     memset(pos->move_history , 0, sizeof(uint32_t)*2*MAX_DEPTH);
+    memset(pos->castling_rooks , NO_SQ, sizeof(uint8_t)*4);
     int k=0;
     //1: pieces
     for(int i = 7 ; i>=0 ; i--)
@@ -77,20 +78,53 @@ void fen_to_board ( Position* pos , const char* fen)
     // 2: side to move
     pos->side = fen[k] == 'w' ? WHITE : BLACK;
     k +=2;
-    while(fen[k] != ' ') // 3: castlings
+
+    // 3: castlings
+    int wking =bitScanForward( pos->bitboards[KING] );
+    int bking =bitScanForward( pos->bitboards[BLACK_KING] );
+    while(fen[k] != ' ')
     {
-        switch (fen[k])
+        if(fen[k] == 'K')
         {
-            case 'K' : pos->castlings |= WHITE_SHORT_CASTLE; break;
-            case 'Q' : pos->castlings |= WHITE_LONG_CASTLE;  break;
-            case 'k' : pos->castlings |= BLACK_SHORT_CASTLE; break;
-            case 'q' : pos->castlings |= BLACK_LONG_CASTLE;  break;       
-            default:          break;
+            pos->castlings |= WHITE_SHORT_CASTLE;  
+            pos->castling_rooks[0] = H1; 
+        }
+        else if(fen[k] == 'Q'){
+            pos->castlings |= WHITE_LONG_CASTLE ;  
+            pos->castling_rooks[1] = A1;
+        }
+        else if(fen[k] == 'k')
+        {
+            pos->castlings |= BLACK_SHORT_CASTLE;  
+            pos->castling_rooks[2] = H8; 
+        }
+        else if(fen[k] == 'q'){
+            pos->castlings |= BLACK_LONG_CASTLE ;  
+            pos->castling_rooks[3] = A8;
+        }
+        else if(fen[k] <= 'H' && fen[k] >= 'A')
+        {
+            int queenside = (fen[k] - 'A') < file_index(wking);
+            if(queenside)
+               pos->castlings |= WHITE_LONG_CASTLE;
+            else
+               pos->castlings |= WHITE_SHORT_CASTLE;
+            pos->castling_rooks[queenside] = square_index(0 , fen[k] - 'A');
+        }
+        else if(fen[k] <= 'h' && fen[k] >= 'a')
+        {
+            int queenside = (fen[k] - 'a') < file_index(bking);
+            if(queenside)
+               pos->castlings |= BLACK_LONG_CASTLE;
+            else
+               pos->castlings |= BLACK_SHORT_CASTLE;
+            pos->castling_rooks[queenside + 2] = square_index(7, fen[k] - 'a');
         }
         k++;
     }
     k++;
-    if(  fen[k] != '-') //4: en passant square
+    //4: en passant square
+    if(  fen[k] != '-') 
     {
         pos->en_passant =  fen[k++] - 'a' ;
         pos->en_passant += 8*(fen[k] - '1');

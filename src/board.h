@@ -43,7 +43,7 @@ typedef struct Position{
     uint8_t   board[64] ;
     uint64_t  bitboards[12];
     uint64_t  occupied[2];
-    uint8_t   castlings, side,  half_move; 
+    uint8_t   castlings, side,  half_move, castling_rooks[4]; 
     int8_t    en_passant;
     uint16_t  full_move;
     uint64_t  key; 

@@ -463,7 +463,8 @@ int UciCheck(SearchInfo* info)
     if(InputAvaliable())
     {
          char input[256] = "";
-		 fgets(input, 256, stdin);
+		if(!fgets(input, 256, stdin))
+            return 0;
 		if (strlen(input) > 0) {
 			if (!strncmp(input, "quit", 4))    {
               info->stopped = TRUE;

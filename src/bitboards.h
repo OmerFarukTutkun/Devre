@@ -95,4 +95,6 @@ uint8_t mirror_vertically(uint8_t sq);
 uint8_t mirror_horizontally(uint8_t sq);
 void print_bitboard(uint64_t bb);
 int popcount64(uint64_t x);
+uint64_t betweenMask(uint8_t from, uint8_t to);
+int piece_color(int piece);
 #endif
