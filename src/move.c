@@ -133,11 +133,11 @@ void make_move(Position* pos, uint16_t move)
         
         if(from == rook1 || to == rook1)
             pos->castlings &= 14 ; 
-        else if( from == rook2 || to == rook2)
+        if( from == rook2 || to == rook2)
             pos->castlings &= 13; 
-        else if(from == rook3 || to == rook3)
+        if(from == rook3 || to == rook3)
             pos->castlings &= 11; 
-        else if( from == rook4 || to == rook4)
+        if( from == rook4 || to == rook4)
             pos->castlings &= 7;
     }
     if(pos->unmakeStack[pos->ply -1].en_passant != -1) //remove the last en passant key 
