@@ -26,6 +26,21 @@ uint16_t string_to_move(Position* pos ,char* str)
     uint8_t from = (str[0] -'a') + 8*(str[1] - '1');
     uint8_t to =   (str[2] -'a') + 8*(str[3] - '1');
 
+    //FRC castling. king captures own rook
+    if(pos->board[to] != EMPTY && piece_color( pos->board[to]) == pos->side )
+    {
+        if(to == pos->castling_rooks[0])
+            return create_move(from , G1, KING_CASTLE);
+
+        else if(to == pos->castling_rooks[1])
+           return create_move(from , C1, QUEEN_CASTLE);
+
+        else if(to == pos->castling_rooks[2])
+            return create_move(from , G8, KING_CASTLE);
+
+        else if(to == pos->castling_rooks[3])
+          return create_move(from , C8, QUEEN_CASTLE);
+    }
     for (int i=0; i< move_list.num_of_moves  ; i++ )
     {
         if ( from == move_from(move_list.moves[i]) && to == move_to(move_list.moves[i]))
@@ -106,18 +121,24 @@ void make_move(Position* pos, uint16_t move)
 
     if(pos->castlings)
     {
-        if(from == H1 || to == H1)
-            pos->castlings &= 14 ; 
-        else if( from == A1 || to == A1)
-            pos->castlings &= 13; 
-        else if(from == H8 || to == H8)
-            pos->castlings &= 11; 
-        else if( from == A8 || to == A8)
-            pos->castlings &= 7; 
-        else if( pos-> board[from] == KING)
+        int rook1 = pos->castling_rooks[0];
+        int rook2 = pos->castling_rooks[1];
+        int rook3 = pos->castling_rooks[2];
+        int rook4 = pos->castling_rooks[3];
+
+        if( piece == KING)
             pos->castlings &= BLACK_CASTLE ; 
-        else if(pos->board[from] == BLACK_KING)
-            pos->castlings &= WHITE_CASTLE ; 
+        else if(piece== BLACK_KING)
+            pos->castlings &= WHITE_CASTLE ;
+        
+        if(from == rook1 || to == rook1)
+            pos->castlings &= 14 ; 
+        if( from == rook2 || to == rook2)
+            pos->castlings &= 13; 
+        if(from == rook3 || to == rook3)
+            pos->castlings &= 11; 
+        if( from == rook4 || to == rook4)
+            pos->castlings &= 7;
     }
     if(pos->unmakeStack[pos->ply -1].en_passant != -1) //remove the last en passant key 
     {
@@ -151,14 +172,20 @@ void make_move(Position* pos, uint16_t move)
             }
             break;
         case KING_CASTLE:
-            move_piece(pos, piece, from, to);
-            move_piece(pos, piece_index(pos->side,ROOK), to +1, from + 1);
-            pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to] ^ PieceKeys[piece_index(pos->side,ROOK)][to + 1 ] ^PieceKeys[piece_index(pos->side,ROOK)][from +1];
+            int rook1 = pos->castling_rooks[2*pos->side];
+            remove_piece(pos, piece, from);
+            remove_piece(pos, piece_index(pos->side,ROOK), rook1);
+            add_piece(pos, piece , to);
+            add_piece(pos, piece_index(pos->side,ROOK), to - 1);
+            pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to] ^ PieceKeys[piece_index(pos->side,ROOK)][rook1] ^PieceKeys[piece_index(pos->side,ROOK)][to -1];
             break;
         case QUEEN_CASTLE:
-            move_piece(pos, piece, from, to);
-            move_piece(pos, piece_index(pos->side,ROOK), to - 2, from - 1);  
-            pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to] ^ PieceKeys[piece_index(pos->side,ROOK)][to - 2 ] ^PieceKeys[piece_index(pos->side,ROOK)][from - 1];    
+            int rook2 = pos->castling_rooks[2*pos->side +1];
+            remove_piece(pos, piece, from);
+            remove_piece(pos, piece_index(pos->side,ROOK), rook2);
+            add_piece(pos, piece , to);
+            add_piece(pos, piece_index(pos->side,ROOK), to + 1);
+            pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to] ^ PieceKeys[piece_index(pos->side,ROOK)][rook2] ^ PieceKeys[piece_index(pos->side,ROOK)][to +1];    
             break;
         case EN_PASSANT:
             remove_piece(pos, captured_piece, square_index(rank_index(from) , file_index(to))); 
@@ -166,7 +193,7 @@ void make_move(Position* pos, uint16_t move)
             pos->key ^= PieceKeys[piece][from] ^ PieceKeys[piece][to] ^ PieceKeys[captured_piece][square_index(rank_index(from) , file_index(to))];
             break;
         case KNIGHT_PROMOTION_CAPTURE: case BISHOP_PROMOTION_CAPTURE: case ROOK_PROMOTION_CAPTURE: case QUEEN_PROMOTION_CAPTURE:
-            remove_piece(pos, captured_piece, to);
+             remove_piece(pos, captured_piece, to);
              pos->key ^= PieceKeys[captured_piece][to];
         case KNIGHT_PROMOTION: case BISHOP_PROMOTION: case ROOK_PROMOTION: case QUEEN_PROMOTION:
             remove_piece(pos, piece , from);
@@ -222,12 +249,20 @@ void unmake_move(Position* pos,  uint16_t move)
             add_piece(pos, captured_piece , to);
             break;
         case KING_CASTLE:
-            move_piece(pos, piece, to, from);
-            move_piece(pos, piece_index(pos->side,ROOK), from + 1 , to +1);
+            int rook1 = pos->castling_rooks[2*pos->side];
+            remove_piece(pos, piece, to);
+            remove_piece(pos, piece_index(pos->side,ROOK), to -1);
+            add_piece(pos, piece , from);
+            add_piece(pos, piece_index(pos->side,ROOK), rook1);
+
             break;
         case QUEEN_CASTLE:
-            move_piece(pos, piece, to, from);
-            move_piece(pos, piece_index(pos->side,ROOK), from - 1 , to - 2);;      
+            int rook2 = pos->castling_rooks[2*pos->side +1];
+            remove_piece(pos, piece, to);
+            remove_piece(pos, piece_index(pos->side,ROOK), to +1);
+            add_piece(pos, piece , from);
+            add_piece(pos, piece_index(pos->side,ROOK), rook2);
+                
             break;
         case EN_PASSANT:
             move_piece(pos, piece, to , from);

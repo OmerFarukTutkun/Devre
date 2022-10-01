@@ -76,13 +76,16 @@ void set_position(char* lineIn, Position *pos) {
     char *ptrChar = lineIn;
     if(strncmp(lineIn, "startpos", 8) == 0){
         fen_to_board(pos,STARTING_FEN);
+		pos->threat = allAttackedSquares(pos, !pos->side); 
     } else {
         ptrChar = strstr(lineIn, "fen");
         if(ptrChar == NULL) {
             fen_to_board(pos, STARTING_FEN);
+			pos->threat = allAttackedSquares(pos, !pos->side); 
         } else {
             ptrChar+=4;
             fen_to_board(pos , ptrChar);
+			pos->threat = allAttackedSquares(pos, !pos->side); 
         }
     }
 	initZobristKey(pos);
@@ -168,6 +171,7 @@ void Uci_Loop() {
 			printf("id name Devre %s\n", VERSION);
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 1 max 4096\n");
+			printf("option name UCI_Chess960 type check default true\n");
             printf("uciok\n");
 			fflush(stdout);
         }
@@ -181,6 +185,9 @@ void Uci_Loop() {
 		else  if ((ptr = strstr(line,"print"))) 
 		{
 			print_Board(&pos);
+		}
+		else if (string_compare(line, "setoption name UCI_Chess960 value ", 34)) {
+            continue;
 		}
 		else if ((ptr = strstr(line,"eval"))) 
 		{

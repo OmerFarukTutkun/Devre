@@ -44,7 +44,7 @@ void perft_test(Position* pos, int depth)
     } 
 
     end_t = timeInMilliseconds();
-    elapsed_t = (end_t - start_t) ;
+    elapsed_t = MAX(1, (end_t - start_t)) ;
     printf("Time: %lld ms\t" , elapsed_t);
     printf("Speed: %.2f Mnps\t" ,total/(elapsed_t*1000.0) );
     printf("Total position: %llu\n" , total);

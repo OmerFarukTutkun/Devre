@@ -65,36 +65,71 @@ int generate_castles(Position* pos, uint16_t* moves)
 {
     if(!pos->castlings)
         return 0;
-    int short_castle, long_castle;
+    uint8_t short_castle, long_castle;
     int n=0;
     if(pos->side == BLACK)
     {
-        short_castle = (pos->castlings >> 2 ) & ONE;
-        long_castle =  (pos->castlings >> 3 ) & ONE;
-        if(long_castle && pos->board[A8] == BLACK_ROOK  &&pos->board [B8] == EMPTY && pos->board [C8] == EMPTY && pos->board [D8] == EMPTY && pos->board[E8] == BLACK_KING
-          && !is_square_attacked(pos, E8, WHITE) && !is_square_attacked(pos , D8 , WHITE))
+        short_castle = (pos->castlings >> 2 ) & 1u;
+        long_castle =  (pos->castlings >> 3 ) & 1u;
+        if(long_castle) 
         {
-            moves[n++] = create_move(E8,C8, QUEEN_CASTLE);
+            int king = bitScanForward( pos->bitboards[BLACK_KING] );
+            int rook = pos->castling_rooks[3];
+
+            uint64_t between = betweenMask(king, C8) | betweenMask(rook,D8) | (ONE << C8) | (ONE << D8);
+            uint64_t mask = pos->occupied[WHITE] | pos->occupied[BLACK];
+            mask &= ~( ( ONE << king) |  (ONE << rook));
+            uint64_t squares_king_passes = betweenMask(king, C8) | (ONE << C8) | (ONE << king);
+
+            if(!(( mask & between) || (squares_king_passes & pos->threat)) )
+                moves[n++] = create_move(king,C8, QUEEN_CASTLE);
         }
-        if(short_castle && pos->board[H8] == BLACK_ROOK  &&pos->board [G8] == EMPTY && pos->board [F8] == EMPTY && pos->board[E8] == BLACK_KING
-          && !is_square_attacked(pos, E8, WHITE) && !is_square_attacked(pos , F8 , WHITE))
+
+        if(short_castle) 
         {
-            moves[n++] = create_move(E8,G8, KING_CASTLE);
+            int king = bitScanForward( pos->bitboards[BLACK_KING] );
+            int rook = pos->castling_rooks[2];
+
+            uint64_t between = betweenMask(king, G8) | betweenMask(rook,F8) | (ONE << G8) | (ONE << F8);
+            uint64_t mask = pos->occupied[WHITE] | pos->occupied[BLACK];
+            mask &= ~( ( ONE << king) |  (ONE << rook));
+            uint64_t squares_king_passes = betweenMask(king, G8) | (ONE << G8) | (ONE << king);
+            
+            if(!(( mask & between) || (squares_king_passes & pos->threat)) )
+                moves[n++] = create_move(king, G8, KING_CASTLE);
         }
+        
     }
     else
     {
         short_castle = pos->castlings  & ONE;
         long_castle =  (pos->castlings >> 1) & ONE;
-        if(long_castle && pos->board[A1] == ROOK  &&pos->board [B1] == EMPTY && pos->board [C1] == EMPTY && pos->board [D1] == EMPTY && pos->board[E1] == KING
-          && !is_square_attacked(pos, E1, BLACK) && !is_square_attacked(pos , D1 , BLACK))
+       if(long_castle) 
         {
-            moves[n++] = create_move(E1,C1, QUEEN_CASTLE);
+            int king = bitScanForward( pos->bitboards[KING] );
+            int rook = pos->castling_rooks[1];
+            
+            uint64_t between = betweenMask(king, C1) | betweenMask(rook,D1) | (ONE << C1) | (ONE << D1);
+            uint64_t mask = pos->occupied[WHITE] | pos->occupied[BLACK];
+            mask &= ~( ( ONE << king) |  (ONE << rook));
+            uint64_t squares_king_passes = betweenMask(king, C1) | (ONE << C1) | (ONE << king);
+
+            if(!(( mask & between) || (squares_king_passes & pos->threat)) )
+                moves[n++] = create_move(king,C1, QUEEN_CASTLE);
         }
-        if(short_castle && pos->board[H1] == ROOK  &&pos->board [G1] == EMPTY && pos->board [F1] == EMPTY && pos->board[E1] == KING
-          && !is_square_attacked(pos, E1, BLACK) && !is_square_attacked(pos , F1 , BLACK))
+
+        if(short_castle) 
         {
-            moves[n++] = create_move(E1,G1, KING_CASTLE);
+            int king = bitScanForward( pos->bitboards[KING] );
+            int rook = pos->castling_rooks[0];
+
+            uint64_t between = betweenMask(king, G1) | betweenMask(rook,F1) | (ONE << G1) | (ONE << F1);
+            uint64_t mask = pos->occupied[WHITE] | pos->occupied[BLACK];
+            mask &= ~( ( ONE << king) |  (ONE << rook));
+            uint64_t squares_king_passes = betweenMask(king, G1) | (ONE << G1) | (ONE << king);
+            
+            if(!(( mask & between) || (squares_king_passes & pos->threat)) )
+                moves[n++] = create_move(king, G1, KING_CASTLE);
         }
     }
     return n;
