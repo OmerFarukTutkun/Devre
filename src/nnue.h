@@ -9,8 +9,9 @@
 #define L1 512
 #define OUTPUT 1
 
-#define SCALE 250
+#define SCALE 256
 #define SCALE_WEIGHT 512 
+#define OUTPUT_DIVISOR  ((SCALE_WEIGHT*SCALE_WEIGHT) /SCALE)
 #define WEIGHT_FILE "devre_23.09.22_ep120.nnue"
 
  #if defined(USE_AVX2)

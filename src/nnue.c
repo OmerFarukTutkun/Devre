@@ -205,7 +205,7 @@ int32_t quan_matrix_multp(int ply, int side)
     #elif defined(USE_SSE3)
         *(__m128i*) &result[0] = sum;
     #endif
-    return (layer1_bias+ result[0] + result[1] +result[2] +result[3])* ((SCALE) / (SCALE_WEIGHT*SCALE_WEIGHT*1.0)); 
+    return (layer1_bias+ result[0] + result[1] +result[2] +result[3]) / OUTPUT_DIVISOR; 
 }
 int16_t evaluate_nnue(Position* pos)
 {
