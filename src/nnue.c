@@ -139,15 +139,18 @@ void calculate_input_layer(Position* pos)
     vector *biases =   (vector *) &feature_biases[0];
     vector *outputs1 = (vector *) &accumulator[pos->ply][WHITE][0];  //white
     vector *outputs2 = (vector *) &accumulator[pos->ply][BLACK][0];  //black
+
+    vector *weights1 = (vector *) &feature_weights [weight_indices[WHITE][0]];
+    vector *weights2 = (vector *) &feature_weights[weight_indices[BLACK][0]];
     for(int i=0; i< L1/vector_size; i++)
     {
-        outputs2[i] = biases[i];
-        outputs1[i] = biases[i];
+        outputs1[i] = vector_add( biases[i] , weights1[i]);
+        outputs2[i] = vector_add( biases[i] , weights2[i]);
     }
-    for(int k=0 ; k < sz; k++)
+    for(int k=1 ; k < sz; k++)
     {
-        vector *weights1 = (vector *) &feature_weights [weight_indices[WHITE][k]];
-        vector *weights2 = (vector *) &feature_weights[weight_indices[BLACK][k]];
+        weights1 = (vector *) &feature_weights [weight_indices[WHITE][k]];
+        weights2 = (vector *) &feature_weights[weight_indices[BLACK][k]];
         for(int i=0; i< L1/vector_size; i++)
         {
             outputs1[ i] = vector_add(outputs1[ i] , weights1[ i]);
