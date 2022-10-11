@@ -5,7 +5,7 @@
 #include "tt.h"
 #include "perft.h"
 
-static const char VERSION[] = "4.16";
+static const char VERSION[] = "4.17";
 void Uci_Loop();
 int string_compare(char* str1, char* str2, int size);
 void go(char* line, SearchInfo *info, Position *pos);

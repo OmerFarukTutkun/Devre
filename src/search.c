@@ -191,12 +191,19 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
     score_moves(pos, &move_list, ttMove , 1); 
 
     int number_of_illegal_moves=0;
-    int played = 0;
+    int played = 0, history = 0;
     uint16_t played_moves[256];
     for (int i=0 ; i < move_list.num_of_moves ; i++)
     {
-
         played_moves[played] = move = pick_move(&move_list,i);
+        if(move_type(move) == CAPTURE)
+        {
+            history = get_capture_history(pos, move);
+        }
+        else if(move_type(move) < 2)
+        {
+            history = get_history(pos, move);
+        }
         if(best_score > -2000 && !inCheck && !PVNode && move_type(move) < 2 && played > 2)
         {
             int skip= 0;
@@ -213,7 +220,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
                 skip = 1;
 
             // history pruning
-            else if( depth <=5 && get_history(pos, move) < -10000)
+            else if( depth <=5 && history < -10000)
                 skip = 1;
 
             if(skip)
@@ -238,10 +245,7 @@ int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info)
             lmr += !improving;
         }
         lmr += see_reduction;
-        if(move_type(move) == CAPTURE)
-        {
-            lmr -= get_capture_history(pos, move)/5000;
-        }
+        lmr -= MIN(0 , history/5000 ) ;
         lmr =  MAX(1, MIN(depth-1 , lmr)); 
 
         if(played >=1 )// search with null window centered at alpha to prove the move fails low.
