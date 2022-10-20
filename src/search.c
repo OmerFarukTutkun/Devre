@@ -342,7 +342,7 @@ int getPV(Position* pos, int depth) //get PV from hash table. It is generally sh
             unmake_move(pos, move );
             return 0;
         }
-        print_move(move);
+        print_move(pos, move);
         getPV(pos,depth -1);
         unmake_move(pos,move);
         return 1;
@@ -421,7 +421,7 @@ void search(Position* pos, SearchInfo* info )
     }
 
     printf("bestmove ");
-    print_move(best_move);
+    print_move(pos, best_move);
     printf("\n");
     fflush(stdout);
     update_age();

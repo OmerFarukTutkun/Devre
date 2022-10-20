@@ -4,11 +4,16 @@
 
 const int move_type_scores[16] = {Mil, Mil, 3*Mil, 2*Mil, 10*Mil, 10*Mil, 0, 0, -10*Mil, -9*Mil, -8*Mil, 20*Mil, -7*Mil, -6*Mil, -5*Mil, 25*Mil};
 const int see_values[12]   = { 100 , 325 , 325 , 500 ,1000 ,10000 , 100 , 325 , 325 , 500 ,1000 ,10000};
-void print_move(uint16_t move)
+void print_move(Position* pos, uint16_t move)
 {
     
     uint8_t from = move_from(move);
     uint8_t to = move_to(move);
+    if(pos->frc && ( move_type(move) == KING_CASTLE || move_type(move) == QUEEN_CASTLE))
+    {
+        int queen_side = move_type(move) == QUEEN_CASTLE;
+        to = pos->castling_rooks[2*pos->side + queen_side]; 
+    } 
     printf("%s%s" ,square_to_string[from] , square_to_string[to]);
     switch(move_type(move))
     {

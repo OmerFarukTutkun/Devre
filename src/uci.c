@@ -171,7 +171,7 @@ void Uci_Loop() {
 			printf("id name Devre %s\n", VERSION);
     		printf("id author Omer Faruk Tutkun\n");
 			printf("option name Hash type spin default 16 min 1 max 4096\n");
-			printf("option name UCI_Chess960 type check default true\n");
+			printf("option name UCI_Chess960 type check default false\n");
             printf("uciok\n");
 			fflush(stdout);
         }
@@ -187,7 +187,12 @@ void Uci_Loop() {
 			print_Board(&pos);
 		}
 		else if (string_compare(line, "setoption name UCI_Chess960 value ", 34)) {
-            continue;
+			if( string_compare( line + 34 ,"true" ,4) )
+			{
+            	pos.frc = TRUE;
+			}
+			else
+				pos.frc = FALSE;
 		}
 		else if ((ptr = strstr(line,"eval"))) 
 		{

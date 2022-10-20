@@ -11,7 +11,7 @@ typedef struct MoveList{
     int score_of_move;
 }MoveList;
 
-void print_move(uint16_t move);
+void print_move(Position* pos, uint16_t move);
 uint16_t string_to_move(Position* pos ,char* str);
 void make_move(Position* pos, uint16_t move);
 void unmake_move(Position* pos,  uint16_t move);

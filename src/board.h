@@ -57,7 +57,7 @@ typedef struct Position{
     int16_t   capturehist[2][6][64][6];
     uint16_t  killers[MAX_DEPTH][2]; // 2 killer moves per ply for move ordering
     uint16_t  counter_moves[2][64][64]; // a counter move for move ordering
-
+    uint8_t frc;
     uint8_t   accumulator_cursor[2*MAX_DEPTH];
     uint8_t   piece_count;
     int16_t   evals[MAX_DEPTH];

@@ -36,7 +36,7 @@ void perft_test(Position* pos, int depth)
         if(is_legal(pos) )
         {
             count = perft(pos, depth -1);
-            print_move( move_list.moves[i]);
+            print_move(pos,  move_list.moves[i]);
             printf(": %llu \n" , count);
             total = total + count;
        }
