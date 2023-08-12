@@ -1,9 +1,6 @@
-#ifndef _PERFT_H_
-#define _PERFT_H_
+#ifndef DEVRE_PERFT_H
+#define DEVRE_PERFT_H
 
-#include "move.h"
-
-uint64_t perft(Position * pos , int depth);
-void perft_test(Position* pos , int depth);
-
-#endif
+#include "board.h"
+void perftTest(Board& board , int depth, bool UpdateNNUE=false);
+#endif //DEVRE_PERFT_H

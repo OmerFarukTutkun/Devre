@@ -1,33 +1,36 @@
-#ifndef _SEARCH_H_
-#define _SEARCH_H_
+#ifndef DEVRE_SEARCH_H
+#define DEVRE_SEARCH_H
+#include "types.h"
+#include "Thread.h"
+#include "TimeManager.h"
+struct Stack {
+    PieceTo* continuationHistory;
+    int ply;
+    uint16_t pv[MAX_PLY + 10];
+    uint16_t playedMoves[256];
+    uint16_t played;
 
-#include "move.h"
-#include "nnue.h"
-#include "tt.h"
-#include "history.h"
-#define INF  31000
-#define MATE 30000
-
-enum {NORMAL_GAME=0, FIX_DEPTH , FIX_NODES, FIX_TIME 
+    uint16_t move;
+    uint16_t killers[2];
+    int staticEval;
+    uint64_t threat;
+    Stack();
 };
 
-typedef struct {
-  int fixed_depth;
-  int fixed_nodes;
-  int search_depth;
-  uint64_t node_history[MAX_DEPTH];
-  int16_t  bestmove_history[MAX_DEPTH];
-  int16_t  score_history[MAX_DEPTH];
-  int seldepth;
-  int quit;
-  long long int start_time;
-  long long int stop_time;
-  int stopped;
-  int search_type;
-} SearchInfo; 
+class Search{
+    private:
+        bool stopped;
+        int numThread;
+        TimeManager* timeManager{};
+    public:
+        Thread* threads;
+        void stop();
+        void setThread(int thread);
+        int qsearch(int alpha, int beta, Thread &thread, Stack *ss);
+        int alphaBeta(int alpha, int beta, int depth, Thread &thread, Stack *ss);
+        void start(Board board, TimeManager timeManager);
+        Search();
+        virtual ~Search();
 
-int16_t qsearch(int alpha, int beta, Position* pos,SearchInfo* info);
-int AlphaBeta(int alpha, int beta, Position* pos, int depth,SearchInfo* info);
-void search(Position* pos, SearchInfo* info );
-int UciCheck(SearchInfo* info);
-#endif
+};
+#endif //DEVRE_SEARCH_H
