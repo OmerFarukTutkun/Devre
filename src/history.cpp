@@ -12,7 +12,7 @@ void updateHistory(int16_t *current, int depth, bool good) {
     *current += delta - *current * abs(delta) / HistoryDivisor;
 }
 
-void updateQuietHistories(Thread &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
+void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
     if ((ss->played == 1 && depth <= 3))
         return;
 
@@ -49,7 +49,7 @@ void updateQuietHistories(Thread &thread, Stack *ss, int depth, MoveList &moveli
     }
 }
 
-void updateCaptureHistories(Thread &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
+void updateCaptureHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
     Board *board = &thread.board;
     for (int i = 0; i <ss->played; i++) {
         auto move = ss->playedMoves[i];
@@ -63,7 +63,7 @@ void updateCaptureHistories(Thread &thread, Stack *ss, int depth, MoveList &move
     }
 }
 
-void updateHistories(Thread &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
+void updateHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
 
     if (isQuiet(moveType(bestMove)))
         updateQuietHistories(thread, ss, depth, movelist, bestMove);
@@ -72,14 +72,14 @@ void updateHistories(Thread &thread, Stack *ss, int depth, MoveList &movelist, u
         updateCaptureHistories(thread, ss, depth, movelist, bestMove);
 }
 
-int getCaptureHistory(Thread &thread, Stack *ss, uint16_t move) {
+int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move) {
     Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);
     return thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
 }
 
-int getQuietHistory(Thread &thread, Stack *ss, uint16_t move) {
+int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
 
     Board *board = &thread.board;
     int from = moveFrom(move);

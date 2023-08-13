@@ -1,5 +1,5 @@
 #include "search.h"
-#include "Thread.h"
+#include "ThreadData.h"
 #include "TT.h"
 #include "move.h"
 #include "movegen.h"
@@ -46,8 +46,9 @@ Stack::Stack() {
 Search::Search() {
     timeManager = nullptr;
     numThread = 1;
-    threads = nullptr;
+    threads.clear();
     stopped = false;
+    bestMove = NO_MOVE;
 }
 
 void Search::setThread(int thread) {
@@ -55,14 +56,14 @@ void Search::setThread(int thread) {
 }
 
 Search::~Search() {
-    delete[] threads;
+
 }
 
 void Search::stop() {
     stopped = true;
 }
 
-int Search::qsearch(int alpha, int beta, Thread &thread, Stack *ss) {
+int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
     Board *board = &thread.board;
 
@@ -87,6 +88,11 @@ int Search::qsearch(int alpha, int beta, Thread &thread, Stack *ss) {
     }
 
     auto standPat = ttHit ? ttStaticEval : board->eval();
+
+    //use TT score as eval TODO: test
+    if (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND))
+        standPat = ttScore;
+
     if (standPat >= beta) {
         return standPat;
     }
@@ -126,7 +132,7 @@ int Search::qsearch(int alpha, int beta, Thread &thread, Stack *ss) {
     return bestScore;
 }
 
-int Search::alphaBeta(int alpha, int beta, int depth, Thread &thread, Stack *ss) {
+int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
     int PVNode = (alpha != beta - 1);
     int rootNode = (0 == ss->ply);
@@ -242,7 +248,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, Thread &thread, Stack *ss)
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
     int lmr;
-    int history = 0;
     int bestScore = -VALUE_INFINITE;
     uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
@@ -270,13 +275,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, Thread &thread, Stack *ss)
             if (depth <= 8 && eval + depth * 80 + 100 < alpha)
                 continue;
 
-            history = getQuietHistory(thread, ss, move);
+            int history = getQuietHistory(thread, ss, move);
             //history pruning
             if (depth <= 4 && history < -4000 * depth)
                 continue;
 
             //SEE pruning
-            if(depth <= 5 && SEE(*board, move) < -30*depth*depth)
+            if (depth <= 5 && SEE(*board, move) < -30 * depth * depth)
                 continue;
 
             int hisReduction = -history / 5000;
@@ -321,31 +326,35 @@ int Search::alphaBeta(int alpha, int beta, int depth, Thread &thread, Stack *ss)
     return bestScore;
 }
 
-void Search::start(Board board, TimeManager tm) {
-    delete[] threads;
-    stopped = false;
+void Search::start(Board *board, TimeManager *tm, int ThreadID) {
+    std::vector<std::thread> runningThreads;
+    if (ThreadID == 0) {
+        stopped = false;
+        for (int i = 0; i < numThread; i++)
+            threads.emplace_back(*board, i);
 
-    threads = new Thread[numThread];
-    for (int i = 0; i < numThread; i++) {
-        threads[i] = Thread(board, i);
+        this->timeManager = tm;
+        for (int i = 1; i < numThread; i++) {
+            runningThreads.emplace_back(&Search::start, this, board, tm, i);
+        }
     }
-    this->timeManager = &tm;
 
     auto *ss = new Stack[MAX_PLY + 10];
     for (int i = 0; i < MAX_PLY + 10; i++) {
         (ss + i)->ply = i - 6;
-        (ss + i)->continuationHistory = &threads[0].contHist[0][0];
+        (ss + i)->continuationHistory = &threads.at(ThreadID).contHist[0][0];
     }
-    uint16_t bestMove;
+
     int score;
     for (int i = 1; i <= timeManager->depthLimit; i++) {
+
         // aspiration window search
         if (i > 4) {
             int windowSize = 20;
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {
-                score = alphaBeta(alpha, beta, i, threads[0], ss + 6);
+                score = alphaBeta(alpha, beta, i, threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -356,28 +365,46 @@ void Search::start(Board board, TimeManager tm) {
                 windowSize *= 2;
             }
         } else {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, threads[0], ss + 6);
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
             break;
+        if (ThreadID == 0) {
+            auto elapsed = 1 + currentTime() - this->timeManager->startTime;
 
-        auto elapsed = 1 + currentTime() - this->timeManager->startTime;
-        auto nps = (threads[0].nodes * 1000) / elapsed;
-
-        std::cout << " info depth " << i
-                  << " score cp " << score / 2
-                  << " pv " << getPV(ss + 6, board)
-                  << " nps " << nps
-                  << " nodes " << threads[0].nodes
-                  << " time " << elapsed
-                  << std::endl;
-
-        bestMove = (ss + 6)->pv[0];
-        if (elapsed * 2 > timeManager->optimalTime)
-            break;
+            this->bestMove = (ss + 6)->pv[0];
+            auto nodes = this->totalNodes();
+            auto nps = (1000 * nodes) / elapsed;
+            std::cout << " info depth " << i
+                      << " score cp " << score / 2
+                      << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
+                      << " nps " << nps
+                      << " nodes " << nodes
+                      << " time " << elapsed
+                      << std::endl;
+            
+            if (elapsed * 2 > timeManager->optimalTime)
+                break;
+        }
     }
-    std::cout << "bestmove " << moveToUci(bestMove, board) << std::endl;
-    TT::Instance()->updateAge();
     delete[] ss;
+    if (ThreadID == 0) {
+        //wait other threads
+        this->stop();
+        for (std::thread &th: runningThreads) {
+            th.join();
+        }
+        std::cout << "bestmove " << moveToUci(bestMove, *board) << std::endl;
+        runningThreads.clear();
+        threads.clear();
+    }
+}
+
+uint64_t Search::totalNodes() {
+    uint64_t sum = 0ull;
+    for (int i = 0; i < numThread; i++) {
+        sum += threads[i].nodes;
+    }
+    return sum;
 }

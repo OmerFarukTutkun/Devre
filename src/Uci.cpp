@@ -135,7 +135,7 @@ void Uci::go(std::vector<std::string> &commands) {
         cmd = popFront(commands);
     }
     timeManager.start();
-    searchThread = std::thread(&Search::start, &search, board, timeManager);
+    searchThread = std::thread(&Search::start, &search, &board, &timeManager, 0);
 }
 
 void Uci::setoption(std::vector<std::string> &commands) {

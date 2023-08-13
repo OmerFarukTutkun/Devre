@@ -1,11 +1,9 @@
-#ifndef DEVRE_THREAD_H
-#define DEVRE_THREAD_H
+#ifndef DEVRE_THREADDATA_H
+#define DEVRE_THREADDATA_H
 
 #include "types.h"
 #include "board.h"
-
-#include <thread>
-class Thread {
+class ThreadData {
 public:
     int ThreadID;
     uint64_t nodes{};
@@ -17,7 +15,7 @@ public:
 
     Board board{};
 
-    explicit Thread(const std::string &fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", int ID = 0);
-    explicit Thread(const Board& b, int ID = 0);
+    explicit ThreadData(const std::string &fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", int ID = 0);
+    explicit ThreadData(const Board& b, int ID = 0);
 };
-#endif //DEVRE_THREAD_H
+#endif //DEVRE_THREADDATA_H

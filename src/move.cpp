@@ -137,7 +137,7 @@ void MoveList::addMove(uint16_t move) {
     moves[numMove++] = move;
 }
 
-void MoveList::scoreMoves(Thread &thread, Stack *ss) {
+void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
     Board *board = &thread.board;
     auto counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
     for (int i = 0; i < numMove; i++) {
@@ -167,7 +167,7 @@ void MoveList::scoreMoves(Thread &thread, Stack *ss) {
     }
 }
 
-uint16_t MoveList::pickMove(Thread &thread, Stack *ss, int skipThreshold) {
+uint16_t MoveList::pickMove(ThreadData &thread, Stack *ss, int skipThreshold) {
     if (!isSorted) {
         scoreMoves(thread, ss);
         isSorted = true;
