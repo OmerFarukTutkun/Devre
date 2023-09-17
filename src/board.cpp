@@ -130,6 +130,8 @@ void Board::print() {
     std::string fen = getFen();
     std::cout << "fen : " + fen << std::endl;
     std::cout << "eval: " << eval() << std::endl;
+    std::cout << "key : " << key << std::endl;
+    // 7409793769312533240
     for (int i = 7; i >= 0; i--) {
         printf("\n  |----|----|----|----|----|----|----|----|\n");
         for (int j = 0; j < 8; j++) {
@@ -154,7 +156,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         capturedPiece = pieceIndex(~sideToMove, PAWN);
     }
 
-    boardHistory.emplace_back(enPassant, castlings, halfMove, capturedPiece, key);
+    boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
     nnueData.nnueChanges.clear();
 
 
@@ -233,6 +235,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     if (updateNNUE) {
         nnueData.move = move;
         NNUE::Instance()->calculateInputLayer(*this);
+        nnueData.nnueChanges.clear();
     } else {
         nnueData.clear();
     }
@@ -354,7 +357,7 @@ std::string Board::getFen() {
 }
 
 void Board::makeNullMove() {
-    boardHistory.emplace_back(enPassant, castlings, halfMove, EMPTY, key);
+    boardHistory.emplace_back(enPassant, castlings, EMPTY, halfMove, key);
     sideToMove = ~sideToMove;
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
     enPassant = NO_SQ;

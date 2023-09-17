@@ -7,6 +7,18 @@
 #include "util.h"
 #include <sstream>
 
+int LMR_TABLE[MAX_PLY][256];
+void Search::initSearchParameters() {
+    for (int i = 0; i < MAX_PLY; i++) {
+        for (int j = 0; j < 256; j++) {
+            if (i >= 1 && j >= 2)
+                LMR_TABLE[i][j] = 1.75 + log(i) * log(j - 1) / 2.25;
+            else
+                LMR_TABLE[i][j] = 0;
+        }
+    }
+}
+
 void updatePv(Stack *ss) {
     auto pv = ss->pv;
     auto childPv = (ss + 1)->pv;
@@ -49,15 +61,14 @@ Search::Search() {
     threads.clear();
     stopped = false;
     bestMove = NO_MOVE;
+    initSearchParameters();
 }
 
 void Search::setThread(int thread) {
     numThread = thread;
 }
 
-Search::~Search() {
-
-}
+Search::~Search() = default;
 
 void Search::stop() {
     stopped = true;
@@ -70,7 +81,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     thread.nodes++;
 
     //TT Probing
-    int ttDepth, ttScore, ttBound, ttStaticEval;
+    int ttDepth=0, ttScore=0, ttBound = TT_NONE, ttStaticEval=0;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
     if (ttHit) {
@@ -88,11 +99,6 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     }
 
     auto standPat = ttHit ? ttStaticEval : board->eval();
-
-    //use TT score as eval TODO: test
-    if (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND))
-        standPat = ttScore;
-
     if (standPat >= beta) {
         return standPat;
     }
@@ -165,7 +171,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
     //draw check
     if (!rootNode && board->isDraw()) {
-        return 0;
+        return 4 - (thread.nodes & 7);
     }
     if (ss->ply > MAX_PLY) {
         return board->eval();
@@ -186,10 +192,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     thread.nodes++;
 
     //TT Probing
-    int ttDepth, ttScore, ttBound = TT_NONE, ttStaticEval;
+    int ttDepth, ttScore, ttBound, ttStaticEval;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
-    if (ttHit && !rootNode && !PVNode) {
+    if (ttHit  && !rootNode && !PVNode) {
         if (ttDepth >= depth) {
             if (ttBound == TT_EXACT
                 || (ttBound == TT_UPPERBOUND && alpha >= ttScore)
@@ -198,13 +204,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         }
     }
 
-    int eval = ttHit ? ttStaticEval : board->eval();
-
-    //use TT score as eval TODO: test
-    if (ttBound & (ttScore > eval ? TT_LOWERBOUND : TT_UPPERBOUND))
-        eval = ttScore;
-
-    ss->staticEval = eval;
+    int staticEval = ttHit ? ttStaticEval : board->eval();
+    ss->staticEval = staticEval;
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
     //IIR
@@ -212,26 +213,18 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && depth <= 5 && eval > beta + depth * 125 && !rootNode) {
-        return eval;
+    if (!PVNode && !inCheck && depth <= 5 && staticEval > beta + depth * 125 && !rootNode) {
+        return staticEval;
     }
-
-    //Razoring TODO: test
-    if (eval < alpha - 456 - 252 * depth * depth) {
-        int value = qsearch(alpha - 1, alpha, thread, ss);
-        if (value < alpha)
-            return value;
-    }
-
     (ss + 1)->killers[0] = NO_MOVE;
     (ss + 1)->killers[1] = NO_MOVE;
 
     int score;
 
     //Null Move pruning
-    if (!PVNode && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
+    if (!PVNode && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && staticEval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 200);
+        int R = 4 + depth / 4 + std::min(3, (staticEval - beta) / 200);
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
@@ -243,13 +236,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     auto moveList = MoveList(ttMove);
     legalmoves<ALL_MOVES>(*board, moveList);
 
-    //checkmate or stalemate
+    // checkmate or stalemate
     if (0 == moveList.numMove) {
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
     int lmr;
     int bestScore = -VALUE_INFINITE;
-    uint16_t bestMove = NO_MOVE, move = NO_MOVE;
+    uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
 
     ss->played = 0;
 
@@ -259,37 +252,25 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->move = move;
         ss->playedMoves[ss->played++] = move;
 
-        lmr = 1;
-        if (ss->played > 2 && depth > 2 && isQuiet(move)) {
-            lmr = 1.75 + log(depth) * log(ss->played - 1) / 2.25;
-            lmr -= PVNode; //reduce less for PV nodes
-            lmr += !improving;
-        }
-
         if (isQuiet(move) && ss->played > 3 && !PVNode && !inCheck) {
-            //lmp
+            // lmp
             if (depth <= 5 && ss->played > 6 + (3 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 8 && eval + depth * 80 + 100 < alpha)
+            if (depth <= 8 && staticEval + depth * 40 + 200 < alpha)
                 continue;
-
-            int history = getQuietHistory(thread, ss, move);
-            //history pruning
-            if (depth <= 4 && history < -4000 * depth)
-                continue;
-
-            //SEE pruning
-            if (depth <= 5 && SEE(*board, move) < -30 * depth * depth)
-                continue;
-
-            int hisReduction = -history / 5000;
-            lmr += std::max(-2, std::min(2, hisReduction));
+        }
+        lmr = 1;
+        if (ss->played > 2 && depth > 2 && isQuiet(move)) {
+            lmr = LMR_TABLE[depth][ss->played];
+            lmr -= PVNode; //reduce less for PV nodes
+            lmr += !improving;
         }
         lmr = std::max(1, std::min(depth - 1, lmr));
-
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+
+
 
         //make move
         board->makeMove(move);
@@ -302,16 +283,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         } else {
             score = -alphaBeta(-beta, -alpha, depth - 1, thread, ss + 1);
         }
-        //unmake move
         board->unmakeMove(move);
-
 
         if (score > bestScore) {
             bestMove = move;
             bestScore = score;
 
             if (bestScore >= beta) {
-                updateHistories(thread, ss, depth, moveList, bestMove);
+                updateHistories(thread, ss, depth, bestMove);
                 break;
             }
             if (bestScore > alpha) {
@@ -322,11 +301,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         }
     }
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
-    TT::Instance()->ttSave(board->key, ss->ply, bestScore, eval, bound, depth, bestMove);
+    TT::Instance()->ttSave(board->key, ss->ply, bestScore, staticEval, bound, depth, bestMove);
     return bestScore;
 }
 
-void Search::start(Board *board, TimeManager *tm, int ThreadID) {
+SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
+    SearchResult res{};
     std::vector<std::thread> runningThreads;
     if (ThreadID == 0) {
         stopped = false;
@@ -398,7 +378,14 @@ void Search::start(Board *board, TimeManager *tm, int ThreadID) {
         std::cout << "bestmove " << moveToUci(bestMove, *board) << std::endl;
         runningThreads.clear();
         threads.clear();
+
+        TT::Instance()->updateAge();
+
+        res.cp = score / 2;
+        res.move = bestMove;
+        res.nodes = totalNodes();
     }
+    return res;
 }
 
 uint64_t Search::totalNodes() {

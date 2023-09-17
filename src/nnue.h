@@ -17,7 +17,7 @@
 #define vector_multipy   _mm256_madd_epi16
 #define vector_epi32_add _mm256_add_epi32
 constexpr int vector_size = 16;
-#elif defined(USE_SSE3)
+#else //defined(USE_SSE3)
 #include <tmmintrin.h>
 #define vector_type      __m128i
 #define vector_add       _mm_add_epi16

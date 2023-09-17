@@ -27,9 +27,9 @@ void bench(int argc, char **argv) {
         tm.start();
         std::cout << "fen :" << fen << std::endl;
         auto board = Board(fen);
-        search.start(&board, &tm, 0);
+        auto res = search.start(&board, &tm, 0);
         TT::Instance()->ttClear();
-        //totalNodes += search.threads[0].nodes;
+        totalNodes += res.nodes;
 
     }
 

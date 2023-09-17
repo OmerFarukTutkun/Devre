@@ -65,7 +65,8 @@ void TT::ttAllocate(int megabyte) {
 
 void TT::ttClear() {
     age = 0;
-    memset(table, 0, (ttMask + ONE) * sizeof(TTentry));
+    for(int i=0; i <= ttMask; i++)
+        table[i] = {};
 }
 
 void TT::ttFree() {

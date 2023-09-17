@@ -6,7 +6,7 @@
 #include "ThreadData.h"
 #include "move.h"
 
-void updateHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestmove);
+void updateHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestmove);
 
 int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move);
 

@@ -12,7 +12,7 @@ void updateHistory(int16_t *current, int depth, bool good) {
     *current += delta - *current * abs(delta) / HistoryDivisor;
 }
 
-void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
+void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestMove) {
     if ((ss->played == 1 && depth <= 3))
         return;
 
@@ -45,11 +45,10 @@ void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, MoveList &mo
                 updateHistory(current, depth, isGood);
             }
         }
-
     }
 }
 
-void updateCaptureHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
+void updateCaptureHistories(ThreadData &thread, Stack *ss, int depth) {
     Board *board = &thread.board;
     for (int i = 0; i <ss->played; i++) {
         auto move = ss->playedMoves[i];
@@ -58,18 +57,17 @@ void updateCaptureHistories(ThreadData &thread, Stack *ss, int depth, MoveList &
             int to = moveTo(move);
             int16_t *current = &thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(
                     board->pieceBoard[to])];
-            updateHistory(current, depth, i ==ss->played - 1);
+            updateHistory(current, depth, i == ss->played - 1);
         }
     }
 }
 
-void updateHistories(ThreadData &thread, Stack *ss, int depth, MoveList &movelist, uint16_t bestMove) {
-
+void updateHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestMove) {
     if (isQuiet(moveType(bestMove)))
-        updateQuietHistories(thread, ss, depth, movelist, bestMove);
+        updateQuietHistories(thread, ss, depth, bestMove);
 
     if (moveType(bestMove) <= CAPTURE)
-        updateCaptureHistories(thread, ss, depth, movelist, bestMove);
+        updateCaptureHistories(thread, ss, depth);
 }
 
 int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move) {
@@ -80,7 +78,6 @@ int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move) {
 }
 
 int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
-
     Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);

@@ -127,7 +127,7 @@ int32_t NNUE::quanMatrixMultp(int side, int16_t (&accumulator)[2][L1]) {
     __m128i low_sum = _mm256_castsi256_si128(out);
     *(__m128i *) &result[0] = _mm_add_epi32(high_sum, low_sum);
 #else
-    *(__m128i*) &result[0] = sum;
+    *(__m128i*) &result[0] = out;
 #endif
     return (layer1_bias + result[0] + result[1] + result[2] + result[3]) / OUTPUT_DIVISOR;
 }

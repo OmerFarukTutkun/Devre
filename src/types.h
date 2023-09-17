@@ -12,9 +12,10 @@
 #include <cstring>
 #include "vector"
 #include "array"
+#include <string.h>
 
 #ifndef VERSION
-#define VERSION "4.21"
+#define VERSION "4.41"
 #endif
 
 constexpr auto MAX_PLY = 100;
@@ -165,20 +166,20 @@ enum TT_BOUND {
 };
 
 struct TTentry {
-    uint64_t key{};
-    int16_t score{};
-    uint16_t move{};
-    int16_t staticEval{};
-    uint8_t depth{};
-    uint8_t ageAndBound{};
+    uint64_t key{0};
+    int16_t score{0};
+    uint16_t move{0};
+    int16_t staticEval{0};
+    uint8_t depth{0};
+    uint8_t ageAndBound{0};
 };
 
 struct nnueChange {
-    uint8_t piece;
-    uint8_t sq;
-    int8_t sign;
+    int piece;
+    int sq;
+    int sign;
 
-    nnueChange(uint8_t piece, uint8_t sq, int8_t sign) :
+    nnueChange(int piece, int sq, int sign) :
             piece(piece),
             sq(sq),
             sign(sign) {}
@@ -229,11 +230,11 @@ struct BoardHistory {
     uint8_t halfMove;
     uint64_t key;
 
-    BoardHistory(uint8_t enPassant, uint8_t castling, uint8_t halfMove, uint8_t capturedPiece, uint64_t key)
+    BoardHistory(uint8_t enPassant, uint8_t castling,  uint8_t capturedPiece, uint8_t halfMove, uint64_t key)
             : enPassant(enPassant),
               castlings(castling),
-              halfMove(halfMove),
               capturedPiece(capturedPiece),
+              halfMove(halfMove),
               key(key) {}
 };
 
