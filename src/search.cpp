@@ -252,13 +252,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->move = move;
         ss->playedMoves[ss->played++] = move;
 
-        if (isQuiet(move) && ss->played > 3 && !PVNode && !inCheck) {
+        if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // lmp
             if (depth <= 5 && ss->played > 6 + (3 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 8 && staticEval + depth * 40 + 200 < alpha)
+            if (depth <= 8 && staticEval + depth * 80 + 80 < alpha)
                 continue;
         }
         lmr = 1;

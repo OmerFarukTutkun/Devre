@@ -81,14 +81,12 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
 
     auto *weights = (vector_type *) &feature_weights[L1 * pieceAddition[--j]];
 
-#pragma unroll
     for (int i = 0; i < L1 / vector_size; i++) {
         outputs[i] = vector_add(acc[i], weights[i]);
     }
 
     while (j--) {
         weights = (vector_type *) &feature_weights[L1 * pieceAddition[j]];
-#pragma unroll
         for (int i = 0; i < L1 / vector_size; i++) {
             outputs[i] = vector_add(outputs[i], weights[i]);
         }
@@ -96,7 +94,6 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
 
     while (k--) {
         weights = (vector_type *) &feature_weights[L1 * pieceRemoval[k]];
-#pragma unroll
         for (int i = 0; i < L1 / vector_size; i++) {
             outputs[i] = vector_sub(outputs[i], weights[i]);
         }
@@ -111,12 +108,10 @@ int32_t NNUE::quanMatrixMultp(int side, int16_t (&accumulator)[2][L1]) {
     auto zero = vector_set_zero();
     auto out = zero;
 
-#pragma unroll
     for (int i = 0; i < L1 / (vector_size); i++) {
         out = vector_epi32_add(out, vector_multipy(vector_max(acc_us[i], zero), weights[i]));
     }
     const auto offset = L1/vector_size;
-#pragma unroll
     for (int i = 0; i < L1 / (vector_size); i++) {
         out = vector_epi32_add(out, vector_multipy(vector_max(acc_enemy[i], zero), weights[i + offset]));
     }
@@ -141,13 +136,11 @@ void NNUE::recalculateInputLayer(Board &board, Color c) {
     auto *outputs = (vector_type *) &board.nnueData.accumulator[board.nnueData.size][c][0];  //white
 
     auto *weights = (vector_type *) &feature_weights[weightIndices[0]];
-#pragma unroll
     for (int i = 0; i < L1 / vector_size; i++) {
         outputs[i] = vector_add(biases[i], weights[i]);
     }
     for (int k = 1; k < sz; k++) {
         weights = (vector_type *) &feature_weights[weightIndices[k]];
-#pragma unroll
         for (int i = 0; i < L1 / vector_size; i++) {
             outputs[i] = vector_add(outputs[i], weights[i]);
         }
