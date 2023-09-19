@@ -98,4 +98,22 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
 }
 
 
+int getContHistory(ThreadData &thread, Stack *ss, uint16_t move)
+{
+    Board *board = &thread.board;
+    int from = moveFrom(move);
+    int to = moveTo(move);
+    int piece = board->pieceBoard[from];
+    auto score = 0;
 
+    if ((ss - 1)->move)
+    {
+        score += (*(ss - 1)->continuationHistory)[piece][to];
+    }
+    if ((ss - 2)->move)
+    {
+
+        score += (*(ss - 2)->continuationHistory)[piece][to];
+    }
+    return score;
+}

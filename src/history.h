@@ -12,4 +12,5 @@ int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move);
 
 int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move);
 
+int getContHistory(ThreadData &thread, Stack *ss, uint16_t move);
 #endif //DEVRE_HISTORY_H

@@ -253,12 +253,17 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->playedMoves[ss->played++] = move;
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
-            // lmp
+            // late move pruning
             if (depth <= 5 && ss->played > 6 + (3 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
             if (depth <= 8 && staticEval + depth * 80 + 80 < alpha)
+                continue;
+
+            //contHist pruning
+            int contHist = getContHistory(thread,ss, move);
+            if(depth <= 3 && contHist < -3000 )
                 continue;
         }
         lmr = 1;
