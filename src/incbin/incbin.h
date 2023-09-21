@@ -209,7 +209,7 @@
 /**
  * @brief Specify the style used for symbol names.
  *
- * Possible options are
+ * Possible Options are
  * - INCBIN_STYLE_CAMEL "CamelCase"
  * - INCBIN_STYLE_SNAKE "snake_case"
  *

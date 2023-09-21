@@ -1,34 +1,25 @@
-#ifndef _TT_H_
-#define _TT_H_
+#ifndef DEVRE_TT_H
+#define DEVRE_TT_H
 
-#include "board.h"
-#include "search.h"
+#include "types.h"
 
-#define TT_ALPHA 1u
-#define TT_BETA 2u
-#define TT_EXACT 3u
+class TT {
+    private:
+        TT();
+        ~TT();
+        int age;
+        uint64_t ttMask;
+        TTentry* table;
+        void ttFree();
+    public:
+        void ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move);
+        bool ttProbe(uint64_t key,int ply,int& ttDepth,int& ttScore,int& ttBound,int& ttStaticEval,uint16_t& ttMove);
+        void ttAllocate(int megabyte=16);
+        void ttClear();
+        void ttPrefetch(uint64_t hash);
+        void updateAge();
 
-extern uint64_t PieceKeys[12][64];
-extern uint64_t SideToPlayKey;
-extern uint64_t CastlingKeys[16];
-extern uint64_t EnPassantKeys[64];
-typedef struct TTentry{
-    uint64_t key;
-    int16_t score;
-    uint8_t depth;
-    char flag;
-    uint16_t move;
-    uint8_t age;
-}TTentry;
+        static TT* Instance();
+};
 
-uint64_t rand_u64();
-void init_keys();
-void initZobristKey(Position* pos);
-void tt_save(Position* pos , int score ,char flag,uint8_t depth,uint16_t move);
-TTentry* tt_probe(uint64_t key);
-void tt_init(int megabyte);
-void tt_clear();
-void tt_free();
-void tt_prefetch(uint64_t hash);
-void update_age();
-#endif
+#endif //DEVRE_TT_H

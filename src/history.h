@@ -1,9 +1,16 @@
-#ifndef _HISTORY_H_
-#define _HISTORY_H_
-#include "movegen.h"
+#ifndef DEVRE_HISTORY_H
+#define DEVRE_HISTORY_H
 
-void update_histories(Position* pos, int depth, uint16_t* moves, int length);
-int32_t get_history(Position* pos, uint16_t move);
-void update_capture_histories(Position* pos, int depth, uint16_t* moves, int length);
-int32_t get_capture_history(Position* pos, uint16_t move);
-#endif
+#include "types.h"
+#include "search.h"
+#include "ThreadData.h"
+#include "move.h"
+
+void updateHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestmove);
+
+int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move);
+
+int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move);
+
+int getContHistory(ThreadData &thread, Stack *ss, uint16_t move);
+#endif //DEVRE_HISTORY_H
