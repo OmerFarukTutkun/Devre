@@ -224,7 +224,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     //Null Move pruning
     if (!PVNode && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && staticEval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 6 + std::min(3, (staticEval - beta) / 200);
+        int R = 4 + depth / 4 + std::min(3, (staticEval - beta) / 200);
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
@@ -258,7 +258,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 continue;
 
             // futility pruning
-            if (depth <= 8 && staticEval + depth * 80 + 80 < alpha)
+            if (depth <= 8 && staticEval + depth * 40 + 200 < alpha)
                 continue;
 
             //contHist pruning
