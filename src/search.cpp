@@ -216,6 +216,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     if (!PVNode && !inCheck && depth <= 5 && staticEval > beta + depth * 125 && !rootNode) {
         return staticEval;
     }
+
+    //Razoring
+    if (!PVNode && !inCheck && depth <= 5 && staticEval + 350 * depth < alpha) {
+        int score = qsearch(alpha, beta, thread,ss);
+        if(score < alpha)
+            return score;
+    }
+
     (ss + 1)->killers[0] = NO_MOVE;
     (ss + 1)->killers[1] = NO_MOVE;
 
@@ -272,6 +280,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
 
+            //Late Move Pruning adjuısmöent based on history score
             int hist = getQuietHistory(thread,ss, move);
             lmr -= std::min(2, std::max(-2, hist/5000));
         }
