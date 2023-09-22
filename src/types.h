@@ -15,7 +15,7 @@
 #include <string.h>
 
 #ifndef VERSION
-#define VERSION "4.41"
+#define VERSION "4.51"
 #endif
 
 constexpr auto MAX_PLY = 100;
@@ -191,7 +191,7 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 auto constexpr INPUT_SIZE = 32 * 768;
 auto constexpr L1 = 512;
 
-auto constexpr SCALE_OUTPUT = 256; // scaling needed at the output because of sigmoid
+auto constexpr SCALE_OUTPUT = 281; // scaling needed at the output because of sigmoid
 auto constexpr SCALE_WEIGHT = 512; // 512 may result in overflow in NNUE, but I guess it doesn't happen in practice. So for better accuracy, I chose 512
 auto constexpr OUTPUT_DIVISOR = ((SCALE_WEIGHT * SCALE_WEIGHT) / SCALE_OUTPUT);
 
