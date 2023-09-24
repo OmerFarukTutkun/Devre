@@ -1,7 +1,7 @@
 #include "TimeManager.h"
 #include "UciOptions.h"
 #include "util.h"
-bool TimeManager::checkLimits() {
+bool TimeManager::checkLimits(uint64_t totalNodes) {
 
     if(--calls > 0)
         return false;
@@ -16,6 +16,11 @@ bool TimeManager::checkLimits() {
 
         auto moveOverhead = Options.at("Move Overhead");
         if(elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
+            return true;
+    }
+    if(nodeLimit != -1)
+    {
+        if(totalNodes >= nodeLimit)
             return true;
     }
     return false;

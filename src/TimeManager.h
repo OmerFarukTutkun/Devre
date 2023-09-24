@@ -19,7 +19,7 @@ public:
     int calls;
     int period;
 
-    bool checkLimits();
+    bool checkLimits(uint64_t totalNodes);
     //set start time and calculate optimal time to start
     void start();
 

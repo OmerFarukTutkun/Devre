@@ -24,10 +24,8 @@ endif
 
 avx2: network
 	$(CC) $(CXX_FLAGS) $(AVX2) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)-avx2$(EXT)
-	copy.bat
 sse3: network
 	$(CC) $(CXX_FLAGS) $(SSE3) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)-sse3$(EXT)
-	copy.bat
 network:
 ifeq (,$(wildcard ./$(NETWORK)))
 	$(DOWNLOAD_NETWORK)

@@ -151,7 +151,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     if (stopped) {
         return 0;
     }
-    if (thread.ThreadID == 0 && timeManager->checkLimits()) {
+    if (thread.ThreadID == 0 && timeManager->checkLimits(totalNodes())) {
         stopped = true;
         return 0;
     }
