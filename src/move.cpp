@@ -159,7 +159,7 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             } else if (type == CAPTURE) {
                 auto seeValue = SEE(*board, move);
                 if (seeValue < 0)
-                    scores[i] = MIL + getCaptureHistory(thread, ss, move);
+                    scores[i] = getCaptureHistory(thread, ss, move);
                 else
                     scores[i] += getCaptureHistory(thread, ss, move) + seeValue*1000;
             }
