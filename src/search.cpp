@@ -345,7 +345,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
         // aspiration window search
         if (i > 4) {
-            int windowSize = 20;
+            int windowSize = 25;
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {
@@ -357,7 +357,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 else if (score >= beta)
                     beta = std::min(+VALUE_INFINITE, beta + windowSize);
 
-                windowSize *= 2;
+                windowSize += windowSize/3;
             }
         } else {
             score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, threads.at(ThreadID), ss + 6);
