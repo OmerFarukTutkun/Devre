@@ -86,5 +86,5 @@ public:
 };
 std::string moveToUci(uint16_t move, Board& board);
 uint16_t moveFromUci(Board& board, std::string move);
-int SEE(Board& board, uint16_t move);
+bool SEE(Board& board, uint16_t move, int threshold = 0);
 #endif //DEVRE_MOVE_H

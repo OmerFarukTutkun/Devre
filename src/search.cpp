@@ -209,7 +209,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
     //IIR
-    if (!ttHit && depth >= 4 && !PVNode)
+    if (!ttHit && depth >= 3 && !PVNode)
         depth -= 1;
 
     //Reverse Futility Pruning
@@ -274,6 +274,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             if(depth <= 3 && contHist < -3000 )
                 continue;
         }
+
         lmr = 1;
         if (ss->played > 2 && depth > 2 && isQuiet(move)) {
             lmr = LMR_TABLE[depth][ss->played];
@@ -345,7 +346,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
         // aspiration window search
         if (i > 4) {
-            int windowSize = 25;
+            int windowSize = 20;
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {

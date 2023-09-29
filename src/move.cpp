@@ -5,7 +5,7 @@
 #include "UciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150};
+constexpr int16_t SEE_VALUE[N_PIECES +1] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0};
 std::string moveToUci(uint16_t move, Board &board) {
     std::stringstream ss;
     if (move == NULL_MOVE) {
@@ -82,49 +82,65 @@ uint16_t moveFromUci(Board &board, std::string uciMove) {
     }
     return NO_MOVE;
 }
+bool SEE(Board &board, uint16_t move, int threshold) {
 
-int SEE(Board &board, uint16_t move) {
     // Do not calculate SEE for castlings, ep, promotions
     if (moveType(move) >= KING_CASTLE && moveType(move) != CAPTURE) {
-        return 1000;
+        return true;
     }
-    int gain[32] = {0};
-    int d = 0;
+
     int from = moveFrom(move);
     int to = moveTo(move);
     int side = board.sideToMove;
+    int nextVictim =board.pieceBoard[from];
+    int balance    = SEE_VALUE[board.pieceBoard[to]] - threshold;
 
-    uint64_t attackers = squareAttackedBy(board, to);
+    if(balance < 0)
+        return false;
+    balance -= SEE_VALUE[nextVictim];
+    if(balance >= 0)
+        return true;
+
+    uint64_t occ = board.occupied[0] | board.occupied[1];
+    clearBit(occ, from);
+    clearBit(occ, to);
+
+    uint64_t attackers = squareAttackedBy(board, to) & occ;
     uint64_t diagonalX = board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP] | board.bitboards[WHITE_QUEEN] |
                          board.bitboards[BLACK_QUEEN];
     uint64_t horizontalX =
             board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK] | board.bitboards[WHITE_QUEEN] |
             board.bitboards[BLACK_QUEEN];
-    uint64_t occ = board.occupied[0] | board.occupied[1];
-    int piece = pieceType(board.pieceBoard[to]);
-    gain[0] = isCapture(move) ? SEE_VALUE[piece] : 0;
-    do {
-        d++;
-        piece = pieceType(board.pieceBoard[from]);
-        gain[d] = SEE_VALUE[piece] - gain[d - 1];
+
+
+    side = !side;
+
+    while(true)
+    {
+        from = getLeastValuableAttacker(board, attackers, side);
+        if(from == NO_SQ)
+            break;
+        //remove attacker from occupancy and attackers
         clearBit(occ, from);
         clearBit(attackers, from);
-       if (std::max(-gain[d - 1], gain[d]) < 0) {
-            break;
-        }
+
+        auto piece = pieceType(board.pieceBoard[from]);
         if (piece == PAWN || piece == BISHOP || piece == QUEEN)
             attackers |= bishopAttacks(occ, to) & diagonalX & occ;
         if (piece == ROOK || piece == QUEEN)
             attackers |= rookAttacks(occ, to) & horizontalX & occ;
+
         side = !side;
-        from = getLeastValuablePiece(board, attackers, side);
-    } while (from != NO_SQ);
+        balance = - balance - 1 - SEE_VALUE[piece];
+        if(balance >= 0)
+        {
+            if(piece == KING && (attackers & board.occupied[side]))
+                side = !side;
 
-    while (--d) {
-        gain[d - 1] = -std::max(-gain[d - 1], gain[d]);
+            break;
+        }
     }
-
-    return gain[0];
+    return side != board.sideToMove;
 }
 
 MoveList::MoveList(uint16_t ttMove) {
@@ -157,11 +173,10 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
-                auto seeValue = SEE(*board, move);
-                if (seeValue < 0)
-                    scores[i] = getCaptureHistory(thread, ss, move);
+                if (SEE(*board, move))
+                    scores[i] += getCaptureHistory(thread, ss, move);
                 else
-                    scores[i] += getCaptureHistory(thread, ss, move) + seeValue*1000;
+                    scores[i] = getCaptureHistory(thread, ss, move);
             }
         }
     }

@@ -133,7 +133,9 @@ uint64_t squareAttackedBy(Board &board, int square) {
     return attackers;
 }
 
-int getLeastValuablePiece(Board &board, uint64_t attackers, int side) {
+int getLeastValuableAttacker(Board &board, uint64_t attackers, int side) {
+    if((attackers & board.occupied[side]) == 0ull)
+        return NO_SQ;
     uint64_t temp = 0ull;
     for (int i = pieceIndex(side, PAWN); i <= pieceIndex(side, KING); i++) {
         temp = attackers & board.bitboards[i];

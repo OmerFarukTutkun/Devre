@@ -247,6 +247,6 @@ bool isSquareAttacked(Board &board, int sq, int side);
 
 uint64_t squareAttackedBy(Board &board, int square);
 
-int getLeastValuablePiece(Board &board, uint64_t attackers, int side);
+int getLeastValuableAttacker(Board &board, uint64_t attackers, int side);
 
 #endif //DEVRE_ATTACK_H
