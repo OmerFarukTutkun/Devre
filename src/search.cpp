@@ -19,7 +19,7 @@ void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 1.75 + log(i) * log(j - 1) / 2.25;
+                LMR_TABLE[i][j] = 1.25 + log(i) * log(j - 1) / 2.50;
             else
                 LMR_TABLE[i][j] = 0;
         }
