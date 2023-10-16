@@ -273,7 +273,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 continue;
 
             // futility pruning
-            if (depth <= 8 && staticEval + depth * 80 + 80 < alpha)
+            if (depth <= 8 && staticEval + std::max(0,-(ss->played)*10 + 80) + depth * 80 < alpha)
                 continue;
 
             //contHist pruning
@@ -389,7 +389,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " time " << elapsed
                       << std::endl;
             
-            if (elapsed * 2 > timeManager->optimalTime)
+            if (elapsed * 2.5 > timeManager->optimalTime)
                 break;
         }
     }
