@@ -34,7 +34,7 @@ private:
     uint16_t bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();
-    void initSearchParameters();
+    static void initSearchParameters();
     int qsearch(int alpha, int beta, ThreadData &thread, Stack *ss);
     int alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack *ss);
 

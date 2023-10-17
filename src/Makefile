@@ -9,7 +9,7 @@ EXT      =
 NETWORK  = devre_23.09.22_ep120.nnue
 DOWNLOAD_NETWORK     = wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
 NATIVE   = 1
-VERSION = 4.59
+VERSION = 4.60
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 endif

@@ -3,7 +3,7 @@
 const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
-    return depth > 13 ? 32 : 16 * depth * depth + 128 * (depth - 1);
+    return std::min(400 * depth - 100, 1500);;
 }
 
 void updateHistory(int16_t *current, int depth, bool good) {
