@@ -3,7 +3,7 @@
 
 #include "types.h"
 #include "search.h"
-#include "ThreadData.h"
+#include "threadData.h"
 #include "move.h"
 
 void updateHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestmove);

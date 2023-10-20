@@ -1,5 +1,5 @@
 #include "bench.h"
-#include "TT.h"
+#include "tt.h"
 #include "search.h"
 #include "util.h"
 

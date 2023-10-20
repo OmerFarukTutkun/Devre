@@ -4,8 +4,8 @@
 
 #include "search.h"
 #include "board.h"
-#include "UciOptions.h"
-#include "TimeManager.h"
+#include "uciOptions.h"
+#include "timeManager.h"
 
 class Uci {
 private:

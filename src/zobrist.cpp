@@ -1,4 +1,4 @@
-#include "Zobrist.h"
+#include "zobrist.h"
 
 uint64_t rand_u64()
 {

@@ -1,4 +1,4 @@
-#include "ThreadData.h"
+#include "threadData.h"
 
 ThreadData::ThreadData(const std::string &fen, int ID) {
     this->board = Board(fen);

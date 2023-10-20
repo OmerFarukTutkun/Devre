@@ -1,8 +1,8 @@
-#include "Uci.h"
+#include "uci.h"
 #include "perft.h"
 #include "util.h"
 #include "move.h"
-#include "TT.h"
+#include "tt.h"
 #include "nnue.h"
 #include "bench.h"
 

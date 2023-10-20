@@ -1,4 +1,4 @@
-#include "Uci.h"
+#include "uci.h"
 #include "bench.h"
 
 int main(int argc, char **argv)

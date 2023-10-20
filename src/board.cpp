@@ -5,8 +5,8 @@
 #include "attack.h"
 #include "move.h"
 #include "nnue.h"
-#include "Zobrist.h"
-#include "TT.h"
+#include "zobrist.h"
+#include "tt.h"
 
 Board::Board(const std::string &fen) {
     key = 0;

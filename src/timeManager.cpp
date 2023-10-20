@@ -1,5 +1,5 @@
-#include "TimeManager.h"
-#include "UciOptions.h"
+#include "timeManager.h"
+#include "uciOptions.h"
 #include "util.h"
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 

@@ -2,9 +2,9 @@
 #define DEVRE_SEARCH_H
 
 #include "types.h"
-#include "ThreadData.h"
+#include "threadData.h"
 #include <thread>
-#include "TimeManager.h"
+#include "timeManager.h"
 
 struct Stack {
     PieceTo *continuationHistory;

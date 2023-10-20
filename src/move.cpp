@@ -2,7 +2,7 @@
 #include "attack.h"
 #include "history.h"
 #include "movegen.h"
-#include "UciOptions.h"
+#include "uciOptions.h"
 #include <sstream>
 
 constexpr int16_t SEE_VALUE[N_PIECES +1] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0};

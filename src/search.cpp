@@ -1,6 +1,6 @@
 #include "search.h"
-#include "ThreadData.h"
-#include "TT.h"
+#include "threadData.h"
+#include "tt.h"
 #include "move.h"
 #include "movegen.h"
 #include "history.h"
