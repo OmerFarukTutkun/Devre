@@ -1,5 +1,5 @@
 CC       = g++
-CXX_FLAGS   =  -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto
+CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto
 AVX2     =  -D USE_AVX2
 SSE3     =  -D USE_SSE3
 EXE      = devre
@@ -9,7 +9,7 @@ EXT      =
 NETWORK  = devre_23.09.22_ep120.nnue
 DOWNLOAD_NETWORK     = wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
 NATIVE   = 1
-VERSION = 4.62
+VERSION = 4.63
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 endif

@@ -211,21 +211,25 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         }
     }
 
-    int staticEval = ttHit ? ttStaticEval : board->eval();
-    ss->staticEval = staticEval;
+    int eval = ttHit ? ttStaticEval : board->eval();
+    ss->staticEval = eval;
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
+
+    //ttValue can be used as a better position evaluation
+    if (ttHit && (ttBound & (ttScore > eval ? TT_LOWERBOUND : TT_UPPERBOUND)))
+        eval = ttScore;
 
     //IIR
     if (!ttHit && depth >= 3 && !PVNode)
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && depth <= 5 && staticEval > beta + depth * 125 && !rootNode) {
-        return staticEval;
+    if (!PVNode && !inCheck && depth <= 5 && eval > beta + depth * 125 && !rootNode) {
+        return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && depth <= 5 && staticEval + 350 * depth < alpha) {
+    if (!PVNode && !inCheck && depth <= 5 && eval + 350 * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -237,9 +241,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     int score;
 
     //Null Move pruning
-    if (!PVNode && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && staticEval > beta &&
+    if (!PVNode && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 6 + std::min(3, (staticEval - beta) / 200);
+        int R = 4 + depth / 6 + std::min(3, (eval - beta) / 200);
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
@@ -273,7 +277,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 continue;
 
             // futility pruning
-            if (depth <= 8 && staticEval + std::max(0,-(ss->played)*10 + 80) + depth * 80 < alpha)
+            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 80) + depth * 80 < alpha)
                 continue;
 
             //contHist pruning
@@ -326,7 +330,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         }
     }
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
-    TT::Instance()->ttSave(board->key, ss->ply, bestScore, staticEval, bound, depth, bestMove);
+    TT::Instance()->ttSave(board->key, ss->ply, bestScore, eval, bound, depth, bestMove);
     return bestScore;
 }
 
