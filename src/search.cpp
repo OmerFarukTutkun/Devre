@@ -296,7 +296,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
             //Late Move Reduction adjustment based on history score
             int hist = getQuietHistory(thread,ss, move);
-            lmr -= std::min(2, std::max(-2, hist/5000));
+            lmr -= hist/5000;
+        }
+        else if ( ss->played > 2 && depth > 2 && isTactical(move))
+        {
+            lmr += (ss->played > 10);
+
+            int hist = getCaptureHistory(thread,ss, move);
+            lmr -= hist/5000;
         }
         lmr = std::max(1, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
@@ -392,8 +399,12 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " nodes " << nodes
                       << " time " << elapsed
                       << std::endl;
-            
-            if (elapsed * 2.5 > timeManager->optimalTime)
+
+            //if our score is much higher than staticEval spend less time
+            double x = (score - (ss + 6)->staticEval + 200) / 500.0;
+            x = std::min(1.0, std::max(0.0 ,x));
+
+            if (elapsed * (2.5 + x) > timeManager->optimalTime)
                 break;
         }
     }
