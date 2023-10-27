@@ -7,11 +7,14 @@ SRC      = *.cpp
 LIBS     = -lm
 EXT      =
 NETWORK  = devre_23.09.22_ep120.nnue
-DOWNLOAD_NETWORK     = wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
+DOWNLOAD_NETWORK     =
 NATIVE   = 1
-VERSION = 4.64
+VERSION = 4.65
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
+	DOWNLOAD_NETWORK += curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
+else
+	DOWNLOAD_NETWORK += wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
 endif
 
 ifeq ($(NATIVE),1)
@@ -23,9 +26,9 @@ else
 endif
 
 avx2: network
-	$(CC) $(CXX_FLAGS) $(AVX2) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)-avx2$(EXT)
+	$(CC) $(CXX_FLAGS) $(AVX2) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)$(EXT)
 sse3: network
-	$(CC) $(CXX_FLAGS) $(SSE3) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)-sse3$(EXT)
+	$(CC) $(CXX_FLAGS) $(SSE3) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)$(EXT)
 network:
 ifeq (,$(wildcard ./$(NETWORK)))
 	$(DOWNLOAD_NETWORK)
