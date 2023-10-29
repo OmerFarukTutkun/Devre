@@ -17,6 +17,7 @@ struct Stack {
     uint16_t killers[2];
     int staticEval;
     uint64_t threat;
+    uint16_t excludedMove;
 
     Stack();
 };
@@ -31,6 +32,7 @@ class Search {
 private:
     bool stopped;
     int numThread;
+    int searchDepth;
     uint16_t bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();
