@@ -6,12 +6,12 @@
 #include "history.h"
 #include "util.h"
 #include <sstream>
-
 int LMR_TABLE[MAX_PLY][256];
-int seeThreshold(int quiet, int depth)
+int seeThreshold(bool quiet, int depth)
 {
-    if(quiet)
-        return -60*depth*depth;
+    if(quiet) {
+        return -100*depth;
+    }
     else
         return -300*depth;
 }
@@ -292,9 +292,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             if(depth <= 3 && contHist < -3000 )
                 continue;
         }
-        if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
             continue;
-
+        }
         lmr = 1;
         if (ss->played > 2 && depth > 2 && isQuiet(move)) {
             lmr = LMR_TABLE[depth][ss->played];

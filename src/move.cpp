@@ -5,7 +5,7 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[N_PIECES +1] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0};
+constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0 , 0};
 std::string moveToUci(uint16_t move, Board &board) {
     std::stringstream ss;
     if (move == NULL_MOVE) {
@@ -92,7 +92,7 @@ bool SEE(Board &board, uint16_t move, int threshold) {
     int from = moveFrom(move);
     int to = moveTo(move);
     int side = board.sideToMove;
-    int nextVictim =board.pieceBoard[from];
+    int nextVictim = board.pieceBoard[from];
     int balance    = SEE_VALUE[board.pieceBoard[to]] - threshold;
 
     if(balance < 0)
