@@ -1,0 +1,27 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: configure
+      run: ./configure
+    - name: make
+      run: cd src && make 
+
+
+    - name: Bench
+      run: |
+        bench=$(git show --summary | grep -Po '(?<=Bench: )[0-9]+?(?=$)')
+        ./src/devre bench > output
+        real=$(grep 'Results:' output | grep -Po '(?<=[\s]{5})[0-9]+?(?= nodes)')
+        if [[ "$bench" != "$real" ]]; then echo "got $real, expected $bench" && exit 1; fi
