@@ -15,11 +15,9 @@ TT::~TT() {
 }
 void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move) {
     TTentry *entry = &table[key & ttMask];
-    uint8_t entryBound = entry->ageAndBound & 0b00000011;
-    uint8_t entryAge = entry->ageAndBound & 0b11111100;
 
-    if (entry->key == 0ull
-        || entry->depth - 2*(age - entryAge) <= depth
+    if (entry->key != key
+        || entry->depth  < depth + 4
         || bound == TT_EXACT) {
 
         if (score > MIN_MATE_SCORE)
