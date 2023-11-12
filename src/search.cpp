@@ -427,9 +427,16 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
             this->bestMove = (ss + 6)->pv[0];
             auto nodes = this->totalNodes();
             auto nps = (1000 * nodes) / elapsed;
-            std::cout << " info depth " << i
-                      << " score cp " << score / 2
-                      << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
+
+            std::cout << " info depth " << i;
+            if(abs(score) < MIN_MATE_SCORE) {
+                std::cout<< " score cp " << score / 2;
+            }
+            else{
+                int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
+                std::cout<< " score mate " << mate;
+            }
+                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
                       << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
