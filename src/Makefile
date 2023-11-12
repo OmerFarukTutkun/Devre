@@ -9,7 +9,7 @@ EXT      =
 NETWORK  = devre_23.09.22_ep120.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
-VERSION = 4.72
+VERSION = 5.0
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 	DOWNLOAD_NETWORK += curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
@@ -26,9 +26,9 @@ else
 endif
 
 avx2: network
-	$(CC) $(CXX_FLAGS) $(AVX2) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)$(EXT)
+	$(CC) $(CXX_FLAGS) $(AVX2) $(SRC) $(LIBS) -DVERSION=\"$(VERSION)\" -o $(EXE)$(EXT)
 sse3: network
-	$(CC) $(CXX_FLAGS) $(SSE3) $(SRC) $(LIBS) -DVERSION=$(VERSION) -o $(EXE)$(EXT)
+	$(CC) $(CXX_FLAGS) $(SSE3) $(SRC) $(LIBS) -DVERSION=\"$(VERSION)\" -o $(EXE)$(EXT)
 network:
 ifeq (,$(wildcard ./$(NETWORK)))
 	$(DOWNLOAD_NETWORK)
