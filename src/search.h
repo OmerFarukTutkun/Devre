@@ -32,7 +32,6 @@ class Search {
 private:
     bool stopped;
     int numThread;
-    int searchDepth;
     uint16_t bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();

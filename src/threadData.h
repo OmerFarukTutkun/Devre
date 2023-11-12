@@ -7,6 +7,7 @@ class ThreadData {
 public:
     int ThreadID;
     uint64_t nodes{0};
+    int searchDepth{0};
 
     int16_t history[2][2][2][64][64]{0};   // history table for ordering quiet moves
     int16_t contHist[N_PIECES][N_SQUARES][N_PIECES][N_SQUARES]{0};

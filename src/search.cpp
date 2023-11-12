@@ -63,7 +63,6 @@ Stack::Stack() {
 }
 
 Search::Search() {
-    searchDepth  = 0;
     timeManager = nullptr;
     numThread = 1;
     threads.clear();
@@ -316,7 +315,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if( ss->ply < this->searchDepth
+        if( ss->ply < thread.searchDepth
             && !rootNode
             && depth >= 8
             && move == ttMove
@@ -399,7 +398,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
     int score;
     for (int i = 1; i <= timeManager->depthLimit; i++) {
-        this->searchDepth = i;
+        threads.at(ThreadID).searchDepth = i;
         // aspiration window search
         if (i > 4) {
             int windowSize = 20;
