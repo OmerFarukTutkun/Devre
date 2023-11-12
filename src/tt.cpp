@@ -29,8 +29,7 @@ void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char b
         entry->bound = bound;
         entry->staticEval = staticEval;
 
-        if (move != NO_MOVE)
-            entry->move = move;
+        entry->move = move;
     }
 }
 
