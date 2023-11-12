@@ -178,7 +178,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
     //draw check
     if (!rootNode && board->isDraw()) {
-        return 4 - (thread.nodes & 7);
+        return 0;
     }
     if (ss->ply > MAX_PLY) {
         return board->eval();
@@ -396,7 +396,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         (ss + i)->continuationHistory = &threads.at(ThreadID).contHist[0][0];
     }
 
-    int score;
+    int score = 0;
     for (int i = 1; i <= timeManager->depthLimit; i++) {
         threads.at(ThreadID).searchDepth = i;
         // aspiration window search
@@ -453,8 +453,6 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         std::cout << "bestmove " << moveToUci(bestMove, *board) << std::endl;
         runningThreads.clear();
         threads.clear();
-
-        TT::Instance()->updateAge();
 
         res.cp = score / 2;
         res.move = bestMove;

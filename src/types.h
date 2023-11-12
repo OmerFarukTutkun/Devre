@@ -171,7 +171,7 @@ struct TTentry {
     uint16_t move{0};
     int16_t staticEval{0};
     uint8_t depth{0};
-    uint8_t ageAndBound{0};
+    uint8_t bound{0};
 };
 
 struct nnueChange {

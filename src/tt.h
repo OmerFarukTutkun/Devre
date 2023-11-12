@@ -7,7 +7,6 @@ class TT {
     private:
         TT();
         ~TT();
-        int age;
         uint64_t ttMask;
         TTentry* table;
         void ttFree();
