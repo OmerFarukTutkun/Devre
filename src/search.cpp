@@ -6,6 +6,43 @@
 #include "history.h"
 #include "util.h"
 #include <sstream>
+#include "uciOptions.h"
+
+int IIRDepth = 3;
+int rfpDepth = 5;
+int rfpMargin = 125;
+int razoringDepth = 5;
+int razoringMargin = 350;
+int nmpBase = 4;
+int nmpDivisor = 6;
+int nmpEvalDivisor = 200;
+int lmpDepth = 5;
+int lmpBase = 6;
+int fpDepth = 8;
+int fpMargin = 80;
+int conthistDepth = 3;
+int conthistMargin = -3000;
+int lmrHistoryDivisor = 5000;
+int lmrCaptureHistoryDivisor = 5000;
+
+void setParams()
+{
+    IIRDepth = std::stoi(Options.at("IIRDepth").currentValue);
+    rfpDepth = std::stoi(Options.at("rfpDepth").currentValue);
+    rfpMargin = std::stoi(Options.at("rfpMargin").currentValue);
+    razoringDepth = std::stoi(Options.at("razoringDepth").currentValue);
+    razoringMargin = std::stoi(Options.at("razoringMargin").currentValue);
+    nmpBase = std::stoi(Options.at("nmpBase").currentValue);
+    nmpDivisor = std::stoi(Options.at("nmpDivisor").currentValue);
+    nmpEvalDivisor = std::stoi(Options.at("nmpEvalDivisor").currentValue);
+    lmpBase = std::stoi(Options.at("lmpBase").currentValue);
+    fpDepth = std::stoi(Options.at("fpDepth").currentValue);
+    fpMargin = std::stoi(Options.at("fpMargin").currentValue);
+    conthistDepth = std::stoi(Options.at("conthistDepth").currentValue);
+    conthistMargin = std::stoi(Options.at("conthistMargin").currentValue);
+    lmrHistoryDivisor = std::stoi(Options.at("lmrHistoryDivisor").currentValue);
+    lmrCaptureHistoryDivisor = std::stoi(Options.at("lmrCaptureHistoryDivisor").currentValue);
+}
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
 {
@@ -223,16 +260,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         eval = ttScore;
 
     //IIR
-    if (!ttHit && depth >= 3 && !PVNode)
+    if (!ttHit && depth >= IIRDepth && !PVNode)
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval > beta + depth * 125 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= rfpDepth && eval > beta + depth * rfpMargin && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 350 * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= razoringDepth && eval + razoringMargin * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -246,7 +283,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     //Null Move pruning
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 6 + std::min(3, (eval - beta) / 200);
+        int R = nmpBase + depth / nmpDivisor + std::min(3, (eval - beta) / nmpEvalDivisor);
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
@@ -279,16 +316,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // late move pruning
-            if (depth <= 5 && ss->played > 6 + (3 + 2 * improving) * depth)
+            if (depth <= lmpDepth && ss->played > lmpBase + (3 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 80) + depth * 80 < alpha)
+            if (depth <= fpDepth && eval + std::max(0, -(ss->played) * 10 + fpMargin) + depth * fpMargin < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 3 && contHist < -3000 )
+            if(depth <= conthistDepth && contHist < conthistMargin )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -302,20 +339,20 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
             //Late Move Reduction adjustment based on history score
             int hist = getQuietHistory(thread,ss, move);
-            lmr -= hist/5000;
+            lmr -= hist/lmrHistoryDivisor;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
             lmr += (ss->played > 10);
 
             int hist = getCaptureHistory(thread,ss, move);
-            lmr -= hist/5000;
+            lmr -= hist/lmrCaptureHistoryDivisor;
         }
         lmr = std::max(1, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if( ss->ply < 2*thread.searchDepth
+        if( ss->ply < thread.searchDepth
             && !rootNode
             && depth >= 8
             && move == ttMove
@@ -380,6 +417,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     SearchResult res{};
     std::vector<std::thread> runningThreads;
     if (ThreadID == 0) {
+        setParams();
         stopped = false;
         for (int i = 0; i < numThread; i++)
             threads.emplace_back(*board, i);
