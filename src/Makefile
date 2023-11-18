@@ -1,5 +1,5 @@
 CC       = g++
-CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto
+CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -static -DUSE_PEXT -fprofile-use
 AVX2     =  -D USE_AVX2
 SSE3     =  -D USE_SSE3
 EXE      = devre
