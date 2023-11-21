@@ -227,12 +227,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval > beta + depth * 115 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval > beta + depth * 122 && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 360 * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 352 * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -246,7 +246,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     //Null Move pruning
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 6 + std::min(3, (eval - beta) / 200);
+        int R = 4 + depth / 6 + std::min(3, (eval - beta) / 204);
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
@@ -283,12 +283,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 continue;
 
             // futility pruning
-            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 88) + depth * 88 < alpha)
+            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 92) + depth * 92 < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 4 && contHist < -3057 )
+            if(depth <= 4 && contHist < -3048 )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -302,14 +302,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
             //Late Move Reduction adjustment based on history score
             int hist = getQuietHistory(thread,ss, move);
-            lmr -= hist/4966;
+            lmr -= hist/4928;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
             lmr += (ss->played > 10);
 
             int hist = getCaptureHistory(thread,ss, move);
-            lmr -= hist/5000;
+            lmr -= hist/5229;
         }
         lmr = std::max(1, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
