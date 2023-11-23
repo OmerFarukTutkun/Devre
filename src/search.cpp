@@ -232,11 +232,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 350 * depth < alpha) {
+    /*if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 350 * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
-    }
+    }*/
     (ss + 1)->excludedMove = NO_MOVE;
     (ss + 1)->killers[0] = NO_MOVE;
     (ss + 1)->killers[1] = NO_MOVE;
