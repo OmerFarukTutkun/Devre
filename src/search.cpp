@@ -464,6 +464,8 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         res.cp = score / 2;
         res.move = bestMove;
         res.nodes = totalNodes();
+
+        TT::Instance()->updateAge();
     }
     return res;
 }
