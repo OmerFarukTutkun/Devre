@@ -227,12 +227,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval > beta + depth * 125 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval > beta + depth * 115 && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 350 * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 360 * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -279,16 +279,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // late move pruning
-            if (depth <= 5 && ss->played > 6 + (3 + 2 * improving) * depth)
+            if (depth <= 6 && ss->played > 6 + (3 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 80) + depth * 80 < alpha)
+            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 88) + depth * 88 < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 3 && contHist < -3000 )
+            if(depth <= 4 && contHist < -3057 )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -302,7 +302,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
             //Late Move Reduction adjustment based on history score
             int hist = getQuietHistory(thread,ss, move);
-            lmr -= hist/5000;
+            lmr -= hist/4966;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
