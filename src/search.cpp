@@ -299,17 +299,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
-
-            //Late Move Reduction adjustment based on history score
-            int hist = getQuietHistory(thread,ss, move);
-            lmr -= hist/4966;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
             lmr += (ss->played > 10);
-
-            int hist = getCaptureHistory(thread,ss, move);
-            lmr -= hist/5000;
         }
         lmr = std::max(1, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];

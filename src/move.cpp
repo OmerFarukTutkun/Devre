@@ -5,7 +5,7 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 375, 397, 613, 1220, 10000 ,0,0,100, 375, 397, 613, 1220, 10000 , 0 , 0};
+constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0 , 0};
 std::string moveToUci(uint16_t move, Board &board) {
     std::stringstream ss;
     if (move == NULL_MOVE) {
@@ -173,10 +173,10 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
-                if (SEE(*board, move, -50))
+                if (SEE(*board, move))
                     scores[i] += getCaptureHistory(thread, ss, move);
                 else
-                    scores[i] = MIL + getCaptureHistory(thread, ss, move);
+                    scores[i] = getCaptureHistory(thread, ss, move);
             }
         }
     }
