@@ -383,13 +383,28 @@ bool Board::hasNonPawnPieces() {
 }
 
 
-bool Board::isMaterialDraw() {
-    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] || bitboards[BLACK_ROOK] ||
-        bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
+bool Board::isMaterialDraw()
+{
+    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] ||
+        bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
         return false;
-    if (popcount64(occupied[0] | occupied[1]) <= 3)
+    if (popcount64(occupied[0] | occupied[1]) < 4) {
+    // here only left: K v K, K+B v K, K+N v K.
+        return true;
+    }
+    if (popcount64(bitboards[WHITE_KNIGHT] | bitboards[BLACK_KNIGHT]) != 0) {
         return false;
-    return true;
+    }
+    if (popcount64(occupied[0] | occupied[1]) == 4) {
+        constexpr uint64_t kWhiteSquares(0x55AA55AA55AA55AAULL);
+        constexpr uint64_t kBlackSquares(0xAA55AA55AA55AA55ULL);
+
+        if (bitboards[WHITE_BISHOP] && bitboards[BLACK_BISHOP]) {
+            return !(((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kWhiteSquares) &&
+                     ((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kBlackSquares));
+        }
+    }
+    return false;
 }
 
 bool Board::isRepetition() {

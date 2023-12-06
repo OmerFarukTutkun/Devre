@@ -176,7 +176,7 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
                 if (SEE(*board, move))
                     scores[i] += getCaptureHistory(thread, ss, move);
                 else
-                    scores[i] = getCaptureHistory(thread, ss, move);
+                    scores[i] = MIL + getCaptureHistory(thread, ss, move);
             }
         }
     }
