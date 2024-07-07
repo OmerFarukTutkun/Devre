@@ -2,10 +2,10 @@
 
 uint64_t rand_u64()
 {
-    static uint64_t seed= 1442695040888963407;
-    const uint64_t a = 6364136223846793005;
-    seed *= a;
-    return seed;
+    //use stockfish prng
+    static uint64_t s = 1070372;
+    s ^= s >> 12, s ^= s << 25, s ^= s >> 27;
+    return s * 2685821657736338717LL;
 }
 
 Zobrist::Zobrist() {

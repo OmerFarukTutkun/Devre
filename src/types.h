@@ -15,7 +15,7 @@
 #include <string.h>
 
 #ifndef VERSION
-#define VERSION "5.0"
+#define VERSION "5.04"
 #endif
 
 constexpr auto MAX_PLY = 100;

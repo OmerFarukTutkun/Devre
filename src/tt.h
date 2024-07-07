@@ -17,7 +17,7 @@ class TT {
         void ttClear();
         void ttPrefetch(uint64_t hash);
         void updateAge();
-
+        int getHashfull();
         static TT* Instance();
 };
 

@@ -433,6 +433,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
+                      << " hashfull " << TT::Instance()->getHashfull()
                       << std::endl;
 
             //if our score is much higher than staticEval spend less time

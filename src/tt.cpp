@@ -76,3 +76,12 @@ TT *TT::Instance() {
     static TT instance = TT();
     return &instance;
 }
+int TT::getHashfull() {
+    int hit = 0;
+    for (int i = 0; i < 1000; i++) {
+        const TTentry *entry = &table[i];
+            if (entry->key != 0)
+                hit++;
+        }
+    return hit;
+}
