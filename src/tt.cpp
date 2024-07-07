@@ -15,7 +15,7 @@ TT::~TT() {
 void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move) {
     TTentry *entry = &table[key & ttMask];
 
-    if (entry->key != key
+    if (( entry->key != key && entry->bound != TT_EXACT)
         || entry->depth  < depth + 4
         || bound == TT_EXACT) {
 
