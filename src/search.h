@@ -32,7 +32,7 @@ class Search {
 private:
     bool stopped;
     int numThread;
-    uint16_t bestMove{};
+    uint16_t m_bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();
     static void initSearchParameters();

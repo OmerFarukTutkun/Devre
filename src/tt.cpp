@@ -1,6 +1,4 @@
 #include "tt.h"
-#include "move.h"
-#include "zobrist.h"
 #define MbToByte(x) (1024*1024*(x))
 
 TT::TT() {

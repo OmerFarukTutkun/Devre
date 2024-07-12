@@ -12,10 +12,10 @@
 #include <cstring>
 #include "vector"
 #include "array"
-#include <string.h>
+#include <cstring>
 
 #ifndef VERSION
-#define VERSION "5.04"
+#define VERSION "5.05"
 #endif
 
 constexpr auto MAX_PLY = 100;

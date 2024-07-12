@@ -1,5 +1,4 @@
 #include <sstream>
-#include <ranges>
 #include "board.h"
 #include "util.h"
 #include "attack.h"

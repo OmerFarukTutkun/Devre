@@ -16,7 +16,6 @@ class TT {
         void ttAllocate(int megabyte=16);
         void ttClear();
         void ttPrefetch(uint64_t hash);
-        void updateAge();
         int getHashfull();
         static TT* Instance();
 };

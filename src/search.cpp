@@ -31,8 +31,8 @@ void updatePv(Stack *ss) {
     auto childPv = (ss + 1)->pv;
 
     pv[0] = ss->move;
-    int i = 0;
-    for (i = 0; i < MAX_PLY; i++) {
+    auto i = 0;
+    for (; i < MAX_PLY; i++) {
         if (childPv[i] != NO_MOVE)
             pv[i + 1] = childPv[i];
         else
@@ -67,7 +67,7 @@ Search::Search() {
     numThread = 1;
     threads.clear();
     stopped = false;
-    bestMove = NO_MOVE;
+    m_bestMove = NO_MOVE;
     initSearchParameters();
 }
 
@@ -250,7 +250,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
-        score -= alphaBeta(-beta, -beta + 1, depth - R, thread, ss + 1);
+        score = -alphaBeta(-beta, -beta + 1, depth - R, thread, ss + 1);
         board->unmakeNullMove();
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
@@ -264,7 +264,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     }
     int lmr;
     int bestScore = -VALUE_INFINITE;
-    uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
+    uint16_t  bestMove = NO_MOVE, move;
 
     ss->played = 0;
 
@@ -417,7 +417,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         if (ThreadID == 0) {
             auto elapsed = 1 + currentTime() - this->timeManager->startTime;
 
-            this->bestMove = (ss + 6)->pv[0];
+            this->m_bestMove = (ss + 6)->pv[0];
             auto nodes = this->totalNodes();
             auto nps = (1000 * nodes) / elapsed;
 
@@ -451,12 +451,12 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         for (std::thread &th: runningThreads) {
             th.join();
         }
-        std::cout << "bestmove " << moveToUci(bestMove, *board) << std::endl;
+        std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
         runningThreads.clear();
         threads.clear();
 
         res.cp = score / 2;
-        res.move = bestMove;
+        res.move = this->m_bestMove;
         res.nodes = totalNodes();
     }
     return res;

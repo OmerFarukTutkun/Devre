@@ -48,7 +48,7 @@ uint64_t sliderAttacks(int sq, uint64_t occ, int delta[4][2]) {
 }
 
 void init_slider_attacks(FancyMagic *table, uint64_t mask, uint64_t magic, int shift, int sq, int delta[4][2]) {
-    uint64_t occ = 0ull;
+    uint64_t occ;
 
     table[sq].magic = magic;
     table[sq].mask = mask;
@@ -136,7 +136,7 @@ uint64_t squareAttackedBy(Board &board, int square) {
 int getLeastValuableAttacker(Board &board, uint64_t attackers, int side) {
     if((attackers & board.occupied[side]) == 0ull)
         return NO_SQ;
-    uint64_t temp = 0ull;
+    uint64_t temp ;
     for (int i = pieceIndex(side, PAWN); i <= pieceIndex(side, KING); i++) {
         temp = attackers & board.bitboards[i];
         if (temp)
