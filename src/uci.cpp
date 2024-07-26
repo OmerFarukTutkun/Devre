@@ -101,11 +101,13 @@ void Uci::eval() {
                 NNUE::Instance()->calculateInputLayer(board, true);
                 printf("%8.2f", (score - board.eval()) / 100.0);
                 board.addPiece(piece, sq);
+                board.nnueData.popAccumulator();
             } else {
                 std::cout << "        ";
             }
         }
     }
+    board.nnueData.nnueChanges.clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
     printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);

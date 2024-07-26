@@ -165,14 +165,21 @@ enum TT_BOUND {
     TT_EXACT,
 };
 
-struct TTentry {
-    uint64_t key{0};
+struct __attribute__((__packed__)) TTentry {
+    uint32_t key{0};
     int16_t score{0};
     uint16_t move{0};
     int16_t staticEval{0};
     uint8_t depth{0};
-    uint8_t bound{0};
+    uint8_t ageBound{0};
 };
+constexpr int numEntryPerBucket = 5;
+
+struct __attribute__((__packed__)) TTBucket{
+    TTentry entries[numEntryPerBucket];
+    uint32_t padding;
+};
+
 
 struct nnueChange {
     int piece;

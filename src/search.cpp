@@ -178,7 +178,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
     //draw check
     if (!rootNode && board->isDraw()) {
-        return 0;
+        return  4 - (thread.nodes & 7);
     }
     if (ss->ply > MAX_PLY) {
         return board->eval();
@@ -264,7 +264,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     }
     int lmr;
     int bestScore = -VALUE_INFINITE;
-    uint16_t  bestMove = NO_MOVE, move;
+    uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
 
     ss->played = 0;
 
@@ -458,6 +458,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         res.cp = score / 2;
         res.move = this->m_bestMove;
         res.nodes = totalNodes();
+        TT::Instance()->updateAge();
     }
     return res;
 }

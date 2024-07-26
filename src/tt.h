@@ -7,8 +7,9 @@ class TT {
     private:
         TT();
         ~TT();
+        int age;
         uint64_t ttMask;
-        TTentry* table;
+        TTBucket* table;
         void ttFree();
     public:
         void ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move);
@@ -17,6 +18,9 @@ class TT {
         void ttClear();
         void ttPrefetch(uint64_t hash);
         int getHashfull();
+        void updateAge();
+        static uint8_t getAge(TTentry * entry);
+
         static TT* Instance();
 };
 
