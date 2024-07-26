@@ -19,6 +19,7 @@
 #define vector_mullo     _mm256_mullo_epi16
 #define vector_epi32_add _mm256_add_epi32
 #define vector_set_epi16  _mm256_set1_epi16
+#define is_vector_zero(a) _mm256_testz_si256(a,a)
 constexpr int vector_size = 16;
 #elif defined(USE_SSE3)
 #include <tmmintrin.h>
@@ -32,6 +33,7 @@ constexpr int vector_size = 16;
 #define vector_mullo     _mm_mullo_epi16
 #define vector_epi32_add _mm_add_epi32
 #define vector_set_epi16 _mm_set1_epi16
+#define is_vector_zero(a) _mm_testz_si128(a,a)
 constexpr int vector_size = 8;
 #elif defined(USE_AVX512)
 #include <immintrin.h>
@@ -45,6 +47,12 @@ constexpr int vector_size = 8;
 #define vector_mullo     _mm512_mullo_epi16
 #define vector_epi32_add _mm512_add_epi32
 #define vector_set_epi16  _mm512_set1_epi16
+
+inline int32_t is_vector_zero(const __m512i &a)
+{
+    auto reslt = _mm512_test_epi16_mask(a,a);
+    return (reslt == 0);
+}
 constexpr int vector_size = 32;
 #endif
 
@@ -67,7 +75,6 @@ private:
 
     void incrementalUpdate(Board &board, Color c);
 
-    static void SCRelu(int16_t *array, int16_t *out, int size);
 public:
 
     void calculateInputLayer(Board &board, bool fromScratch = false);

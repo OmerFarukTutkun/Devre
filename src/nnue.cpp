@@ -90,22 +90,22 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
     }
 }
 int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights, const int16_t bias){
+    auto zero = vector_set_zero();
+    auto one = vector_set_epi16(QA);
 
-    alignas(64) int16_t screluOut[2 * L1];
-    SCRelu(us, &screluOut[0], L1);
-    SCRelu(them,&screluOut[L1], L1);
-
-    auto *vepi16Us = (vector_type *) &screluOut[0];
-    auto *vepi16Them = (vector_type *) &screluOut[L1];
+    auto *vepi16Us = (vector_type *) &us[0];
+    auto *vepi16Them = (vector_type *) &them[0];
     auto *vepi16Weights = (vector_type *) weights;
     auto out =vector_set_zero();
 
-    for (int i = 0; i < L1 / (vector_size); i++) {
-        out = vector_epi32_add(out, vector_multipy(vepi16Us[i], vepi16Weights[i]));
-    }
-    const auto offset = L1/vector_size;
-    for (int i = 0; i < L1 / (vector_size); i++) {
-        out = vector_epi32_add(out, vector_multipy(vepi16Them[i], vepi16Weights[i + offset]));
+    int weightOffset = 0;
+    for (const auto *acc : {vepi16Us, vepi16Them}) {
+        for (int i = 0; i < L1/vector_size; i ++) {
+            vector_type clipped = vector_min(one,  vector_max(zero, acc[i]));
+            out = vector_epi32_add(out, vector_multipy(vector_mullo( clipped, clipped), vepi16Weights[i]));
+        }
+
+        vepi16Weights = (vector_type *) &weights[L1];
     }
 
     int32_t sum =0;
@@ -166,22 +166,4 @@ int NNUE::evaluate(Board &board) {
 
     int eval = quanMatrixMultp( us, enemy, &layer1_weights[2*L1*outputBucket], layer1_bias[outputBucket]);
     return eval * ((100.0 - board.halfMove) / 100.0);
-}
-
-void NNUE::SCRelu(int16_t *array, int16_t *out, int size) {
-    auto *vepi16 = (vector_type *) array;
-    auto *vepi16Out = (vector_type *) out;
-    auto zero = vector_set_zero();
-    auto one = vector_set_epi16(QA);
-
-    for (int i = 0; i < size / (vector_size); i++) {
-        vepi16Out[i] = vector_min(one, vepi16[i]);
-    }
-    for (int i = 0; i < size / (vector_size); i++) {
-        vepi16Out[i] = vector_max(zero, vepi16Out[i]);
-    }
-    for (int i = 0; i < size / (vector_size); i++) {
-        vepi16Out[i] = vector_mullo( vepi16Out[i], vepi16Out[i]);
-    }
-
 }
