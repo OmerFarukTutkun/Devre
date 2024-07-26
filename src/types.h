@@ -195,12 +195,14 @@ struct nnueChange {
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
 //TODO: maybe try reading these values from .nnue file instead of hardcoding
-auto constexpr INPUT_SIZE = 32 * 768;
-auto constexpr L1 = 512;
+auto constexpr INPUT_SIZE = 768;
+auto constexpr L1 = 1536;
+constexpr int OUTPUT_BUCKETS = 1;
 
-auto constexpr SCALE_OUTPUT = 281; // scaling needed at the output because of sigmoid
-auto constexpr SCALE_WEIGHT = 512; // 512 may result in overflow in NNUE, but I guess it doesn't happen in practice. So for better accuracy, I chose 512
-auto constexpr OUTPUT_DIVISOR = ((SCALE_WEIGHT * SCALE_WEIGHT) / SCALE_OUTPUT);
+
+constexpr int QA  = 181;
+constexpr int QB  = 128;
+constexpr float NET_SCALE = 400.0f;
 
 
 class NNUEData {

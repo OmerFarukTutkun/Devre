@@ -44,10 +44,10 @@ Devre is a strong open-source UCI compatible chess engine written in C++. While 
 
 ## Evaluation
 
-Devre uses a NNUE for evaluation. The Network architure is 32*768 -> (512x2) -> 1.
-The default net was trained with 2 billion positions from Leela data. The training code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
+Devre uses a NNUE for evaluation. The Network architure is 768 -> (1536x2) -> 1.
+The default net was trained with T80 Leela data. The training code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
 Thanks to Stockfish and Leela teams for publishing their training data in public. 
 
 ## Compiling 
- To compile in Linux/Windows with a cpu that supports AVX2 or SSE3:
- * to compile with makefile you can use one of the options: ```make avx2``` , ```make sse3``` , ```make NATIVE=0 avx2``` ,```make NATIVE=0 sse3```
+ To compile in Linux/Windows with a cpu that supports AVX512, AVX2 or SSE3:
+ * to compile with makefile you can use one of the options: ```make avx512``` ```make avx2``` , ```make sse3``` , ```make NATIVE=0 avx2``` ,```make NATIVE=0 sse3```
