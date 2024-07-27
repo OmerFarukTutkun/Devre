@@ -9,7 +9,7 @@
 
 class Uci {
 private:
-    Board board;
+    Board* board;
     Search search;
     TimeManager timeManager;
     std::thread searchThread;

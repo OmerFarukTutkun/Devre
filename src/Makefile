@@ -1,5 +1,5 @@
 CC       = g++
-CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -Wl,--stack,16777216
+CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -std=c++20
 AVX2     =  -D USE_AVX2
 SSE3     =  -D USE_SSE3
 AVX512   =  -D USE_AVX512
