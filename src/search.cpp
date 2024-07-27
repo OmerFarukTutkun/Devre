@@ -327,6 +327,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             if(singularScore < singularBeta) {
                 extension = 1;
             }
+            else if(singularScore >= beta )
+            {
+                return singularScore;
+            }
 
             //reAssign some stack values that might have been changed
             ss->played = 0;
