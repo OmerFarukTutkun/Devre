@@ -1,5 +1,5 @@
 CC       = g++
-CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -Wl,--stack,16777216
+CXX_FLAGS   = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -std=c++20
 AVX2     =  -D USE_AVX2
 SSE3     =  -D USE_SSE3
 AVX512   =  -D USE_AVX512
@@ -10,7 +10,7 @@ EXT      =
 NETWORK  = devreT80L1=1536.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
-VERSION = 5.08
+VERSION = 5.09
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 	DOWNLOAD_NETWORK += curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"

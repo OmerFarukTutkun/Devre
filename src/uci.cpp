@@ -28,7 +28,7 @@ void Uci::UciLoop() {
         else if (cmd == "position")
             setPosition(commands);
         else if (cmd == "print")
-            board.print();
+            board->print();
         else if (cmd == "go")
             go(commands);
         else if (cmd == "bench")
@@ -56,7 +56,7 @@ void Uci::printUci() {
 void Uci::perft(std::vector<std::string> &commands) {
     if (!commands.empty()) {
         int depth = std::stoi(commands.at(0));
-        perftTest(board, depth, false);
+        perftTest(*board, depth, false);
     }
 }
 
@@ -68,16 +68,16 @@ void Uci::setPosition(std::vector<std::string> &commands) {
         for (const auto &x: commands)
             fen += " " + x;
     }
-
-    board = Board(fen);
+    delete board;
+    board = new Board(fen);
     while (!commands.empty()) {
         cmd = popFront(commands);
         if (cmd == "moves") {
             while (!commands.empty()) {
                 auto uciMove = popFront(commands);
-                auto move = moveFromUci(board, uciMove);
+                auto move = moveFromUci(*board, uciMove);
                 if (move)
-                    board.makeMove(move, false);
+                    board->makeMove(move, false);
             }
             break;
         }
@@ -85,29 +85,29 @@ void Uci::setPosition(std::vector<std::string> &commands) {
 }
 
 void Uci::eval() {
-    int score = board.eval();
+    int score = board->eval();
     for (int i = 7; i >= 0; i--) {
         std::cout << "\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n";
         for (int j = 0; j < 8; j++) {
-            int piece = board.pieceBoard[8 * i + j];
+            int piece = board->pieceBoard[8 * i + j];
             std::cout << "       " << PIECE_TO_CHAR.at(piece);
         }
         std::cout << "\n" << i + 1;
         for (int j = 0; j < 8; j++) {
             int sq = 8 * i + j;
-            int piece = board.pieceBoard[sq];
+            int piece = board->pieceBoard[sq];
             if (piece != EMPTY && piece != BLACK_KING && piece != WHITE_KING) {
-                board.removePiece(piece, sq);
-                NNUE::Instance()->calculateInputLayer(board, true);
-                printf("%8.2f", (score - board.eval()) / 100.0);
-                board.addPiece(piece, sq);
-                board.nnueData.popAccumulator();
+                board->removePiece(piece, sq);
+                NNUE::Instance()->calculateInputLayer(*board, true);
+                printf("%8.2f", (score - board->eval()) / 100.0);
+                board->addPiece(piece, sq);
+                board->nnueData.popAccumulator();
             } else {
                 std::cout << "        ";
             }
         }
     }
-    board.nnueData.nnueChanges.clear();
+    board->nnueData.nnueChanges.clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
     printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);
@@ -118,8 +118,8 @@ void Uci::go(std::vector<std::string> &commands) {
     timeManager = TimeManager();
 
     auto cmd = popFront(commands);
-    auto cmdTime = (board.sideToMove == WHITE) ? "wtime" : "btime";
-    auto cmdInc = (board.sideToMove == WHITE) ? "winc" : "binc";
+    auto cmdTime = (board->sideToMove == WHITE) ? "wtime" : "btime";
+    auto cmdInc = (board->sideToMove == WHITE) ? "winc" : "binc";
     while (!cmd.empty()) {
         if (cmd == cmdTime)
             timeManager.remainingTime = std::stoi(popFront(commands));
@@ -137,7 +137,7 @@ void Uci::go(std::vector<std::string> &commands) {
         cmd = popFront(commands);
     }
     timeManager.start();
-    searchThread = std::thread(&Search::start, &search, &board, &timeManager, 0);
+    searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);
 }
 
 void Uci::setoption(std::vector<std::string> &commands) {
@@ -156,7 +156,7 @@ void Uci::setoption(std::vector<std::string> &commands) {
 }
 
 Uci::Uci() {
-    board = Board();
+    board = new Board();
     search = Search();
     timeManager = TimeManager();
 }
