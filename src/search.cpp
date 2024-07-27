@@ -83,7 +83,7 @@ void Search::stop() {
 
 int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
-    Board *board = &thread.board;
+    Board *board = thread.board;
 
     thread.nodes++;
 
@@ -153,7 +153,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     ss->pv[0] = NO_MOVE;
 
 
-    Board *board = &thread.board;
+    Board *board = thread.board;
 
     if (stopped) {
         return 0;
@@ -433,7 +433,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
                 std::cout<< " score mate " << mate;
             }
-                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
+                      std::cout << " pv " << getPV(ss + 6, *threads.at(ThreadID).board)
                       << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed

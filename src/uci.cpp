@@ -82,6 +82,8 @@ void Uci::setPosition(std::vector<std::string> &commands) {
             break;
         }
     }
+    board->nnueData.clear();
+    NNUE::Instance()->calculateInputLayer(*board, true);
 }
 
 void Uci::eval() {

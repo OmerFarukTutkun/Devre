@@ -235,8 +235,6 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         nnueData.move = move;
         NNUE::Instance()->calculateInputLayer(*this);
         nnueData.nnueChanges.clear();
-    } else {
-        nnueData.clear();
     }
 }
 
