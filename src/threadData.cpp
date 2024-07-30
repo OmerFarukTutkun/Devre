@@ -9,3 +9,7 @@ ThreadData::ThreadData(const Board &b, int ID) {
     board = new Board(b);
     ThreadID = ID;
 }
+
+ThreadData::~ThreadData() {
+    delete board;
+}

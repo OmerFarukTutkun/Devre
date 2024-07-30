@@ -26,6 +26,9 @@ private:
 
 public:
     Uci();
+
+    virtual ~Uci();
+
     void UciLoop();
 
 };

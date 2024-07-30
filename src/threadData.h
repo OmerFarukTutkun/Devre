@@ -18,5 +18,7 @@ public:
 
     explicit ThreadData(const std::string &fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", int ID = 0);
     explicit ThreadData(const Board& b, int ID = 0);
+
+    virtual ~ThreadData();
 };
 #endif //DEVRE_THREADDATA_H

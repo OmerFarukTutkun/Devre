@@ -169,3 +169,7 @@ void Uci::stop() {
         searchThread.join();
     }
 }
+
+Uci::~Uci() {
+    delete board;
+}
