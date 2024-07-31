@@ -159,6 +159,9 @@ void Uci::setoption(std::vector<std::string> &commands) {
 
 Uci::Uci() {
     board = new Board();
+    board->nnueData.clear();
+    NNUE::Instance()->calculateInputLayer(*board, true);
+
     search = Search();
     timeManager = TimeManager();
 }

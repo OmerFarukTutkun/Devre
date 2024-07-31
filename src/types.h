@@ -224,6 +224,8 @@ public:
 
     void clear() {
         size = 0;
+        move = 0;
+        nnueChanges.clear();
     }
 
     void popAccumulator() {
