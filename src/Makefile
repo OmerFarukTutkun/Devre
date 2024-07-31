@@ -10,7 +10,7 @@ EXT      =
 NETWORK  = devre-T80Aug-LookAhead.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
-VERSION = 5.11
+VERSION = 5.12
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 	DOWNLOAD_NETWORK += curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
