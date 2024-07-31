@@ -95,8 +95,6 @@ Board::Board(const std::string &fen) {
         fullMove = std::stoi(split[5]);
     }
 
-    NNUE::Instance()->calculateInputLayer(*this, true);
-
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
     key ^= Zobrist::Instance()->CastlingKeys[castlings];
     if (sideToMove == BLACK)

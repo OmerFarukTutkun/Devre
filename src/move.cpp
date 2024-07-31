@@ -154,7 +154,7 @@ void MoveList::addMove(uint16_t move) {
 }
 
 void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
-    Board *board = thread.board;
+    Board *board = &thread.board;
     auto counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
     for (int i = 0; i < numMove; i++) {
         auto move = moves[i];

@@ -16,7 +16,7 @@ void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bes
     if ((ss->played == 1 && depth <= 3))
         return;
 
-    Board *board = thread.board;
+    Board *board = &thread.board;
     thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)] = bestMove;
 
     if (ss->killers[0] != bestMove) {
@@ -49,7 +49,7 @@ void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bes
 }
 
 void updateCaptureHistories(ThreadData &thread, Stack *ss, int depth) {
-    Board *board = thread.board;
+    Board *board = &thread.board;
     for (int i = 0; i <ss->played; i++) {
         auto move = ss->playedMoves[i];
         if (moveType(move) == CAPTURE) {
@@ -71,14 +71,14 @@ void updateHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestMove
 }
 
 int getCaptureHistory(ThreadData &thread, Stack *ss, uint16_t move) {
-    Board *board = thread.board;
+    Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);
     return thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
 }
 
 int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
-    Board *board = thread.board;
+    Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);
     int piece = board->pieceBoard[from];
@@ -100,7 +100,7 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
 
 int getContHistory(ThreadData &thread, Stack *ss, uint16_t move)
 {
-    Board *board = thread.board;
+    Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);
     int piece = board->pieceBoard[from];

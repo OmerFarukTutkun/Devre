@@ -1,15 +1,15 @@
 #include "threadData.h"
 
 ThreadData::ThreadData(const std::string &fen, int ID) {
-    this->board = new Board(fen);
+    this->board = Board(fen);
     ThreadID = ID;
 }
 
-ThreadData::ThreadData(const Board &b, int ID) {
-    board = new Board(b);
+ThreadData::ThreadData(Board &b, int ID) {
+    board = Board(b);
     ThreadID = ID;
 }
 
 ThreadData::~ThreadData() {
-    delete board;
+
 }
