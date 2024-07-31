@@ -227,7 +227,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 115 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval > beta + depth * 115 && !rootNode) {
         return eval;
     }
 
