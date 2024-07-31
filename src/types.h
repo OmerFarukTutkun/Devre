@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifndef VERSION
-#define VERSION "5.05"
+#define VERSION "5.13"
 #endif
 
 constexpr auto MAX_PLY = 100;
@@ -202,7 +202,7 @@ constexpr int OUTPUT_BUCKETS = 1;
 
 constexpr int QA  = 181;
 constexpr int QB  = 128;
-constexpr float NET_SCALE = 350.0f;
+constexpr float NET_SCALE = 450.0f;
 
 
 class NNUEData {
