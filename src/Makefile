@@ -10,7 +10,7 @@ EXT      =
 NETWORK  = devre_MPE2.65.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
-VERSION = 5.14
+VERSION = 5.15
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
 	DOWNLOAD_NETWORK += curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
