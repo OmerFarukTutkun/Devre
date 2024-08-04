@@ -9,6 +9,7 @@
 
 Board::Board(const std::string &fen) {
     key = 0;
+    pawnKey = 0;
     enPassant = NO_SQ;
     halfMove = 0;
     fullMove = 1;
@@ -108,6 +109,9 @@ void Board::addPiece(int piece, int sq) {
     setBit(occupied[pieceColor(piece)], sq);
     nnueData.nnueChanges.emplace_back(piece, sq, 1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
+
+    if(pieceType(piece) == PAWN)
+        pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
 void Board::removePiece(int piece, int sq) {
@@ -116,6 +120,8 @@ void Board::removePiece(int piece, int sq) {
     clearBit(occupied[pieceColor(piece)], sq);
     nnueData.nnueChanges.emplace_back(piece, sq, -1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    if(pieceType(piece) == PAWN)
+        pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
 void Board::movePiece(int piece, int from, int to) {
