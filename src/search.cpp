@@ -355,17 +355,20 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         board->unmakeMove(move);
 
         if (score > bestScore) {
-            bestMove = move;
+
             bestScore = score;
+
+            if (bestScore > alpha) {
+                if (PVNode)
+                    updatePv(ss);
+
+                bestMove = move;
+                alpha = bestScore;
+            }
 
             if (bestScore >= beta) {
                 updateHistories(thread, ss, depth, bestMove);
                 break;
-            }
-            if (bestScore > alpha) {
-                if (PVNode)
-                    updatePv(ss);
-                alpha = bestScore;
             }
         }
     }
@@ -374,8 +377,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
         if (    !inCheck
                 && (!bestMove || !isTactical(bestMove))
-                &&  !(bestScore >= beta && bestScore <= ss->staticEval)
-                &&  !(!bestMove  && bestScore >= ss->staticEval)) {
+                &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
+                &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
             updateCorrHistScore(thread, depth, bestScore - ss->staticEval);
         }
