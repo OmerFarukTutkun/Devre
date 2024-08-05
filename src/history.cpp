@@ -117,3 +117,21 @@ int getContHistory(ThreadData &thread, Stack *ss, uint16_t move)
     }
     return score;
 }
+void updateCorrHistScore(ThreadData &thread, const int depth, const int diff) {
+
+    auto * board = &thread.board;
+    int &entry = thread.corrHist[board->sideToMove][board->pawnKey % 16384];
+
+    const int bonus = diff*depth/8;
+    const int D = 1024;
+    int clampedBonus = std::clamp(bonus, -D, D);
+    entry += clampedBonus - entry * std::abs(clampedBonus) / D;
+}
+
+int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
+    auto * board = &thread.board;
+    const int &entry = thread.corrHist[board->sideToMove][board->pawnKey % 16384];
+
+    auto eval = rawEval + entry*66 / 512;
+    return std::clamp(eval , -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
+}
