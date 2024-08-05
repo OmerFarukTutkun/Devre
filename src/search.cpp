@@ -132,13 +132,15 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
 
         if (score > bestScore) {
             bestScore = score;
-            bestMove = move;
+            
+        if (score > alpha) {
+                bestMove = move;
+                alpha = score;
+            }
             if (bestScore >= beta) {
                 break;
             }
-            if (score > alpha) {
-                alpha = score;
-            }
+            
         }
     }
 
