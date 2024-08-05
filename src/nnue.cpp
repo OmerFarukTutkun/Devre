@@ -6,7 +6,7 @@ constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4,  5,  0, 0, 6, 7, 8, 9, 
                                          {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4,  5}};
 
 #ifndef NET
-#define NET "devre-T80Aug-LookAhead.nnue"
+#define NET "devre_MPE2.65.nnue"
 #endif
 INCBIN(EmbeddedWeights, NET);
 NNUE *NNUE::Instance() {
