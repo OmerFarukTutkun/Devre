@@ -352,17 +352,20 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         board->unmakeMove(move);
 
         if (score > bestScore) {
-            bestMove = move;
+
             bestScore = score;
+
+            if (bestScore > alpha) {
+                if (PVNode)
+                    updatePv(ss);
+
+                bestMove = move;
+                alpha = bestScore;
+            }
 
             if (bestScore >= beta) {
                 updateHistories(thread, ss, depth, bestMove);
                 break;
-            }
-            if (bestScore > alpha) {
-                if (PVNode)
-                    updatePv(ss);
-                alpha = bestScore;
             }
         }
     }
