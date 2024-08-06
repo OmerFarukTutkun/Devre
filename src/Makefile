@@ -7,7 +7,7 @@ EXE      = devre
 SRC      = *.cpp
 LIBS     = -lm
 EXT      =
-NETWORK  = devre_MPE2.65.nnue
+NETWORK  = devre_06.08.2024.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
 
