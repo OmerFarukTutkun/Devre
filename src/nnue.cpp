@@ -109,18 +109,7 @@ int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights,
     }
 
     int32_t sum =0;
-    alignas(64) int32_t result[4];
-#if defined(USE_AVX2)
-    __m128i high_sum = _mm256_extractf128_si256(out, 1);
-    __m128i low_sum = _mm256_castsi256_si128(out);
-    *(__m128i *) &result[0] = _mm_add_epi32(high_sum, low_sum);
-    sum = result[0] + result[1] + result[2] + result[3];
-#elif defined(USE_SSE3)
-    *(__m128i*) &result[0] = out;
-    sum = result[0] + result[1] + result[2] + result[3];
-#elif defined(USE_AVX512)
-    sum = _mm512_reduce_add_epi32(out);
-#endif
+    sum = reduce_add_epi32(out);
     float constexpr scalar = NET_SCALE / (QA * QB);
     return (sum / QA + bias) * scalar;
 }
