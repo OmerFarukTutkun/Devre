@@ -11,7 +11,7 @@ NETWORK  = devre_06.08.2024.nnue
 DOWNLOAD_NETWORK     =
 NATIVE   = 1
 
-VERSION = 5.17
+VERSION = 5.18
 
 ifeq ($(OS),Windows_NT)
 	EXT += .exe
