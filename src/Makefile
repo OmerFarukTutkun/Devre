@@ -57,7 +57,7 @@ endif
 
 COMMAND = $(CXX) $(CXX_FLAGS) $(FILES) $(LIBS) -DNET=\"$(NETWORK)\" -o $(EXE)
 
-default:
+default: network
 	$(COMMAND) -fprofile-generate="devre_pgo"
 ifeq ($(OS),Windows_NT)
 	$(EXE) bench
@@ -71,7 +71,7 @@ else
 	rm -rf devre_pgo
 endif
 
-nopgo: $(FILES)
+nopgo: network
 	$(COMMAND)
 
 network:
