@@ -17,7 +17,7 @@ ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
 	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
 else
-	EXE := Devre.elf
+	EXE := Devre
 	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
 endif
 

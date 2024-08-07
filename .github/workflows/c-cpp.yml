@@ -16,4 +16,4 @@ jobs:
 
 
     - name: Bench
-      run: cd src && ./devre bench
+      run: cd src && ./Devre bench
