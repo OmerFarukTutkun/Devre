@@ -1,12 +1,13 @@
 #include "nnue.h"
 #include "move.h"
 #include <algorithm>
-
+#include "simd.h"
+using namespace SIMD;
 constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4,  5,  0, 0, 6, 7, 8, 9, 10, 11},
                                          {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4,  5}};
 
 #ifndef NET
-#define NET "devre_MPE2.65.nnue"
+#define NET "devre_06.08.2024.nnue"
 #endif
 INCBIN(EmbeddedWeights, NET);
 NNUE *NNUE::Instance() {
@@ -66,61 +67,50 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
         }
     }
 
-    auto *acc = (vector_type *) &board.nnueData.accumulator[board.nnueData.size - 1][c];
-    auto *outputs = (vector_type *) &board.nnueData.accumulator[board.nnueData.size][c];
+    auto *acc = (vecType *) &board.nnueData.accumulator[board.nnueData.size - 1][c];
+    auto *outputs = (vecType *) &board.nnueData.accumulator[board.nnueData.size][c];
 
-    auto *weights = (vector_type *) &feature_weights[L1 * pieceAddition[--j]];
+    auto *weights = (vecType *) &feature_weights[L1 * pieceAddition[--j]];
 
-    for (int i = 0; i < L1 / vector_size; i++) {
-        outputs[i] = vector_add(acc[i], weights[i]);
+    for (int i = 0; i < L1 / vecSize; i++) {
+        outputs[i] = vecAddEpi16(acc[i], weights[i]);
     }
 
     while (j--) {
-        weights = (vector_type *) &feature_weights[L1 * pieceAddition[j]];
-        for (int i = 0; i < L1 / vector_size; i++) {
-            outputs[i] = vector_add(outputs[i], weights[i]);
+        weights = (vecType *) &feature_weights[L1 * pieceAddition[j]];
+        for (int i = 0; i < L1 / vecSize; i++) {
+            outputs[i] = vecAddEpi16(outputs[i], weights[i]);
         }
     }
 
     while (k--) {
-        weights = (vector_type *) &feature_weights[L1 * pieceRemoval[k]];
-        for (int i = 0; i < L1 / vector_size; i++) {
-            outputs[i] = vector_sub(outputs[i], weights[i]);
+        weights = (vecType *) &feature_weights[L1 * pieceRemoval[k]];
+        for (int i = 0; i < L1 / vecSize; i++) {
+            outputs[i] = vecSubEpi16(outputs[i], weights[i]);
         }
     }
 }
 int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights, const int16_t bias){
-    auto zero = vector_set_zero();
-    auto one = vector_set_epi16(QA);
+    auto zero = vecSetZeroEpi16();
+    auto one = vecSetEpi16(QA);
 
-    auto *vepi16Us = (vector_type *) &us[0];
-    auto *vepi16Them = (vector_type *) &them[0];
-    auto *vepi16Weights = (vector_type *) weights;
-    auto out =vector_set_zero();
+    auto *vepi16Us = (vecType *) &us[0];
+    auto *vepi16Them = (vecType *) &them[0];
+    auto *vepi16Weights = (vecType *) weights;
+    auto out = vecSetZeroEpi16();
 
     int weightOffset = 0;
     for (const auto *acc : {vepi16Us, vepi16Them}) {
-        for (int i = 0; i < L1/vector_size; i ++) {
-            vector_type clipped = vector_min(one,  vector_max(zero, acc[i]));
-            out = vector_epi32_add(out, vector_multipy(vector_mullo( clipped, clipped), vepi16Weights[i]));
+        for (int i = 0; i < L1/vecSize; i ++) {
+            vecType clipped = vecMinEpi16(one,  vecMaxEpi16(zero, acc[i]));
+            out = vecAddEpi32(out, vecMaddEpi16(vecMulloEpi16( clipped, clipped), vepi16Weights[i]));
         }
 
-        vepi16Weights = (vector_type *) &weights[L1];
+        vepi16Weights = (vecType *) &weights[L1];
     }
 
     int32_t sum =0;
-    alignas(64) int32_t result[4];
-#if defined(USE_AVX2)
-    __m128i high_sum = _mm256_extractf128_si256(out, 1);
-    __m128i low_sum = _mm256_castsi256_si128(out);
-    *(__m128i *) &result[0] = _mm_add_epi32(high_sum, low_sum);
-    sum = result[0] + result[1] + result[2] + result[3];
-#elif defined(USE_SSE3)
-    *(__m128i*) &result[0] = out;
-    sum = result[0] + result[1] + result[2] + result[3];
-#elif defined(USE_AVX512)
-    sum = _mm512_reduce_add_epi32(out);
-#endif
+    sum = vecReduceEpi32(out);
     float constexpr scalar = NET_SCALE / (QA * QB);
     return (sum / QA + bias) * scalar;
 }
@@ -130,17 +120,17 @@ void NNUE::recalculateInputLayer(Board &board, Color c) {
     int weightIndices[N_SQUARES];
     int sz = calculateIndices(board, weightIndices, c);
 
-    auto *biases = (vector_type *) &feature_biases[0];
-    auto *outputs = (vector_type *) &board.nnueData.accumulator[board.nnueData.size][c][0];  //white
+    auto *biases = (vecType *) &feature_biases[0];
+    auto *outputs = (vecType *) &board.nnueData.accumulator[board.nnueData.size][c][0];  //white
 
-    auto *weights = (vector_type *) &feature_weights[weightIndices[0]];
-    for (int i = 0; i < L1 / vector_size; i++) {
-        outputs[i] = vector_add(biases[i], weights[i]);
+    auto *weights = (vecType *) &feature_weights[weightIndices[0]];
+    for (int i = 0; i < L1 / vecSize; i++) {
+        outputs[i] = vecAddEpi16(biases[i], weights[i]);
     }
     for (int k = 1; k < sz; k++) {
-        weights = (vector_type *) &feature_weights[weightIndices[k]];
-        for (int i = 0; i < L1 / vector_size; i++) {
-            outputs[i] = vector_add(outputs[i], weights[i]);
+        weights = (vecType *) &feature_weights[weightIndices[k]];
+        for (int i = 0; i < L1 / vecSize; i++) {
+            outputs[i] = vecAddEpi16(outputs[i], weights[i]);
         }
     }
 }
