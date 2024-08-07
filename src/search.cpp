@@ -13,7 +13,7 @@ int seeThreshold(bool quiet, int depth)
         return -100*depth;
     }
     else
-        return -300*depth;
+        return -100*depth;
 }
 void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
