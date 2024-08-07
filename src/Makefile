@@ -11,7 +11,7 @@ MAVX512 = $(MAVX2) -mavx512f -mavx512bw
 
 FILES = *.cpp
 
-CXX_FLAGS  = -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -std=c++20
+CXX_FLAGS  = -static -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -std=c++20
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
