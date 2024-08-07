@@ -12,8 +12,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: make
-      run: cd src && make avx2
+      run: cd src && make
 
 
     - name: Bench
-      run: cd src && ./devre bench
+      run: cd src && ./Devre bench

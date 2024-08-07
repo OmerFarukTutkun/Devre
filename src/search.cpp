@@ -288,7 +288,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 continue;
 
             // futility pruning
-            if (depth <= 8 && eval + std::max(0, -(ss->played) * 10 + 88) + depth * 88 < alpha)
+            if (depth <= 10 && eval + std::max(200, -(ss->played) * 10 + 200 + depth * 100) < alpha)
                 continue;
 
             //contHist pruning
