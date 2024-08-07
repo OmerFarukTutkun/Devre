@@ -313,7 +313,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if( ss->ply < 2*thread.searchDepth
+        if( ss->ply < thread.searchDepth
             && !rootNode
             && depth >= 8
             && move == ttMove
@@ -330,7 +330,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             ss->excludedMove = NO_MOVE;
 
             if(singularScore < singularBeta) {
-                extension = 1;
+                int margin = 300 * PVNode - 200 * !isTactical(ttMove);
+                extension = 1 + (singularScore + margin < singularBeta);
             }
             else if(singularScore >= beta )
             {
