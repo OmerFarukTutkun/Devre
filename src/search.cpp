@@ -313,7 +313,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if( ss->ply < thread.searchDepth
+        if( ss->ply < 2*thread.searchDepth
             && !rootNode
             && depth >= 8
             && move == ttMove
