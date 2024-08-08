@@ -331,6 +331,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
 
             if(singularScore < singularBeta) {
                 extension = 1;
+                int margin = 300 * PVNode - 200 * !isTactical(ttMove);
+                extension = 1 + (singularScore + margin < singularBeta);
             }
             else if(singularScore >= beta )
             {
