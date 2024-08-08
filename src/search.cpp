@@ -134,18 +134,17 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         if (score > bestScore) {
             bestScore = score;
             
-        if (score > alpha) {
+            if (score > alpha)
+            {
                 bestMove = move;
                 alpha = score;
             }
-            if (bestScore >= beta) {
+            if (bestScore >= beta)
                 break;
-            }
-            
         }
     }
 
-    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
+    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND :  TT_UPPERBOUND;
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, standPat, bound, 0, bestMove);
     return bestScore;
 }
