@@ -12,7 +12,7 @@ struct Stack {
     uint16_t pv[MAX_PLY + 10];
     uint16_t playedMoves[256];
     uint16_t played;
-
+    uint8_t doubleExtension;
     uint16_t move;
     uint16_t killers[2];
     int staticEval;

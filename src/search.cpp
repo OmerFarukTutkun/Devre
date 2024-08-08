@@ -60,6 +60,7 @@ Stack::Stack() {
     killers[1] = NO_MOVE;
     pv[0] = NO_MOVE;
     played = 0;
+    doubleExtension = 0;
 }
 
 Search::Search() {
@@ -245,6 +246,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     (ss + 1)->excludedMove = NO_MOVE;
     (ss + 1)->killers[0] = NO_MOVE;
     (ss + 1)->killers[1] = NO_MOVE;
+    ss->doubleExtension = (ss-1)->doubleExtension;
 
     int score;
 
@@ -332,7 +334,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             if(singularScore < singularBeta) {
                 extension = 1;
                 int margin = 300 * PVNode - 200 * !isTactical(ttMove);
-                extension = 1 + (singularScore + margin < singularBeta);
+                if( (singularScore + margin < singularBeta) && ss->doubleExtension <= 5)
+                {
+                    ss->doubleExtension = (ss-1)->doubleExtension + 1;
+                    extension++;
+                }
             }
             else if(singularScore >= beta )
             {
