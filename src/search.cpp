@@ -334,8 +334,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 int margin = 300 * PVNode - 200 * !isTactical(ttMove);
                 extension = 1 + (singularScore + margin < singularBeta);
             }
-            else if (ttScore >= beta)
-                extension = -1;
+            else if(singularScore >= beta )
+            {
+                return singularScore;
+            }
 
             //reAssign some stack values that might have been changed
             ss->played = 0;
