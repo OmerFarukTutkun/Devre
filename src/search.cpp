@@ -390,7 +390,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
                 &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
-            updateCorrHistScore(thread, depth, bestScore - ss->staticEval);
+            updateCorrHistScore(thread, depth, bestScore - rawEval);
         }
 
 
