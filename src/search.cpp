@@ -390,11 +390,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
                 &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
                 &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
-            updateCorrHistScore(thread, depth, bestScore - rawEval);
+            updateCorrHistScore(thread, depth, bestScore - ss->staticEval);
         }
 
 
-        TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, depth, bestMove);
+        TT::Instance()->ttSave(board->key, ss->ply, bestScore, eval, bound, depth, bestMove);
     }
     return bestScore;
 }
