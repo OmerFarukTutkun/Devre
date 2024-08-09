@@ -219,7 +219,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     }
 
     int eval = ttHit ? ttStaticEval : board->eval();
-    ss->staticEval = adjustEvalWithCorrHist(thread,eval);
+    eval = ss->staticEval = adjustEvalWithCorrHist(thread,eval);
 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
@@ -393,7 +393,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         }
 
 
-        TT::Instance()->ttSave(board->key, ss->ply, bestScore, eval, bound, depth, bestMove);
+        TT::Instance()->ttSave(board->key, ss->ply, bestScore, ss->staticEval, bound, depth, bestMove);
     }
     return bestScore;
 }
