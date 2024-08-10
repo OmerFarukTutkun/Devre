@@ -85,6 +85,7 @@ void Search::stop() {
 int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
     Board *board = &thread.board;
+    int PVNode = (alpha != beta - 1);
 
     thread.nodes++;
 
@@ -92,7 +93,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int ttDepth=0, ttScore=0, ttBound = TT_NONE, ttStaticEval=0;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
-    if (ttHit) {
+    if (ttHit && !PVNode) {
         if (ttBound == TT_EXACT
             || (ttBound == TT_UPPERBOUND && alpha >= ttScore)
             || (ttBound == TT_LOWERBOUND && beta <= ttScore))
@@ -119,6 +120,10 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int bestScore = standPat, score;
     uint16_t move, bestMove = NO_MOVE;
 
+    //ttValue can be used as a better position evaluation
+    if (ttHit && (ttBound & (ttScore > bestScore ? TT_LOWERBOUND : TT_UPPERBOUND)))
+        bestScore = ttScore;
+
     auto moveList = MoveList(ttMove);
     legalmoves<TACTICAL_MOVES>(*board, moveList);
 
@@ -134,18 +139,19 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         if (score > bestScore) {
             bestScore = score;
             
-        if (score > alpha) {
+            if (score > alpha)
+            {
                 bestMove = move;
                 alpha = score;
             }
-            if (bestScore >= beta) {
+            if (bestScore >= beta)
                 break;
-            }
+
             
         }
     }
 
-    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
+    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, standPat, bound, 0, bestMove);
     return bestScore;
 }
