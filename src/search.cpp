@@ -120,10 +120,6 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int bestScore = standPat, score;
     uint16_t move, bestMove = NO_MOVE;
 
-    //ttValue can be used as a better position evaluation
-    if (ttHit && (ttBound & (ttScore > bestScore ? TT_LOWERBOUND : TT_UPPERBOUND)))
-        bestScore = ttScore;
-
     auto moveList = MoveList(ttMove);
     legalmoves<TACTICAL_MOVES>(*board, moveList);
 
