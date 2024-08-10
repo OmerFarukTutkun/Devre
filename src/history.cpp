@@ -3,7 +3,7 @@
 const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
-    return std::min(400 * depth - 100, 1500);
+    return std::min(200 * depth - 100, 1600);
 }
 
 void updateHistory(int16_t *current, int depth, bool good) {
@@ -13,8 +13,6 @@ void updateHistory(int16_t *current, int depth, bool good) {
 }
 
 void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestMove) {
-    if ((ss->played == 1 && depth <= 3))
-        return;
 
     Board *board = &thread.board;
     thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)] = bestMove;

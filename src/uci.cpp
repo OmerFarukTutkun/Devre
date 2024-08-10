@@ -37,6 +37,8 @@ void Uci::UciLoop() {
             eval();
         else if (cmd == "ucinewgame") {
             TT::Instance()->ttClear();
+            auto option = Options.at("Threads");
+            search.setThread(stoi(option.currentValue));
         } else if (cmd == "setoption")
             setoption(commands);
     }
