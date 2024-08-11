@@ -308,6 +308,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
+            lmr -= getQuietHistory(thread,ss, move)/8000;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
