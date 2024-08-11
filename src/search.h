@@ -37,7 +37,7 @@ private:
     uint64_t totalNodes();
     static void initSearchParameters();
     int qsearch(int alpha, int beta, ThreadData &thread, Stack *ss);
-    int alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack *ss);
+    int alphaBeta(int alpha, int beta, int depth, bool cutNode, ThreadData &thread, Stack *ss);
 
 public:
     std::vector<ThreadData> threads;
