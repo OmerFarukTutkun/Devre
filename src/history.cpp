@@ -9,7 +9,7 @@ int statBonus(int depth) {
 void updateHistory(int16_t *current, int depth, bool good) {
 
     const int delta = good ? statBonus(depth) : -statBonus(depth);
-    *current += delta - *current * abs(delta) / HistoryDivisor;
+    *current += delta - *current * std::abs(delta) / HistoryDivisor;
 }
 
 void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bestMove) {
@@ -82,7 +82,7 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
     int from = moveFrom(move);
     int to = moveTo(move);
     int piece = board->pieceBoard[from];
-    auto score = thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
+    int score = thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
 
 
     if ((ss - 1)->move)
