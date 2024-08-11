@@ -74,6 +74,10 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
+    std::cout << "setting thread count to " << thread << std::endl;
+    threads.clear();
+    for (int i = 0; i < numThread; i++)
+        threads.emplace_back(START_FEN, i);
 }
 
 Search::~Search() = default;
@@ -410,8 +414,13 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     std::vector<std::thread> runningThreads;
     if (ThreadID == 0) {
         stopped = false;
+
         for (int i = 0; i < numThread; i++)
-            threads.emplace_back(*board, i);
+        {
+            threads.at(i).nodes       = 0ull;
+            threads.at(i).searchDepth = 0;
+            threads.at(i).board       = *board;
+        }
 
         this->timeManager = tm;
         for (int i = 1; i < numThread; i++) {
@@ -489,7 +498,6 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         }
         std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
         runningThreads.clear();
-        threads.clear();
 
         res.cp = score / 2;
         res.move = this->m_bestMove;

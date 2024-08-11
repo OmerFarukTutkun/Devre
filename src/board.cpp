@@ -101,6 +101,8 @@ Board::Board(const std::string &fen) {
     if (sideToMove == BLACK)
         key ^= Zobrist::Instance()->SideToPlayKey;
 
+    nnueData.clear();
+    NNUE::Instance()->calculateInputLayer(*this, true);
 }
 
 void Board::addPiece(int piece, int sq) {

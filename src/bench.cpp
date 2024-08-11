@@ -25,14 +25,18 @@ void bench(int argc, char **argv) {
 
     auto tm = TimeManager();
     tm.depthLimit = depth;
-    std::cout << "Depth: " << depth;
+    std::cout << "Depth: " << depth << std::endl;
     for (auto& fen : Benchmarks) {
 
         tm.start();
         std::cout << "fen :" << fen << std::endl;
         auto board = Board(fen);
         auto res = search.start(&board, &tm, 0);
+
+        //clear for next search
         TT::Instance()->ttClear();
+        search.setThread(threads);
+
         totalNodes += res.nodes;
 
     }

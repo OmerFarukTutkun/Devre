@@ -36,7 +36,12 @@ void Uci::UciLoop() {
         else if (cmd == "eval")
             eval();
         else if (cmd == "ucinewgame") {
+
             TT::Instance()->ttClear();
+
+            auto option = Options.at("Threads");
+            search.setThread(stoi(option.currentValue));
+
         } else if (cmd == "setoption")
             setoption(commands);
     }
@@ -163,6 +168,8 @@ Uci::Uci() {
     NNUE::Instance()->calculateInputLayer(*board, true);
 
     search = Search();
+    auto option = Options.at("Threads");
+    search.setThread(stoi(option.defaultValue));
     timeManager = TimeManager();
 }
 
