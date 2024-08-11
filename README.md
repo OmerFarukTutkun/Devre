@@ -1,6 +1,6 @@
 ## Devre
 
-Devre is a strong open-source UCI compatible chess engine written in C++. While writing the engine, I got great help from chessprogramming wiki , talkchess forum,stcokfish discord ,and some open-source engines: Ethereal, Vice, Koivisto. 
+Devre is a strong open-source UCI compatible chess engine written in C++. While writing the engine, I got great help from chessprogramming wiki, talkchess forum, Stockfish discord ,and some open-source engines: Ethereal, Vice, Koivisto. 
 
 
 ## Movegen
