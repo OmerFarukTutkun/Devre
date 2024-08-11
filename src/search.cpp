@@ -74,9 +74,6 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
-    threads.clear();
-    for (int i = 0; i < numThread; i++)
-        threads.emplace_back(START_FEN, i);
 }
 
 Search::~Search() = default;
@@ -311,7 +308,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
-            lmr -= getQuietHistory(thread,ss, move)/8000;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
@@ -413,17 +409,8 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     std::vector<std::thread> runningThreads;
     if (ThreadID == 0) {
         stopped = false;
-
-        if(threads.empty())
-            threads.emplace_back(START_FEN, 0);
-
         for (int i = 0; i < numThread; i++)
-        {
-            threads.at(i).nodes       = 0ull;
-            threads.at(i).searchDepth = 0;
-            threads.at(i).board       = *board;
-
-        }
+            threads.emplace_back(*board, i);
 
         this->timeManager = tm;
         for (int i = 1; i < numThread; i++) {
@@ -501,6 +488,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         }
         std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
         runningThreads.clear();
+        threads.clear();
 
         res.cp = score / 2;
         res.move = this->m_bestMove;
