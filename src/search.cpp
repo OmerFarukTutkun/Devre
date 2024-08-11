@@ -19,7 +19,7 @@ void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 1.25 + log(i) * log(j - 1) / 2.50;
+                LMR_TABLE[i][j] = 0.25 + log(i) * log(j - 1) / 2.50;
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -74,7 +74,6 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
-    std::cout << "setting thread count to " << thread << std::endl;
     threads.clear();
     for (int i = 0; i < numThread; i++)
         threads.emplace_back(START_FEN, i);
@@ -156,7 +155,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     return bestScore;
 }
 
-int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack *ss) {
+int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
     int PVNode = (alpha != beta - 1);
     int rootNode = (0 == ss->ply);
@@ -260,10 +259,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
         int R = 4 + depth / 6 + std::min(3, (eval - beta) / 200);
+
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         board->makeNullMove();
-        score = -alphaBeta(-beta, -beta + 1, depth - R, thread, ss + 1);
+
+        score = -alphaBeta(-beta, -beta + 1, depth - R, !cutNode, thread, ss + 1);
+
         board->unmakeNullMove();
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
@@ -307,18 +309,19 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
             continue;
         }
-        lmr = 1;
+        lmr = 0;
         if (ss->played > 2 && depth > 2 && isQuiet(move)) {
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
             lmr -= std::clamp(getQuietHistory(thread,ss, move)/8000, -2,2);
+            lmr += cutNode;
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
-            lmr += (ss->played > 10);
+            lmr += (ss->played > 20);
         }
-        lmr = std::max(1, std::min(depth - 1, lmr));
+        lmr = std::max(0, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
@@ -335,7 +338,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             const int singularDepth = (depth - 1) / 2;
 
             ss->excludedMove = move;
-            int singularScore = alphaBeta(singularBeta - 1, singularBeta , singularDepth, thread, ss);
+            int singularScore = alphaBeta(singularBeta - 1, singularBeta , singularDepth, cutNode, thread, ss);
             ss->excludedMove = NO_MOVE;
 
             if(singularScore < singularBeta) {
@@ -357,17 +360,31 @@ int Search::alphaBeta(int alpha, int beta, int depth, ThreadData &thread, Stack 
             ss->move = move;
             ss->playedMoves[ss->played++] = move;
         }
-
+        int newDepth = depth - 1 + extension;
+        int d = newDepth -lmr;
         //make move
         board->makeMove(move);
-        if (ss->played > 1) {
-            score = -alphaBeta(-alpha - 1, -alpha, depth - lmr, thread, ss + 1);
-            if (score > alpha && score < beta)// if the score is inside (alpha, beta) do research with an open window
-            {
-                score = -alphaBeta(-beta, -alpha, depth - 1, thread, ss + 1);
+        if(lmr >= 1)
+        {
+            score = -alphaBeta(-alpha - 1, -alpha, d, true, thread, ss + 1);
+            if (score > alpha && d < newDepth) {
+
+                const bool doDeeperSearch = score > (bestScore + 35 + 2 * newDepth);
+                const bool doShallowerSearch = score < bestScore + newDepth;
+
+                newDepth += doDeeperSearch - doShallowerSearch;
+
+                if (newDepth > d)
+                    score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
             }
-        } else {
-            score = -alphaBeta(-beta, -alpha, depth - 1 + extension, thread, ss + 1);
+        }
+        else if (!PVNode || ss->played > 1) {
+            score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
+        }
+
+        if(PVNode && (ss->played == 1 || score > alpha))
+        {
+            score = -alphaBeta(-beta, -alpha, newDepth, false, thread, ss + 1);
         }
         board->unmakeMove(move);
 
@@ -443,7 +460,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {
-                score = alphaBeta(alpha, beta, i, threads.at(ThreadID), ss + 6);
+                score = alphaBeta(alpha, beta, i, false, threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -454,7 +471,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 windowSize += windowSize/3;
             }
         } else {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, threads.at(ThreadID), ss + 6);
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
