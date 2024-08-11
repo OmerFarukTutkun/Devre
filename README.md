@@ -1,6 +1,6 @@
 ## Devre
 
-Devre is a strong open-source UCI compatible chess engine written in C++. While writing the engine, I got great help from chessprogramming wiki, talkchess forum, Stockfish discord ,and some open-source engines: Ethereal, Vice, Koivisto. 
+Devre is a strong open-source UCI-compatible chess engine written in C++. While writing the engine, I got great help from chessprogramming wiki, talkchess forum, Stockfish discord, and some open-source engines: Ethereal, Vice, and Koivisto. 
 
 
 ## Movegen
@@ -36,10 +36,10 @@ Devre is a strong open-source UCI compatible chess engine written in C++. While 
 
 ## Evaluation
 
-Devre uses a NNUE for evaluation. The Network architure is 768 -> (1536x2) -> 1.
-The default net was trained with Leela data. The training code written in C/CUDA,and can be found in https://github.com/OmerFarukTutkun/CUDA-Trainer .  The training resources and other useful information about NNUE can be found in stockfish discord.
-Thanks to Stockfish and Leela teams for publishing their training data in public. 
+Devre uses a NNUE for evaluation. The Network architecture is 768 -> (1536x2) -> 1.
+The default net was trained with Leela data. The training code is written in C/CUDA and can be found at https://github.com/OmerFarukTutkun/CUDA-Trainer.  The training resources and other useful information about NNUE can be found in Stockfish Discord.
+Thanks to the Stockfish and Leela teams for publishing their training data publicly. 
 
 ## Compiling 
- To compile in Linux/Windows with a cpu that supports AVX512:
- * to compile with makefile you can use one of the options: ```make``` ```make build=avx512``` ```make build=avx2```
+ To compile in Linux/Windows with a CPU that supports AVX512/AVX2/SSSE3:
+ * to compile with makefile you can use one of the options: ```make``` ```make build=avx512``` ```make build=avx2``` ```make build=ssse3```
