@@ -320,7 +320,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
-            lmr = LMR_TABLE[depth][ss->played]/2;
+            lmr = LMR_TABLE[depth][ss->played];
             lmr -= std::clamp(getCaptureHistory(thread,ss, move)/8000, -2,2);
             lmr += ttMove && isTactical(ttMove);
         }
