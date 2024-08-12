@@ -316,10 +316,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             lmr += !improving;
             lmr -= std::clamp(getQuietHistory(thread,ss, move)/8000, -2,2);
             lmr += cutNode;
+            lmr += ttMove && isTactical(ttMove);
         }
         else if ( ss->played > 2 && depth > 2 && isTactical(move))
         {
-            lmr += (ss->played > 20);
+            lmr = LMR_TABLE[depth][ss->played];
+            lmr -= std::clamp(getCaptureHistory(thread,ss, move)/8000, -2,2);
+            lmr += ttMove && isTactical(ttMove);
         }
         lmr = std::max(0, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
