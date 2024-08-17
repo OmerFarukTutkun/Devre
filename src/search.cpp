@@ -309,15 +309,19 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
             continue;
         }
+        int history = 0;
         lmr = 0;
         if (ss->played > 2 && depth > 2) {
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
-if(isQuiet(move))
-            lmr -= std::clamp(getQuietHistory(thread,ss, move)/8000, -2,2);
-else
-lmr -= std::clamp(getCaptureHistory(thread,ss, move)/8000, -2,2);
+            
+            if(isQuiet(move))
+                history = getQuietHistory(thread,ss, move);
+            else
+                history = getCaptureHistory(thread,ss, move);
+
+            lmr -= std::clamp(history/8000, -2,2);
             lmr += cutNode;
             lmr += ttMove && isTactical(ttMove);
         }
