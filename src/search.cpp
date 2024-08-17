@@ -134,6 +134,9 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         score = -qsearch(-beta, -alpha, thread, ss + 1);
 
         board->unmakeMove(move);
+        
+        if(this->stopped)
+            return 0;
 
         if (score > bestScore) {
             bestScore = score;
@@ -393,6 +396,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
         board->unmakeMove(move);
 
+        if(this->stopped)
+            return 0;
+        
         if (score > bestScore) {
 
             bestScore = score;
