@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifndef VERSION
-#define VERSION "6.03"
+#define VERSION "6.04"
 #endif
 
 constexpr auto MAX_PLY = 100;
