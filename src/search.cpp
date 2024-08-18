@@ -110,8 +110,14 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         return board->eval();
     }
 
-    auto standPat = ttHit ? ttStaticEval : board->eval();
-    standPat = adjustEvalWithCorrHist(thread,standPat);
+    auto rawEval = ttHit ? ttStaticEval : board->eval();
+    auto standPat = adjustEvalWithCorrHist(thread,rawEval);
+
+    //ttValue can be used as a better position evaluation
+    if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
+    {
+        standPat = ttScore;
+    }
 
     if (standPat >= beta) {
         return standPat;
@@ -154,7 +160,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     }
 
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
-    TT::Instance()->ttSave(board->key, ss->ply, bestScore, standPat, bound, 0, bestMove);
+    TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
 }
 
@@ -428,11 +434,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             updateCorrHistScore(thread, depth, bestScore - ss->staticEval);
         }
 
-        if(ss->staticEval == eval)
-        {
-            eval = rawEval;
-        }
-        TT::Instance()->ttSave(board->key, ss->ply, bestScore, eval, bound, depth, bestMove);
+        TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, depth, bestMove);
     }
     return bestScore;
 }
