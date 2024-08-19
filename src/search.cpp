@@ -255,7 +255,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     thread.nodes++;
 
     //TT Probing
-    int ttDepth, ttScore, ttBound, ttStaticEval;
+    int ttDepth=0, ttScore=0, ttBound=TT_NONE, ttStaticEval=0;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = false;
     if( ss->excludedMove == NO_MOVE )
