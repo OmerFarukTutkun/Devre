@@ -279,6 +279,47 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
+
+    //probcut
+    auto  probCutBeta = beta + 200 - 50 * improving;
+      if (!PVNode && depth > 3
+        && std::abs(beta) < MIN_MATE_SCORE
+        && ss->excludedMove == NO_MOVE
+        && !(ttDepth >= depth - 3 && ttScore < probCutBeta))
+    {
+        auto moveList = MoveList(ttMove);
+        legalmoves<TACTICAL_MOVES>(*board, moveList);
+        uint16_t move =NO_MOVE;
+
+        
+        while ((move = moveList.pickMove(thread, ss)) != NO_MOVE) {
+            if(move == ss->excludedMove)
+                continue;
+
+            ss->move = move;
+            ss->playedMoves[ss->played++] = move;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+
+            board->makeMove(move);
+
+            auto score = -qsearch(-probCutBeta, -probCutBeta + 1, thread,ss);
+
+            if(score >= probCutBeta)
+                score = -alphaBeta(-probCutBeta, -probCutBeta + 1,depth -4, !cutNode,thread,ss);
+
+            board->unmakeMove(move);
+
+            if(this->stopped)
+                return 0;
+
+            if(score >= probCutBeta)
+            {
+                TT::Instance()->ttSave(board->key, ss->ply, score, rawEval, TT_LOWERBOUND, depth -3 , move);
+                return score;
+            }
+        }
+    }
+
     auto moveList = MoveList(ttMove);
     legalmoves<ALL_MOVES>(*board, moveList);
 
