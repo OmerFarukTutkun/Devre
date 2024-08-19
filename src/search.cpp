@@ -302,10 +302,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             board->makeMove(move);
 
-            auto score = -qsearch(-probCutBeta, -probCutBeta + 1, thread,ss);
+            auto score = -qsearch(-probCutBeta, -probCutBeta + 1, thread,ss + 1);
 
             if(score >= probCutBeta)
-                score = -alphaBeta(-probCutBeta, -probCutBeta + 1,depth -4, !cutNode,thread,ss);
+                score = -alphaBeta(-probCutBeta, -probCutBeta + 1,depth -4, !cutNode,thread,ss + 1);
 
             board->unmakeMove(move);
 
