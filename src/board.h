@@ -27,10 +27,12 @@ public:
     bool isRepetition();
     bool inCheck();
     bool inCheck(uint64_t threat);
+
     uint64_t threat();
 
     uint64_t key;
     uint64_t pawnKey;
+    uint64_t materialKey;
     uint64_t bitboards[N_PIECES];
     uint64_t occupied[N_COLORS];
     uint8_t pieceBoard[N_SQUARES];
