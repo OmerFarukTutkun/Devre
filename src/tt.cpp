@@ -127,11 +127,11 @@ uint8_t TT::getAge(TTentry * entry) {
 int TT::getHashfull() {
     int hit = 0;
     for (int i = 0; i < 1000; i++) {
-        const TTBucket *bucket = &table[i];
+        TTBucket *bucket = &table[i];
 
         for (int j = 0; j < numEntryPerBucket; j++) {
             auto * entry = &bucket->entries[j];
-            if (entry->key != 0)
+            if (entry->key != 0u && age == getAge(entry))
                 hit++;
         }
     }
