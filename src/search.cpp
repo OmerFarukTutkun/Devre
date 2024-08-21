@@ -373,6 +373,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->played = 0;
             ss->move = move;
             ss->playedMoves[ss->played++] = move;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
         int d = newDepth -lmr;
