@@ -368,7 +368,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         ss->played = 0;
 
-        while ((move = moveList.pickMove(thread, ss)) != NO_MOVE) {
+        while ((move = moveList.pickMove(thread, ss, moveTypeScores[CAPTURE] - 5 * MIL )) != NO_MOVE) {
 
             ss->move = move;
             ss->playedMoves[ss->played++] = move;
