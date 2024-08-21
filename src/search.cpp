@@ -284,7 +284,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     auto  probCutBeta = beta + 200 - 50 * improving;
       if (!PVNode && depth >= 6
         && std::abs(beta) < MIN_MATE_SCORE
-        && ss->excludedMove == NO_MOVE
         && !(ttDepth >= depth - 3 && ttScore < probCutBeta))
     {
         auto moveList = MoveList(ttMove);
