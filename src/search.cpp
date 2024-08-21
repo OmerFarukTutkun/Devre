@@ -357,7 +357,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     }
 
     //probcut
-    auto  probCutBeta = beta + 200 - 50 * improving;
+    auto  probCutBeta = beta + 300 - 50 * improving;
       if (!PVNode && depth >= 6
         && std::abs(beta) < MIN_MATE_SCORE
         && !(ttDepth >= depth - 3 && ttScore < probCutBeta))
@@ -369,8 +369,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->played = 0;
 
         while ((move = moveList.pickMove(thread, ss)) != NO_MOVE) {
-            if(move == ss->excludedMove)
-                continue;
 
             ss->move = move;
             ss->playedMoves[ss->played++] = move;
