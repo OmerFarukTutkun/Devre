@@ -2,7 +2,6 @@
 #include "tt.h"
 #include "move.h"
 #include "zobrist.h"
-#define MbToByte(x) (1024*1024*(x))
 
 TT::TT() {
     ttMask = 0ull;
@@ -88,22 +87,26 @@ bool TT::ttProbe(uint64_t key, int ply, int &ttDepth, int &ttScore, int &ttBound
 }
 
 void TT::ttAllocate(int megabyte) {
-    int size = MbToByte(megabyte) / sizeof(TTBucket);
+    std::cout << "Setting " << megabyte << "Mb hash table" << std::endl;
+    int64_t size = 1024*1024;
+    size = size*megabyte / sizeof(TTBucket);
     int keySize = static_cast<int> ( log2(size));
     ttMask = (ONE << keySize) - ONE;
+
+    std::cout << "Number of tt bucket " << ttMask + 1 << std::endl;
+
     ttFree();
-    table = new TTBucket[(ONE << keySize)];
+    table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ONE << keySize)));
     ttClear();
 }
 
 void TT::ttClear() {
     age = 0;
-    for(int i=0; i <= ttMask; i++)
-        table[i] = {};
+    std::memset(table, 0,sizeof(TTBucket) * (ttMask +1) );
 }
 
 void TT::ttFree() {
-    delete[] table;
+    free(table);
 }
 
 void TT::ttPrefetch(uint64_t hash) {
