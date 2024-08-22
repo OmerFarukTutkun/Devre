@@ -32,6 +32,7 @@ public:
 
     uint64_t key;
     uint64_t pawnKey;
+    uint64_t nonPawnKey;
     uint64_t materialKey;
     uint64_t bitboards[N_PIECES];
     uint64_t occupied[N_COLORS];

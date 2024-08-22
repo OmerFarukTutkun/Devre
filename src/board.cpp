@@ -10,6 +10,7 @@
 Board::Board(const std::string &fen) {
     key = 0;
     pawnKey = 0;
+    nonPawnKey = 0;
     materialKey = 0;
     enPassant = NO_SQ;
     halfMove = 0;
@@ -121,6 +122,8 @@ void Board::addPiece(int piece, int sq) {
 
     if(pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    else
+        nonPawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
 void Board::removePiece(int piece, int sq) {
@@ -138,6 +141,8 @@ void Board::removePiece(int piece, int sq) {
 
     if(pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    else
+        nonPawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
 void Board::movePiece(int piece, int from, int to) {
