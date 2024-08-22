@@ -87,13 +87,10 @@ bool TT::ttProbe(uint64_t key, int ply, int &ttDepth, int &ttScore, int &ttBound
 }
 
 void TT::ttAllocate(int megabyte) {
-    std::cout << "Setting " << megabyte << "Mb hash table" << std::endl;
     int64_t size = 1024*1024;
     size = size*megabyte / sizeof(TTBucket);
     int keySize = static_cast<int> ( log2(size));
     ttMask = (ONE << keySize) - ONE;
-
-    std::cout << "Number of tt bucket " << ttMask + 1 << std::endl;
 
     ttFree();
     table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ONE << keySize)));

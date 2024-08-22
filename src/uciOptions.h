@@ -51,7 +51,7 @@ static OptionsMap Options({
                                   {"Threads",       Option(1, 256, "1", "spin", "1")},
                                   {"Hash",          Option(1, 131072, "16", "spin", "16")},
                                   {"UCI_Chess960",  Option(0, 1, "false", "check", "false")},
-                                  {"Move Overhead", Option(0, 5000, "50", "spin", "50")}
+                                  {"MoveOverhead", Option(0, 10000, "50", "spin", "50")}
                           });
 
 #endif //DEVRE_UCIOPTIONS_H

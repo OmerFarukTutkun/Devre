@@ -369,6 +369,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 return singularScore;
             }
 
+            //negative extensions
+            else if(ttScore >= beta)
+                extension = -2;
+
+            else if(cutNode)
+                extension = -1;
+
             //reAssign some stack values that might have been changed
             ss->played = 0;
             ss->move = move;
