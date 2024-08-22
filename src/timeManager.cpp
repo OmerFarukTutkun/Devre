@@ -14,7 +14,7 @@ bool TimeManager::checkLimits(uint64_t totalNodes) {
     if(fixedMoveTime != -1)
     {
 
-        auto moveOverhead = Options.at("Move Overhead");
+        auto moveOverhead = Options.at("MoveOverhead");
         if(elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
             return true;
     }
