@@ -42,6 +42,6 @@ TimeManager::TimeManager() {
 
 void TimeManager::start() {
     startTime = currentTime();
-    auto moveOverhead = Options.at("Move Overhead");
+    auto moveOverhead = Options.at("MoveOverhead");
     optimalTime = remainingTime/8 + inc - std::stoi(moveOverhead.currentValue);
 }
