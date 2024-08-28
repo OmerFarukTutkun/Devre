@@ -11,6 +11,7 @@ MAVX512 = $(MAVX2) -mavx512f -mavx512bw
 
 FILES = *.cpp
 
+
 CXX_FLAGS  = -static -pthread -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Ofast -flto -std=c++17
 
 ifeq ($(OS),Windows_NT)
