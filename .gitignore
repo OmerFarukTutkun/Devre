@@ -1,2 +1,4 @@
 devre*
 *.gcda
+/cmake-build-release/
+/cmake-build-debug/
