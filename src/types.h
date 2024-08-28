@@ -13,9 +13,10 @@
 #include "vector"
 #include "array"
 #include <cstring>
+#include <algorithm>
 
 #ifndef VERSION
-#define VERSION "6.11"
+#define VERSION "6.13"
 #endif
 
 constexpr auto MAX_PLY = 100;

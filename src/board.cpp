@@ -12,7 +12,6 @@ Board::Board(const std::string &fen) {
     pawnKey = 0;
     nonPawnKey[0] = 0;
     nonPawnKey[1] = 0;
-    materialKey = 0;
     enPassant = NO_SQ;
     halfMove = 0;
     fullMove = 1;
@@ -115,12 +114,6 @@ void Board::addPiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, 1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    int pieceCount = popcount64(bitboards[piece]);
-    materialKey ^=  Zobrist::Instance()->PieceKeys[piece][pieceCount];
-
-    if(pieceCount >= 2)
-        materialKey ^=  Zobrist::Instance()->PieceKeys[piece][pieceCount - 1];
-
     if(pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
@@ -133,12 +126,6 @@ void Board::removePiece(int piece, int sq) {
     clearBit(occupied[pieceColor(piece)], sq);
     nnueData.nnueChanges.emplace_back(piece, sq, -1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
-
-    int pieceCount = popcount64(bitboards[piece]);
-    materialKey ^=  Zobrist::Instance()->PieceKeys[piece][pieceCount + 1];
-
-    if(pieceCount >= 1)
-        materialKey ^=  Zobrist::Instance()->PieceKeys[piece][pieceCount];
 
     if(pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
