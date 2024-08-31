@@ -6,20 +6,37 @@
 #include "history.h"
 #include "util.h"
 #include <sstream>
+#include "tuning.h"
+
+DEFINE_PARAM_S(seeQuietMargin, -100, 5);
+DEFINE_PARAM_S(seeCaptureMargin, -300, 20);
+DEFINE_PARAM_S(lmrBase, 25, 2);
+DEFINE_PARAM_S(lmrDiv, 250, 10);
+DEFINE_PARAM_S(rfpMargin, 115, 5);
+DEFINE_PARAM_S(razoringMargin, 360, 20);
+DEFINE_PARAM_S(nmpEvalDiv, 200, 20);
+DEFINE_PARAM_S(contHistPruningMargin, -3057, 200);
+DEFINE_PARAM_S(lmrHistoryDiv, 8000, 400);
+DEFINE_PARAM_S(fpBase, 200, 20);
+DEFINE_PARAM_S(fpMargin, 100, 10);
+
+DEFINE_PARAM_S(lmpBase, 6, 1);
+DEFINE_PARAM_S(lmpMargin, 3, 1);
+
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
 {
     if(quiet) {
-        return -100*depth;
+        return seeQuietMargin*depth;
     }
     else
-        return -300*depth;
+        return seeCaptureMargin*depth;
 }
 void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 0.25 + log(i) * log(j - 1) / 2.50;
+                LMR_TABLE[i][j] = lmrBase/100.0 + log(i) * log(j - 1) / (lmrDiv/100.0);
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -247,12 +264,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 115 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * rfpMargin && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 360 * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + razoringMargin * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -267,7 +284,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     //Null Move pruning
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 200);
+        int R = 4 + depth / 4 + std::min(3, (eval - beta) / nmpEvalDiv);
 
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -303,16 +320,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // late move pruning
-            if (depth <= 6 && ss->played > 6 + (3 + 2 * improving) * depth)
+            if (depth <= 6 && ss->played > lmpBase + (lmpMargin + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(200, -(ss->played) * 10 + 200 + depth * 100) < alpha)
+            if (depth <= 10 && eval + std::max(200, -(ss->played) * 10 + fpBase + depth * fpMargin) < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 4 && contHist < -3057 )
+            if(depth <= 4 && contHist < contHistPruningMargin )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -330,7 +347,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread,ss, move);
 
-            lmr -= std::clamp(history/8000, -2,2);
+            lmr -= std::clamp(history/lmrHistoryDiv, -2,2);
             lmr += cutNode;
             lmr += ttMove && isTactical(ttMove);
         }
