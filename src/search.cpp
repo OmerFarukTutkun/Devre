@@ -109,9 +109,13 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     if (ss->ply > MAX_PLY) {
         return board->eval();
     }
+    //calculate opponent threats
+    ss->threat = board->threat();
+    //find we are in check or not by using opponent threat
+    bool inCheck = board->inCheck(ss->threat);
 
     auto rawEval = ttHit ? ttStaticEval : board->eval();
-    auto standPat = adjustEvalWithCorrHist(thread,rawEval);
+    auto standPat = adjustEvalWithCorrHist(thread,ss->threat ,rawEval);
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
@@ -234,7 +238,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     }
 
     int rawEval = ttHit ? ttStaticEval : board->eval();
-    int eval = ss->staticEval = adjustEvalWithCorrHist(thread,rawEval);
+    int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss->threat, rawEval);
 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
@@ -439,7 +443,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
                 &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
-            updateCorrHistScore(thread, depth, bestScore - ss->staticEval);
+            updateCorrHistScore(thread, ss->threat, depth, bestScore - ss->staticEval);
         }
 
         TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, depth, bestMove);
