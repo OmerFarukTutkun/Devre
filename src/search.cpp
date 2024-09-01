@@ -10,18 +10,18 @@
 
 DEFINE_PARAM_S(seeQuietMargin, -100, 5);
 DEFINE_PARAM_S(seeCaptureMargin, -300, 20);
-DEFINE_PARAM_S(lmrBase, 25, 2);
-DEFINE_PARAM_S(lmrDiv, 250, 10);
-DEFINE_PARAM_S(rfpMargin, 115, 5);
-DEFINE_PARAM_S(razoringMargin, 360, 20);
-DEFINE_PARAM_S(nmpEvalDiv, 200, 20);
-DEFINE_PARAM_S(contHistPruningMargin, -3057, 200);
-DEFINE_PARAM_S(lmrHistoryDiv, 8000, 400);
-DEFINE_PARAM_S(fpBase, 200, 20);
-DEFINE_PARAM_S(fpMargin, 100, 10);
+DEFINE_PARAM_S(lmrBase, 27, 2);
+DEFINE_PARAM_S(lmrDiv, 248, 10);
+DEFINE_PARAM_S(rfpMargin, 111, 5);
+DEFINE_PARAM_S(razoringMargin, 370, 20);
+DEFINE_PARAM_S(nmpEvalDiv, 188, 20);
+DEFINE_PARAM_S(contHistPruningMargin, -3251, 200);
+DEFINE_PARAM_S(lmrHistoryDiv, 8394, 400);
+DEFINE_PARAM_S(fpBase, 204, 20);
+DEFINE_PARAM_S(fpMargin, 106, 10);
 
 DEFINE_PARAM_S(lmpBase, 6, 1);
-DEFINE_PARAM_S(lmpMargin, 3, 1);
+DEFINE_PARAM_S(lmpMargin, 2, 1);
 
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
