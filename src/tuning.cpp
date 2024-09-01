@@ -3,7 +3,7 @@
 #include <sstream>
 #include <vector>
 
-//taken from https://github.com/gab8192/Obsidian
+
 std::vector<EngineParam*> tuningParams;
 
 void registerParam(EngineParam* param) {
