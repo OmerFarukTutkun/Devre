@@ -8,17 +8,17 @@
 #include <sstream>
 #include "tuning.h"
 
-DEFINE_PARAM_S(seeQuietMargin, -100, 5);
-DEFINE_PARAM_S(seeCaptureMargin, -312, 20);
+DEFINE_PARAM_S(seeQuietMargin, -97, 5);
+DEFINE_PARAM_S(seeCaptureMargin, -322, 20);
 DEFINE_PARAM_S(lmrBase, 27, 2);
-DEFINE_PARAM_S(lmrDiv, 246, 10);
-DEFINE_PARAM_S(rfpMargin, 111, 5);
-DEFINE_PARAM_S(razoringMargin, 375, 20);
-DEFINE_PARAM_S(nmpEvalDiv, 185, 20);
-DEFINE_PARAM_S(contHistPruningMargin, -3343, 200);
-DEFINE_PARAM_S(lmrHistoryDiv, 8334, 400);
-DEFINE_PARAM_S(fpBase, 207, 20);
-DEFINE_PARAM_S(fpMargin, 105, 10);
+DEFINE_PARAM_S(lmrDiv, 255, 10);
+DEFINE_PARAM_S(rfpMargin, 110, 5);
+DEFINE_PARAM_S(razoringMargin, 400, 20);
+DEFINE_PARAM_S(nmpEvalDiv, 172, 20);
+DEFINE_PARAM_S(contHistPruningMargin, -3487, 200);
+DEFINE_PARAM_S(lmrHistoryDiv, 8354, 400);
+DEFINE_PARAM_S(fpBase, 202, 20);
+DEFINE_PARAM_S(fpMargin, 110, 10);
 
 DEFINE_PARAM_S(lmpBase, 6, 1);
 DEFINE_PARAM_S(lmpMargin, 2, 1);
