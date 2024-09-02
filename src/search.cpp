@@ -9,16 +9,16 @@
 #include "tuning.h"
 
 DEFINE_PARAM_S(seeQuietMargin, -97, 5);
-DEFINE_PARAM_S(seeCaptureMargin, -322, 20);
-DEFINE_PARAM_S(lmrBase, 27, 2);
-DEFINE_PARAM_S(lmrDiv, 255, 10);
-DEFINE_PARAM_S(rfpMargin, 110, 5);
-DEFINE_PARAM_S(razoringMargin, 400, 20);
-DEFINE_PARAM_S(nmpEvalDiv, 172, 20);
-DEFINE_PARAM_S(contHistPruningMargin, -3487, 200);
-DEFINE_PARAM_S(lmrHistoryDiv, 8354, 400);
-DEFINE_PARAM_S(fpBase, 202, 20);
-DEFINE_PARAM_S(fpMargin, 110, 10);
+DEFINE_PARAM_S(seeCaptureMargin, -324, 20);
+DEFINE_PARAM_S(lmrBase, 28, 2);
+DEFINE_PARAM_S(lmrDiv, 257, 10);
+DEFINE_PARAM_S(rfpMargin, 107, 5);
+DEFINE_PARAM_S(razoringMargin, 408, 20);
+DEFINE_PARAM_S(nmpEvalDiv, 177, 20);
+DEFINE_PARAM_S(contHistPruningMargin, -3633, 200);
+DEFINE_PARAM_S(lmrHistoryDiv, 8474, 400);
+DEFINE_PARAM_S(fpBase, 192, 20);
+DEFINE_PARAM_S(fpMargin, 109, 10);
 
 DEFINE_PARAM_S(lmpBase, 6, 1);
 DEFINE_PARAM_S(lmpMargin, 2, 1);
