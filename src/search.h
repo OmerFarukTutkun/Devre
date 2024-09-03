@@ -41,7 +41,7 @@ private:
 
 public:
     static void initSearchParameters();
-    std::vector<ThreadData> threads;
+    std::vector<ThreadData *> threads;
     void stop();
     void setThread(int thread);
     SearchResult start(Board *board, TimeManager *timeManager, int ThreadID = 0);

@@ -91,9 +91,17 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
+    for (auto th:threads)
+    {
+        delete th;
+    }
     threads.clear();
     for (int i = 0; i < numThread; i++)
-        threads.emplace_back(START_FEN, i);
+    {
+        auto th = new ThreadData(START_FEN, i);
+        threads.emplace_back(th);
+    }
+
 }
 
 Search::~Search() = default;
@@ -472,9 +480,9 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
         for (int i = 0; i < numThread; i++)
         {
-            threads.at(i).nodes       = 0ull;
-            threads.at(i).searchDepth = 0;
-            threads.at(i).board       = *board;
+            threads.at(i)->nodes       = 0ull;
+            threads.at(i)->searchDepth = 0;
+            threads.at(i)->board       = *board;
         }
 
         this->timeManager = tm;
@@ -486,19 +494,19 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     auto *ss = new Stack[MAX_PLY + 10];
     for (int i = 0; i < MAX_PLY + 10; i++) {
         (ss + i)->ply = i - 6;
-        (ss + i)->continuationHistory = &threads.at(ThreadID).contHist[0][0];
+        (ss + i)->continuationHistory = &threads.at(ThreadID)->contHist[0][0];
     }
 
     int score = 0;
     for (int i = 1; i <= timeManager->depthLimit; i++) {
-        threads.at(ThreadID).searchDepth = i;
+        threads.at(ThreadID)->searchDepth = i;
         // aspiration window search
         if (i > 4) {
             int windowSize = 20;
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {
-                score = alphaBeta(alpha, beta, i, false, threads.at(ThreadID), ss + 6);
+                score = alphaBeta(alpha, beta, i, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -509,7 +517,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 windowSize += windowSize/3;
             }
         } else {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, threads.at(ThreadID), ss + 6);
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
@@ -529,7 +537,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
                 std::cout<< " score mate " << mate;
             }
-                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
+                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
@@ -564,7 +572,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 uint64_t Search::totalNodes() {
     uint64_t sum = 0ull;
     for (int i = 0; i < numThread; i++) {
-        sum += threads[i].nodes;
+        sum += threads[i]->nodes;
     }
     return sum;
 }
