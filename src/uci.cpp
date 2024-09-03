@@ -5,6 +5,7 @@
 #include "tt.h"
 #include "nnue.h"
 #include "bench.h"
+#include "tuning.h"
 
 void Uci::UciLoop() {
 
@@ -44,6 +45,7 @@ void Uci::UciLoop() {
 
         } else if (cmd == "setoption")
             setoption(commands);
+        else if (cmd == "tune")       std::cout << paramsToSpsaInput();
     }
 }
 
@@ -55,7 +57,7 @@ void Uci::printUci() {
         Option option = x.second;
         option.printOption(x.first);
     }
-    std::cout << "uciok" << std::endl;
+    std::cout << paramsToUci() << "uciok" << std::endl;
 }
 
 void Uci::perft(std::vector<std::string> &commands) {
@@ -159,7 +161,21 @@ void Uci::setoption(std::vector<std::string> &commands) {
             TT::Instance()->ttAllocate(stoi(it->second.currentValue));
         if (name == "Threads")
             search.setThread(stoi(it->second.currentValue));
+
+        return;
     }
+    else if constexpr (doTuning) {
+        EngineParam* param = findParam(name);
+        popFront(commands);
+        auto value = popFront(commands);
+        if (param) {
+            param->value = std::stoi(value);
+            search.initSearchParameters();
+            return;
+        }
+    }
+
+    std::cout << "undefined option" << std::endl;
 }
 
 Uci::Uci() {

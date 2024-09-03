@@ -35,12 +35,13 @@ private:
     uint16_t m_bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();
-    static void initSearchParameters();
+
     int qsearch(int alpha, int beta, ThreadData &thread, Stack *ss);
     int alphaBeta(int alpha, int beta, int depth, bool cutNode, ThreadData &thread, Stack *ss);
 
 public:
-    std::vector<ThreadData> threads;
+    static void initSearchParameters();
+    std::vector<ThreadData *> threads;
     void stop();
     void setThread(int thread);
     SearchResult start(Board *board, TimeManager *timeManager, int ThreadID = 0);

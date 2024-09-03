@@ -6,20 +6,37 @@
 #include "history.h"
 #include "util.h"
 #include <sstream>
+#include "tuning.h"
+
+DEFINE_PARAM_S(seeQuietMargin, -97, 5);
+DEFINE_PARAM_S(seeCaptureMargin, -324, 20);
+DEFINE_PARAM_S(lmrBase, 28, 2);
+DEFINE_PARAM_S(lmrDiv, 257, 10);
+DEFINE_PARAM_S(rfpMargin, 107, 5);
+DEFINE_PARAM_S(razoringMargin, 408, 20);
+DEFINE_PARAM_S(nmpEvalDiv, 177, 20);
+DEFINE_PARAM_S(contHistPruningMargin, -3633, 200);
+DEFINE_PARAM_S(lmrHistoryDiv, 8474, 400);
+DEFINE_PARAM_S(fpBase, 192, 20);
+DEFINE_PARAM_S(fpMargin, 109, 10);
+
+DEFINE_PARAM_S(lmpBase, 6, 1);
+DEFINE_PARAM_S(lmpMargin, 2, 1);
+
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
 {
     if(quiet) {
-        return -100*depth;
+        return seeQuietMargin*depth;
     }
     else
-        return -300*depth;
+        return seeCaptureMargin*depth;
 }
 void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 0.25 + log(i) * log(j - 1) / 2.50;
+                LMR_TABLE[i][j] = lmrBase/100.0 + log(i) * log(j - 1) / (lmrDiv/100.0);
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -74,9 +91,17 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
+    for (auto th:threads)
+    {
+        delete th;
+    }
     threads.clear();
     for (int i = 0; i < numThread; i++)
-        threads.emplace_back(START_FEN, i);
+    {
+        auto th = new ThreadData(START_FEN, i);
+        threads.emplace_back(th);
+    }
+
 }
 
 Search::~Search() = default;
@@ -247,12 +272,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 115 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * rfpMargin && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 360 * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + razoringMargin * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -267,7 +292,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     //Null Move pruning
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 200);
+        int R = 4 + depth / 4 + std::min(3, (eval - beta) / nmpEvalDiv);
 
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -303,16 +328,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // late move pruning
-            if (depth <= 6 && ss->played > 6 + (3 + 2 * improving) * depth)
+            if (depth <= 6 && ss->played > lmpBase + (lmpMargin + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(200, -(ss->played) * 10 + 200 + depth * 100) < alpha)
+            if (depth <= 10 && eval + std::max(200, -(ss->played) * 10 + fpBase + depth * fpMargin) < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 4 && contHist < -3057 )
+            if(depth <= 4 && contHist < contHistPruningMargin )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -330,7 +355,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread,ss, move);
 
-            lmr -= std::clamp(history/8000, -2,2);
+            lmr -= std::clamp(history/lmrHistoryDiv, -2,2);
             lmr += cutNode;
             lmr += ttMove && isTactical(ttMove);
         }
@@ -455,9 +480,9 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
         for (int i = 0; i < numThread; i++)
         {
-            threads.at(i).nodes       = 0ull;
-            threads.at(i).searchDepth = 0;
-            threads.at(i).board       = *board;
+            threads.at(i)->nodes       = 0ull;
+            threads.at(i)->searchDepth = 0;
+            threads.at(i)->board       = *board;
         }
 
         this->timeManager = tm;
@@ -469,19 +494,19 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     auto *ss = new Stack[MAX_PLY + 10];
     for (int i = 0; i < MAX_PLY + 10; i++) {
         (ss + i)->ply = i - 6;
-        (ss + i)->continuationHistory = &threads.at(ThreadID).contHist[0][0];
+        (ss + i)->continuationHistory = &threads.at(ThreadID)->contHist[0][0];
     }
 
     int score = 0;
     for (int i = 1; i <= timeManager->depthLimit; i++) {
-        threads.at(ThreadID).searchDepth = i;
+        threads.at(ThreadID)->searchDepth = i;
         // aspiration window search
         if (i > 4) {
             int windowSize = 20;
             int alpha = score - windowSize;
             int beta = score + windowSize;
             while (true) {
-                score = alphaBeta(alpha, beta, i, false, threads.at(ThreadID), ss + 6);
+                score = alphaBeta(alpha, beta, i, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -492,7 +517,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 windowSize += windowSize/3;
             }
         } else {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, threads.at(ThreadID), ss + 6);
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
@@ -512,7 +537,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
                 std::cout<< " score mate " << mate;
             }
-                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID).board)
+                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
@@ -547,7 +572,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 uint64_t Search::totalNodes() {
     uint64_t sum = 0ull;
     for (int i = 0; i < numThread; i++) {
-        sum += threads[i].nodes;
+        sum += threads[i]->nodes;
     }
     return sum;
 }

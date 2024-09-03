@@ -1,9 +1,13 @@
 #include "history.h"
+#include "tuning.h"
+
+DEFINE_PARAM_S(historyBonusDepthMultp, 400, 40);
+DEFINE_PARAM_S(historyBonusConstant, -100, 20);
 
 const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
-    return std::min(400 * depth - 100, 1500);
+    return std::min(historyBonusDepthMultp * depth + historyBonusConstant, 1500);
 }
 
 void updateHistory(int16_t *current, int depth, bool good) {
