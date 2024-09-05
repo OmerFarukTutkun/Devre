@@ -1,6 +1,4 @@
 #include "nnue.h"
-#include "move.h"
-#include <algorithm>
 #include "simd.h"
 using namespace SIMD;
 constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4,  5,  0, 0, 6, 7, 8, 9, 10, 11},
