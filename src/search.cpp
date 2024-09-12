@@ -373,7 +373,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             && ttDepth >= depth -3
         )
         {
-            const int singularBeta = ttScore - 3*depth;
+            const int singularBeta = ttScore - 4*depth;
             const int singularDepth = (depth - 1) / 2;
 
             ss->excludedMove = move;
