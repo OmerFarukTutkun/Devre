@@ -17,7 +17,7 @@ DEFINE_PARAM_S(razoringMargin, 408, 20);
 DEFINE_PARAM_S(nmpEvalDiv, 177, 20);
 DEFINE_PARAM_S(contHistPruningMargin, -3633, 200);
 DEFINE_PARAM_S(lmrHistoryDiv, 8474, 400);
-DEFINE_PARAM_S(fpBase, 140, 20);
+DEFINE_PARAM_S(fpBase, 192, 20);
 DEFINE_PARAM_S(fpMargin, 109, 10);
 
 DEFINE_PARAM_S(lmpBase, 6, 1);
@@ -373,7 +373,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             && ttDepth >= depth -3
         )
         {
-            const int singularBeta = ttScore - 3*depth;
+            const int singularBeta = ttScore - 4*depth;
             const int singularDepth = (depth - 1) / 2;
 
             ss->excludedMove = move;
