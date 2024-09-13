@@ -337,7 +337,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 4 && contHist < contHistPruningMargin )
+            if(depth <= 3 && contHist < contHistPruningMargin )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
