@@ -17,7 +17,7 @@ DEFINE_PARAM_S(razoringMargin, 408, 20);
 DEFINE_PARAM_S(nmpEvalDiv, 177, 20);
 DEFINE_PARAM_S(contHistPruningMargin, -3633, 200);
 DEFINE_PARAM_S(lmrHistoryDiv, 8474, 400);
-DEFINE_PARAM_S(fpBase, 140, 20);
+DEFINE_PARAM_S(fpBase, 192, 20);
 DEFINE_PARAM_S(fpMargin, 109, 10);
 
 DEFINE_PARAM_S(lmpBase, 6, 1);
