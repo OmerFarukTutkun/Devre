@@ -10,6 +10,8 @@
 Board::Board(const std::string &fen) {
     key = 0;
     pawnKey = 0;
+    minorKey = 0;
+    majorKey = 0;
     nonPawnKey[0] = 0;
     nonPawnKey[1] = 0;
     enPassant = NO_SQ;
@@ -114,10 +116,23 @@ void Board::addPiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, 1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if(pieceType(piece) == PAWN)
+    auto type = pieceType(piece);
+    if(type == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
+    {
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
+
+        if(type == KING)
+        {
+            minorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+            majorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        }
+        else if(type == BISHOP || type == KNIGHT)
+            minorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        else
+            majorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    }
 }
 
 void Board::removePiece(int piece, int sq) {
@@ -127,10 +142,24 @@ void Board::removePiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, -1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if(pieceType(piece) == PAWN)
+    auto type = pieceType(piece);
+
+    if(type == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
+    {
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
+
+        if(type == KING)
+        {
+            minorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+            majorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        }
+        else if(type == BISHOP || type == KNIGHT)
+            minorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        else
+            majorKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    }
 }
 
 void Board::movePiece(int piece, int from, int to) {
