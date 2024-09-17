@@ -138,6 +138,8 @@ void updateCorrHistScore(ThreadData &thread, const int depth, const int diff) {
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
+    minorCorrHistEntry += clampedBonus - minorCorrHistEntry * std::abs(clampedBonus) / D;
+    majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
 }
 
 int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
@@ -149,7 +151,7 @@ int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
     int &minorCorrHistEntry = thread.corrHist[board->sideToMove][board->minorKey % 16384][3];
     int &majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][4];
 
-    const int average = (30*pawnCorrHistEntry + 30*nonPawnCorrHistEntryWhite + 30*nonPawnCorrHistEntryBlack +  30*majorCorrHistEntry + 30*minorCorrHistEntry )/ 512;
+    const int average = (60*pawnCorrHistEntry + 40*nonPawnCorrHistEntryWhite + 40*nonPawnCorrHistEntryBlack +  40*majorCorrHistEntry + 40*minorCorrHistEntry )/ 512;
 
     auto eval = rawEval + average;
     return std::clamp(eval , -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
