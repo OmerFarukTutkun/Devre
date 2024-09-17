@@ -4,7 +4,7 @@
 DEFINE_PARAM_S(historyBonusDepthMultp, 400, 40);
 DEFINE_PARAM_S(historyBonusConstant, -100, 20);
 
-const int HistoryDivisor = 32768;
+const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
     return std::min(historyBonusDepthMultp * depth + historyBonusConstant, 1500);
