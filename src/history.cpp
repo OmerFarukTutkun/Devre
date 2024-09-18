@@ -148,5 +148,6 @@ int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
     const int average = (53*pawnCorrHistEntry + 48*nonPawnCorrHistEntryWhite + 58*nonPawnCorrHistEntryBlack )/ 512;
 
     auto eval = rawEval + average;
+    eval = eval*(100 - thread.board.halfMove) / 100;
     return std::clamp(eval , -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
 }

@@ -153,5 +153,5 @@ int NNUE::evaluate(Board &board) {
 
 
     int eval = quanMatrixMultp( us, enemy, &layer1_weights[2*L1*outputBucket], layer1_bias[outputBucket]);
-    return eval * ((100.0 - board.halfMove) / 100.0);
+    return eval;
 }
