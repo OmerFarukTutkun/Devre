@@ -155,3 +155,20 @@ int NNUE::evaluate(Board &board) {
     int eval = quanMatrixMultp( us, enemy, &layer1_weights[2*L1*outputBucket], layer1_bias[outputBucket]);
     return eval;
 }
+float NNUE::halfMoveScale(Board &board) {
+    return (100.0f - board.halfMove) / 100.0f;
+}
+
+float NNUE::materialScale(Board &board) {
+    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT] | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP])*3;
+    gamePhase += popcount64(board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK])*5;
+    gamePhase += popcount64(board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN])*10;
+
+    gamePhase = std::min(gamePhase, 64.0f);
+
+    float a = 0.8;
+    float b = 1.0;
+
+    //[a,b]
+    return a + (b-a)*gamePhase/64.0f;
+}
