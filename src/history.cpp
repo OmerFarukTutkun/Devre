@@ -151,7 +151,7 @@ int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
     int &minorCorrHistEntry = thread.corrHist[board->sideToMove][board->minorKey % 32768][3];
     int &majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 32768][4];
 
-    const int average = (28*pawnCorrHistEntry + 24*(nonPawnCorrHistEntryWhite + nonPawnCorrHistEntryBlack) +  15*majorCorrHistEntry + 24*minorCorrHistEntry)/ 256;
+    const int average = (24*pawnCorrHistEntry + 20*(nonPawnCorrHistEntryWhite + nonPawnCorrHistEntryBlack) +  12*majorCorrHistEntry + 20*minorCorrHistEntry)/ 256;
 
     auto eval = rawEval + average;
     return std::clamp(eval , -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
