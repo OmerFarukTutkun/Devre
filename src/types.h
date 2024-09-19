@@ -16,7 +16,7 @@
 #include <algorithm>
 
 #ifndef VERSION
-#define VERSION "6.16"
+#define VERSION "6.18"
 
 #endif
 
