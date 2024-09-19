@@ -27,7 +27,8 @@ private:
     void incrementalUpdate(Board &board, Color c);
 
 public:
-
+    static float materialScale(Board &board);
+    static float halfMoveScale(Board &board);
     void calculateInputLayer(Board &board, bool fromScratch = false);
 
     int evaluate(Board &board);

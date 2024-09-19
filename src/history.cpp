@@ -1,6 +1,6 @@
 #include "history.h"
 #include "tuning.h"
-
+#include "nnue.h"
 DEFINE_PARAM_S(historyBonusDepthMultp, 400, 40);
 DEFINE_PARAM_S(historyBonusConstant, -100, 20);
 
@@ -148,5 +148,6 @@ int adjustEvalWithCorrHist(ThreadData &thread, const int rawEval) {
     const int average = (53*pawnCorrHistEntry + 48*nonPawnCorrHistEntryWhite + 58*nonPawnCorrHistEntryBlack )/ 512;
 
     auto eval = rawEval + average;
+    eval = eval*NNUE::Instance()->halfMoveScale(thread.board)*NNUE::Instance()->materialScale(thread.board);
     return std::clamp(eval , -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
 }
