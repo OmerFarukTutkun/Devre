@@ -17,7 +17,6 @@
 
 #ifndef VERSION
 #define VERSION "6.18"
-
 #endif
 
 constexpr auto MAX_PLY = 100;

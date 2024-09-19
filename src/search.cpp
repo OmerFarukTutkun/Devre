@@ -337,7 +337,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 4 && contHist < contHistPruningMargin )
+            if(depth <= 3 && contHist < contHistPruningMargin )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -537,11 +537,11 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
                 std::cout<< " score mate " << mate;
             }
-                      std::cout << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
-                      << " nps " << nps
+                      std::cout << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
                       << " hashfull " << TT::Instance()->getHashfull()
+                      << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << std::endl;
 
             //if our score is much higher than staticEval spend less time
