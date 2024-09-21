@@ -13,6 +13,6 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move);
 int getContHistory(ThreadData &thread, Stack *ss, uint16_t move);
 
 
-void updateCorrHistScore(ThreadData &thread, int depth, int diff) ;
-int adjustEvalWithCorrHist(ThreadData &thread, int rawEval) ;
+void updateCorrHistScore(ThreadData &thread, Stack *ss, int depth, int diff) ;
+int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, int rawEval) ;
 #endif //DEVRE_HISTORY_H
