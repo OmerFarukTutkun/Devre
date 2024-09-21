@@ -73,8 +73,8 @@ uint32_t probeTB(Board& pos) {
     if (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST)
         return TB_RESULT_FAILED;
 
-    auto white = pos.bitboards[WHITE];
-    auto black = pos.bitboards[BLACK];
+    auto white = pos.occupied[WHITE];
+    auto black = pos.occupied[BLACK];
 
     auto knights= pos.bitboards[WHITE_KNIGHT] | pos.bitboards[BLACK_KNIGHT];
     auto bishops= pos.bitboards[WHITE_BISHOP] | pos.bitboards[BLACK_BISHOP];
@@ -292,14 +292,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         thread.tbHits++;
         int tbScore;
+
+
         TT_BOUND bound;
 
         if (tbResult == TB_LOSS) {
-            tbScore = -TB_SCORE;
+            tbScore = -(TB_SCORE - ss->ply);
             bound = TT_UPPERBOUND;
         }
         else if (tbResult == TB_WIN) {
-            tbScore = TB_SCORE;
+            tbScore = TB_SCORE - ss->ply;
             bound = TT_LOWERBOUND;
         }
         else {
