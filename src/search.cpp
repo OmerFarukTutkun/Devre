@@ -7,6 +7,7 @@
 #include "util.h"
 #include <sstream>
 #include "tuning.h"
+#include "fathom/src/tbprobe.h"
 
 DEFINE_PARAM_S(seeQuietMargin, -97, 5);
 DEFINE_PARAM_S(seeCaptureMargin, -324, 20);
@@ -68,6 +69,31 @@ std::string getPV(Stack *stack, Board &board) {
     }
     return ss.str();
 }
+uint32_t probeTB(Board& pos) {
+    if (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST)
+        return TB_RESULT_FAILED;
+
+    auto white = pos.bitboards[WHITE];
+    auto black = pos.bitboards[BLACK];
+
+    auto knights= pos.bitboards[WHITE_KNIGHT] | pos.bitboards[BLACK_KNIGHT];
+    auto bishops= pos.bitboards[WHITE_BISHOP] | pos.bitboards[BLACK_BISHOP];
+    auto queens = pos.bitboards[WHITE_QUEEN]  | pos.bitboards[BLACK_QUEEN];
+    auto kings  = pos.bitboards[WHITE_KING]   | pos.bitboards[BLACK_KING];
+    auto rooks   = pos.bitboards[WHITE_ROOK]   | pos.bitboards[BLACK_ROOK];
+    auto pawns  = pos.bitboards[WHITE_PAWN]   | pos.bitboards[BLACK_PAWN];
+
+    return tb_probe_wdl(
+            white, black,
+            kings, queens, rooks,
+            bishops, knights, pawns,
+            pos.halfMove,
+            pos.castlings,
+            pos.enPassant == NO_SQ ? 0 : pos.enPassant,
+            pos.sideToMove == WHITE);
+}
+
+
 Stack::Stack() {
     excludedMove = NO_MOVE;
     staticEval = VALUE_INFINITE;
@@ -135,7 +161,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         return board->eval();
     }
 
-    auto rawEval = ttHit ? ttStaticEval : board->eval();
+    int rawEval = (ttHit && ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     auto standPat = adjustEvalWithCorrHist(thread,rawEval);
 
     //ttValue can be used as a better position evaluation
@@ -191,6 +217,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
 
 int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
+    int bestScore = -VALUE_INFINITE;
     int PVNode = (alpha != beta - 1);
     int rootNode = (0 == ss->ply);
 
@@ -258,7 +285,44 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
     }
 
-    int rawEval = ttHit ? ttStaticEval : board->eval();
+    // Probe tablebases
+    uint32_t tbResult = (rootNode || ss->excludedMove) ? TB_RESULT_FAILED : probeTB(*board);
+
+    if (TB_RESULT_FAILED != tbResult) {
+
+        thread.tbHits++;
+        int tbScore;
+        TT_BOUND bound;
+
+        if (tbResult == TB_LOSS) {
+            tbScore = -TB_SCORE;
+            bound = TT_UPPERBOUND;
+        }
+        else if (tbResult == TB_WIN) {
+            tbScore = TB_SCORE;
+            bound = TT_LOWERBOUND;
+        }
+        else {
+            tbScore = 0;
+            bound = TT_EXACT;
+        }
+
+        if ((bound == TT_EXACT) || (bound == TT_LOWERBOUND ? tbScore >= beta : tbScore <= alpha)) {
+
+            TT::Instance()->ttSave(board->key, ss->ply, tbScore, SCORE_NONE, bound, depth, NO_MOVE);
+            return tbScore;
+        }
+
+        if (PVNode) {
+            bestScore = tbScore;
+            if (ttBound == TT_LOWERBOUND)
+            {
+                alpha = std::max(alpha, tbScore);
+            }
+        }
+    }
+
+    int rawEval = (ttHit && ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     int eval = ss->staticEval = adjustEvalWithCorrHist(thread,rawEval);
 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
@@ -312,7 +376,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
     int lmr;
-    int bestScore = -VALUE_INFINITE;
+
     uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
 
     ss->played = 0;
@@ -481,6 +545,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         for (int i = 0; i < numThread; i++)
         {
             threads.at(i)->nodes       = 0ull;
+            threads.at(i)->tbHits       = 0ull;
             threads.at(i)->searchDepth = 0;
             threads.at(i)->board       = *board;
         }
@@ -541,6 +606,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " nodes " << nodes
                       << " time " << elapsed
                       << " hashfull " << TT::Instance()->getHashfull()
+                      << " tbhits "   << totalTbHits()
                       << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << std::endl;
 
@@ -573,6 +639,14 @@ uint64_t Search::totalNodes() {
     uint64_t sum = 0ull;
     for (int i = 0; i < numThread; i++) {
         sum += threads[i]->nodes;
+    }
+    return sum;
+}
+
+uint64_t Search::totalTbHits() {
+    uint64_t sum = 0ull;
+    for (int i = 0; i < numThread; i++) {
+        sum += threads[i]->tbHits;
     }
     return sum;
 }

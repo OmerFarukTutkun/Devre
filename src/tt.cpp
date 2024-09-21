@@ -47,9 +47,9 @@ void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char b
         || getAge(replace) != age)
     {
 
-        if (score > MIN_MATE_SCORE)
+        if (score > MIN_TB_SCORE)
             score += ply;
-        else if (-score > MIN_MATE_SCORE)
+        else if (-score > MIN_TB_SCORE)
             score -= ply;
 
         replace->key = key32;
@@ -70,9 +70,9 @@ bool TT::ttProbe(uint64_t key, int ply, int &ttDepth, int &ttScore, int &ttBound
         if (entry->key == key32) {
 
             ttScore = entry->score;
-            if (entry->score > MIN_MATE_SCORE)
+            if (entry->score > MIN_TB_SCORE)
                 ttScore -= ply;
-            else if (-entry->score > MIN_MATE_SCORE)
+            else if (-entry->score > MIN_TB_SCORE)
                 ttScore += ply;
 
             ttDepth = entry->depth;

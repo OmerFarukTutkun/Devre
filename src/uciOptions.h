@@ -8,13 +8,17 @@
 
 class Option {
 public:
-    int min, max;
+    int min{}, max{};
     std::string currentValue, type, defaultValue;
 
-    Option(int min, int max, std::string currentValue, std::string type, std::string defaultValue)
+    Option(int min, int max, const std::string& currentValue, std::string type)
             :
             min(min), max(max),
-            currentValue(std::move(currentValue)), type(std::move(type)), defaultValue(std::move(defaultValue)) {}
+            currentValue(currentValue), type(std::move(type)), defaultValue(currentValue) {}
+
+    Option(const std::string& currentValue, std::string type)
+            :
+            currentValue(currentValue), type(std::move(type)), defaultValue(currentValue) {}
 
     void printOption(const std::string &name) const {
         std::cout << "option name " + name + " type " + type + " default " + defaultValue;
@@ -48,10 +52,12 @@ public:
 
 using OptionsMap = std::unordered_map<std::string, Option>;
 static OptionsMap Options({
-                                  {"Threads",       Option(1, 256, "1", "spin", "1")},
-                                  {"Hash",          Option(1, 131072, "16", "spin", "16")},
-                                  {"UCI_Chess960",  Option(0, 1, "false", "check", "false")},
-                                  {"MoveOverhead", Option(0, 10000, "50", "spin", "50")}
+                                  {"Threads",       Option(1, 256, "1", "spin")},
+                                  {"Hash",          Option(1, 131072, "16", "spin")},
+                                  {"UCI_Chess960",  Option(0, 1, "false", "check")},
+                                  {"MoveOverhead", Option(0, 10000, "50", "spin")},
+                                  {"SyzygyPath", Option("<empty>", "string")},
+
                           });
 
 #endif //DEVRE_UCIOPTIONS_H
