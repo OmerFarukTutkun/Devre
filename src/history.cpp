@@ -125,11 +125,10 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
 
     auto * board = &thread.board;
 
-    int from = moveFrom((ss-1)->move);
     int to = moveTo((ss-1)->move);
-    int piece = board->pieceBoard[from];
+    int piece = board->pieceBoard[to];
 
-    auto & contcorrHistEntry = (*(ss - 1)->continuationHistory)[piece][to];
+    auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
 
     int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
@@ -152,11 +151,10 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
 
-    int from = moveFrom((ss-1)->move);
     int to = moveTo((ss-1)->move);
-    int piece = board->pieceBoard[from];
+    int piece = board->pieceBoard[to];
 
-    auto & contcorrHistEntry = (*(ss - 1)->continuationHistory)[piece][to];
+    auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
 
     const int average = (45*pawnCorrHistEntry + 45*nonPawnCorrHistEntryWhite + 45*nonPawnCorrHistEntryBlack + contcorrHistEntry*25)/ 512;
 
