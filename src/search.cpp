@@ -7,36 +7,22 @@
 #include "util.h"
 #include <sstream>
 #include "tuning.h"
-
-DEFINE_PARAM_S(seeQuietMargin, -97, 5);
-DEFINE_PARAM_S(seeCaptureMargin, -324, 20);
-DEFINE_PARAM_S(lmrBase, 28, 2);
-DEFINE_PARAM_S(lmrDiv, 257, 10);
-DEFINE_PARAM_S(rfpMargin, 107, 5);
-DEFINE_PARAM_S(razoringMargin, 408, 20);
-DEFINE_PARAM_S(nmpEvalDiv, 177, 20);
-DEFINE_PARAM_S(contHistPruningMargin, -3633, 200);
-DEFINE_PARAM_S(lmrHistoryDiv, 8474, 400);
-DEFINE_PARAM_S(fpBase, 192, 20);
-DEFINE_PARAM_S(fpMargin, 109, 10);
-
-DEFINE_PARAM_S(lmpBase, 6, 1);
-DEFINE_PARAM_S(lmpMargin, 2, 1);
+#include "fathom/src/tbprobe.h"
 
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
 {
     if(quiet) {
-        return seeQuietMargin*depth;
+        return -97*depth;
     }
     else
-        return seeCaptureMargin*depth;
+        return -324*depth;
 }
 void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = lmrBase/100.0 + log(i) * log(j - 1) / (lmrDiv/100.0);
+                LMR_TABLE[i][j] = 0.28 + log(i) * log(j - 1) / 2.57;
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -68,6 +54,31 @@ std::string getPV(Stack *stack, Board &board) {
     }
     return ss.str();
 }
+uint32_t probeTB(Board& pos) {
+    if (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST)
+        return TB_RESULT_FAILED;
+
+    auto white = pos.occupied[WHITE];
+    auto black = pos.occupied[BLACK];
+
+    auto knights= pos.bitboards[WHITE_KNIGHT] | pos.bitboards[BLACK_KNIGHT];
+    auto bishops= pos.bitboards[WHITE_BISHOP] | pos.bitboards[BLACK_BISHOP];
+    auto queens = pos.bitboards[WHITE_QUEEN]  | pos.bitboards[BLACK_QUEEN];
+    auto kings  = pos.bitboards[WHITE_KING]   | pos.bitboards[BLACK_KING];
+    auto rooks   = pos.bitboards[WHITE_ROOK]   | pos.bitboards[BLACK_ROOK];
+    auto pawns  = pos.bitboards[WHITE_PAWN]   | pos.bitboards[BLACK_PAWN];
+
+    return tb_probe_wdl(
+            white, black,
+            kings, queens, rooks,
+            bishops, knights, pawns,
+            pos.halfMove,
+            pos.castlings,
+            pos.enPassant == NO_SQ ? 0 : pos.enPassant,
+            pos.sideToMove == WHITE);
+}
+
+
 Stack::Stack() {
     excludedMove = NO_MOVE;
     staticEval = VALUE_INFINITE;
@@ -191,6 +202,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
 
 int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, ThreadData &thread, Stack *ss) {
     int oldAlpha = alpha;
+    int bestScore = -VALUE_INFINITE;
     int PVNode = (alpha != beta - 1);
     int rootNode = (0 == ss->ply);
 
@@ -257,6 +269,44 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 return ttScore;
         }
     }
+    // Probe tablebases
+    uint32_t tbResult = (rootNode || ss->excludedMove) ? TB_RESULT_FAILED : probeTB(*board);
+
+    if (TB_RESULT_FAILED != tbResult) {
+
+        thread.tbHits++;
+        int tbScore;
+
+
+        TT_BOUND bound;
+
+        if (tbResult == TB_LOSS) {
+            tbScore = -(TB_SCORE - ss->ply);
+            bound = TT_UPPERBOUND;
+        }
+        else if (tbResult == TB_WIN) {
+            tbScore = TB_SCORE - ss->ply;
+            bound = TT_LOWERBOUND;
+        }
+        else {
+            tbScore = 0;
+            bound = TT_EXACT;
+        }
+
+        if ((bound == TT_EXACT) || (bound == TT_LOWERBOUND ? tbScore >= beta : tbScore <= alpha)) {
+
+            TT::Instance()->ttSave(board->key, ss->ply, tbScore, SCORE_NONE, bound, depth, NO_MOVE);
+            return tbScore;
+        }
+
+        if (PVNode) {
+            bestScore = tbScore;
+            if (ttBound == TT_LOWERBOUND)
+            {
+                alpha = std::max(alpha, tbScore);
+            }
+        }
+    }
 
     int rawEval = ttHit ? ttStaticEval : board->eval();
     int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
@@ -272,12 +322,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * rfpMargin && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 107 && !rootNode) {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + razoringMargin * depth < alpha) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 408 * depth < alpha) {
         int score = qsearch(alpha, beta, thread,ss);
         if(score < alpha)
             return score;
@@ -292,7 +342,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     //Null Move pruning
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
         board->hasNonPawnPieces()) {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / nmpEvalDiv);
+        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
 
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -313,7 +363,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
     int lmr;
-    int bestScore = -VALUE_INFINITE;
+
     uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
 
     ss->played = 0;
@@ -329,16 +379,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && ss->played > 3 && !PVNode) {
             // late move pruning
-            if (depth <= 6 && ss->played > lmpBase + (lmpMargin + 2 * improving) * depth)
+            if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(fpBase, -(ss->played) * 10 + fpBase + depth * fpMargin) < alpha)
+            if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
                 continue;
 
             //contHist pruning
             int contHist = getContHistory(thread,ss, move);
-            if(depth <= 3 && contHist < contHistPruningMargin )
+            if(depth <= 3 && contHist < -3633 )
                 continue;
         }
         if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
@@ -356,7 +406,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread,ss, move);
 
-            lmr -= std::clamp(history/lmrHistoryDiv, -2,2);
+            lmr -= std::clamp(history/8474, -2,2);
             lmr += cutNode;
             lmr += ttMove && isTactical(ttMove);
         }
@@ -484,6 +534,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         for (int i = 0; i < numThread; i++)
         {
             threads.at(i)->nodes       = 0ull;
+            threads.at(i)->tbHits       = 0ull;
             threads.at(i)->searchDepth = 0;
             threads.at(i)->board       = *board;
         }
@@ -545,6 +596,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " nodes " << nodes
                       << " time " << elapsed
                       << " hashfull " << TT::Instance()->getHashfull()
+                      << " tbhits "   << totalTbHits()
                       << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << std::endl;
 
@@ -577,6 +629,14 @@ uint64_t Search::totalNodes() {
     uint64_t sum = 0ull;
     for (int i = 0; i < numThread; i++) {
         sum += threads[i]->nodes;
+    }
+    return sum;
+}
+
+uint64_t Search::totalTbHits() {
+    uint64_t sum = 0ull;
+    for (int i = 0; i < numThread; i++) {
+        sum += threads[i]->tbHits;
     }
     return sum;
 }

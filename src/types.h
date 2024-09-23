@@ -16,7 +16,7 @@
 #include <algorithm>
 
 #ifndef VERSION
-#define VERSION "6.18"
+#define VERSION "6.19"
 #endif
 
 constexpr auto MAX_PLY = 100;
@@ -25,7 +25,10 @@ constexpr auto START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -
 enum Score : int16_t {
     MAX_MATE_SCORE = 32000,
     VALUE_INFINITE = 32500,
-    MIN_MATE_SCORE = MAX_MATE_SCORE - MAX_PLY
+    MIN_MATE_SCORE = MAX_MATE_SCORE - MAX_PLY,
+    TB_SCORE = MIN_MATE_SCORE - 1,
+    MIN_TB_SCORE = TB_SCORE - MAX_PLY,
+    SCORE_NONE = MAX_MATE_SCORE + 1
 };
 
 enum Color : uint8_t {
