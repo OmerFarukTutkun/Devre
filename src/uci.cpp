@@ -6,7 +6,7 @@
 #include "nnue.h"
 #include "bench.h"
 #include "tuning.h"
-
+#include "fathom/src/tbprobe.h"
 void Uci::UciLoop() {
 
     std::cout << "Devre  " << VERSION << " by Omer Faruk Tutkun" << std::endl;
@@ -161,7 +161,13 @@ void Uci::setoption(std::vector<std::string> &commands) {
             TT::Instance()->ttAllocate(stoi(it->second.currentValue));
         if (name == "Threads")
             search.setThread(stoi(it->second.currentValue));
-
+        if (name == "SyzygyPath") {
+            tb_init(it->second.currentValue.c_str());
+            if (TB_LARGEST)
+                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST << std::endl;
+            else
+                std::cout << "info string Syzygy tablebases failed to load" << std::endl;
+        }
         return;
     }
     else if constexpr (doTuning) {

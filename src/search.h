@@ -35,7 +35,7 @@ private:
     uint16_t m_bestMove{};
     TimeManager *timeManager{};
     uint64_t totalNodes();
-
+    uint64_t totalTbHits();
     int qsearch(int alpha, int beta, ThreadData &thread, Stack *ss);
     int alphaBeta(int alpha, int beta, int depth, bool cutNode, ThreadData &thread, Stack *ss);
 
