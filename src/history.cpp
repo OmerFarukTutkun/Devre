@@ -156,7 +156,7 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
 
     auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
 
-    const int average = (45*pawnCorrHistEntry + 45*nonPawnCorrHistEntryWhite + 45*nonPawnCorrHistEntryBlack + contcorrHistEntry*25)/ 512;
+    const int average = (51*pawnCorrHistEntry + 51*nonPawnCorrHistEntryWhite + 51*nonPawnCorrHistEntryBlack + contcorrHistEntry*51)/ 512;
 
     auto eval = rawEval + average;
     eval = eval*NNUE::Instance()->halfMoveScale(thread.board)*NNUE::Instance()->materialScale(thread.board);
