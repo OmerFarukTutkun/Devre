@@ -129,7 +129,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     thread.nodes++;
 
     //TT Probing
-    int ttDepth=0, ttScore=0, ttBound = TT_NONE, ttStaticEval=0;
+    int ttDepth=0, ttScore=SCORE_NONE, ttBound = TT_NONE, ttStaticEval=SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
     if (ttHit && !PVNode) {
@@ -146,7 +146,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         return board->eval();
     }
 
-    auto rawEval = ttHit ? ttStaticEval : board->eval();
+    auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     //ttValue can be used as a better position evaluation
@@ -255,7 +255,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     thread.nodes++;
 
     //TT Probing
-    int ttDepth, ttScore, ttBound, ttStaticEval;
+    int ttDepth=0, ttScore=SCORE_NONE, ttBound=TT_NONE, ttStaticEval=SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = false;
     if( ss->excludedMove == NO_MOVE )
@@ -308,7 +308,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
     }
 
-    int rawEval = ttHit ? ttStaticEval : board->eval();
+    int rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;

@@ -126,6 +126,10 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     int to = moveTo((ss-1)->move);
     int piece = board->pieceBoard[to];
 
+    //it will be true for null move
+    if(piece == EMPTY)
+        piece = PAWN;
+
     auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
 
     int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
@@ -151,6 +155,10 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
 
     int to = moveTo((ss-1)->move);
     int piece = board->pieceBoard[to];
+
+    //it will be true for null move
+    if(piece == EMPTY)
+        piece = PAWN;
 
     auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
 
