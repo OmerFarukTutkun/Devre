@@ -55,7 +55,7 @@ std::string getPV(Stack *stack, Board &board) {
     return ss.str();
 }
 uint32_t probeTB(Board& pos) {
-    if (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST)
+    if ( pos.halfMove != 0 || pos.castlings != 0 || (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST))
         return TB_RESULT_FAILED;
 
     auto white = pos.occupied[WHITE];
