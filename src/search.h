@@ -8,6 +8,7 @@
 
 struct Stack {
     PieceTo *continuationHistory;
+    PieceTo *contCorrHist;
     int ply;
     uint16_t pv[MAX_PLY + 10];
     uint16_t playedMoves[256];
