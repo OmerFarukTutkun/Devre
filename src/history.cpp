@@ -137,7 +137,7 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
 
     const int bonus = diff*depth/8;
-    const int D = 1024;
+    const int D = 800;
     int clampedBonus = std::clamp(bonus, -D, D);
     
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
