@@ -148,6 +148,14 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
     contcorrHistEntry += clampedBonus - contcorrHistEntry * std::abs(clampedBonus) / D;
     threatLastMoveCorrHistEntry += clampedBonus - threatLastMoveCorrHistEntry * std::abs(clampedBonus) / D;
+
+    int i = 0;
+    for(auto &r : board->regionKeys)
+    {
+        int &regionCorrHistEntry = thread.corrHist[board->sideToMove][r % 16384][3 + i];
+        regionCorrHistEntry += clampedBonus - regionCorrHistEntry * std::abs(clampedBonus) / D;
+        i++;
+    }
 }
 
 int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
@@ -168,7 +176,14 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
     auto & contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
     auto &threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss-1)->threat, from)][checkBit((ss-1)->threat, to)][board->sideToMove][from][to];
 
-    const int average = (47*pawnCorrHistEntry + 47*nonPawnCorrHistEntryWhite + 47*nonPawnCorrHistEntryBlack + contcorrHistEntry*47 +threatLastMoveCorrHistEntry*47)/ 512;
+    int i = 0;
+    int regionsSum = 0;
+    for(auto &r : board->regionKeys) {
+        int &regionCorrHistEntry = thread.corrHist[board->sideToMove][r % 16384][3 + i];
+        regionsSum += regionCorrHistEntry;
+        i++;
+    }
+    const int average = (41*pawnCorrHistEntry + 41*nonPawnCorrHistEntryWhite + 41*nonPawnCorrHistEntryBlack + contcorrHistEntry*41 +threatLastMoveCorrHistEntry*41 + regionsSum*11)/ 512;
 
     auto eval = rawEval + average;
     eval = eval*NNUE::Instance()->halfMoveScale(thread.board)*NNUE::Instance()->materialScale(thread.board);
