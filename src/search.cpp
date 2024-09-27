@@ -197,7 +197,8 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
 
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
 
-    if (     (!bestMove || !isTactical(bestMove))
+    if (     !ttHit
+            &&  (!bestMove || !isTactical(bestMove))
             &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
             &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
