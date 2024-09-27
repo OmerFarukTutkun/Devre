@@ -196,6 +196,14 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     }
 
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
+
+    if (     (!bestMove || !isTactical(bestMove))
+            &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
+            &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
+
+        updateCorrHistScore(thread,ss, 1, bestScore - ss->staticEval);
+    }
+
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
 }
