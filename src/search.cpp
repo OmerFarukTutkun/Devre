@@ -609,7 +609,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
             float bestMoveFraction = static_cast<double>(moveNodes[m_bestMove])/nodes;
             float nodeTm = (1.5 - bestMoveFraction);
 
-            if (elapsed > timeManager->softTime * nodeTm)
+            if (elapsed > timeManager->softTime )
                 break;
         }
     }
