@@ -1,8 +1,8 @@
 #include "timeManager.h"
 #include "uciOptions.h"
 #include "util.h"
-constexpr float hardTimePercentage = 0.7;
-constexpr float softTimePercentage = 0.11;
+constexpr float hardTimePercentage = 0.5;
+constexpr float softTimePercentage = 0.05;
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
     if(--calls > 0)
@@ -46,5 +46,5 @@ void TimeManager::start() {
     startTime = currentTime();
     auto moveOverhead = Options.at("MoveOverhead");
     hardTime    = remainingTime*hardTimePercentage + inc - std::stoi(moveOverhead.currentValue);
-    softTime = hardTime * softTimePercentage;
+    softTime    = remainingTime*softTimePercentage + inc - std::stoi(moveOverhead.currentValue);
 }
