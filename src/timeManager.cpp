@@ -1,7 +1,7 @@
 #include "timeManager.h"
 #include "uciOptions.h"
 #include "util.h"
-constexpr float hardTimePercentage = 0.5;
+constexpr float hardTimePercentage = 0.2;
 constexpr float softTimePercentage = 0.05;
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
