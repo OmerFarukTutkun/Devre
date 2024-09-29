@@ -362,8 +362,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     if (0 == moveList.numMove) {
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
+    int beforeNodes = 0;
     int lmr;
-
     uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
 
     ss->played = 0;
@@ -373,7 +373,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if(move == ss->excludedMove)
             continue;
-
+        if(rootNode)
+            beforeNodes = thread.nodes;
         ss->move = move;
         ss->playedMoves[ss->played++] = move;
 
@@ -490,7 +491,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if(this->stopped)
             return 0;
-        
+
+        if(rootNode)
+            moveNodes[move] += thread.nodes -beforeNodes;
+
         if (score > bestScore) {
 
             bestScore = score;
@@ -530,6 +534,8 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     std::vector<std::thread> runningThreads;
     if (ThreadID == 0) {
         stopped = false;
+
+        std::fill(std::begin(moveNodes), std::end(moveNodes), 0);
 
         for (int i = 0; i < numThread; i++)
         {
@@ -600,11 +606,10 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << std::endl;
 
-            //if our score is much higher than staticEval spend less time
-            double x = (score - (ss + 6)->staticEval + 200) / 500.0;
-            x = std::min(1.0, std::max(0.0 ,x));
+            float bestMoveFraction = static_cast<double>(moveNodes[m_bestMove])/nodes;
+            float nodeTm = (1.5 - bestMoveFraction);
 
-            if (elapsed * (2.5 + x) > timeManager->optimalTime)
+            if (elapsed * nodeTm > timeManager->softTime)
                 break;
         }
     }

@@ -14,7 +14,8 @@ public:
     int inc;
 
     uint64_t startTime;
-    int optimalTime;
+    int softTime;
+    int hardTime;
 
     int calls;
     int period;
