@@ -34,7 +34,7 @@ private:
     bool stopped;
     int numThread;
     uint16_t m_bestMove{};
-    std::array<uint64_t , (1 << 17) > moveNodes{};
+    std::array<uint64_t , (1 << 16) > moveNodes{};
 
     TimeManager *timeManager{};
     uint64_t totalNodes();
