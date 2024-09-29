@@ -14,11 +14,10 @@ bool TimeManager::checkLimits(uint64_t totalNodes) {
     calls = period;
 
     auto elapsed = currentTime() - startTime;
-    if(elapsed >= softTime)
+    if(elapsed >= hardTime)
         return true;
     if(fixedMoveTime != -1)
     {
-
         auto moveOverhead = Options.at("MoveOverhead");
         if(elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
             return true;
