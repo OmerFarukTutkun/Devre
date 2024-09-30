@@ -10,7 +10,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    auto uci = Uci();
-    uci.UciLoop();
+    auto uci = new Uci();
+    uci->UciLoop();
     return 0;
 }

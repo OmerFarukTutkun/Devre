@@ -34,6 +34,8 @@ private:
     bool stopped;
     int numThread;
     uint16_t m_bestMove{};
+    uint64_t* moveNodes;
+
     TimeManager *timeManager{};
     uint64_t totalNodes();
     uint64_t totalTbHits();
