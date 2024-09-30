@@ -101,6 +101,7 @@ Search::Search() {
     stopped = false;
     m_bestMove = NO_MOVE;
     initSearchParameters();
+    moveNodes = new uint64_t[1 << 16];
 }
 
 void Search::setThread(int thread) {
@@ -538,7 +539,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     if (ThreadID == 0) {
         stopped = false;
 
-        std::fill(std::begin(moveNodes), std::end(moveNodes), 0);
+        std::fill(moveNodes, moveNodes + (1 << 16), 0);
 
         for (int i = 0; i < numThread; i++)
         {
