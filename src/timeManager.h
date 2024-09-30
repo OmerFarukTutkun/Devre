@@ -9,13 +9,13 @@ public:
     int depthLimit;
     int64_t nodeLimit;
     int movesToGo;
-    int fixedMoveTime;
-    int remainingTime;
-    int inc;
+    int64_t fixedMoveTime;
+    int64_t remainingTime;
+    int64_t inc;
 
     uint64_t startTime;
-    int softTime;
-    int hardTime;
+    int64_t softTime;
+    int64_t hardTime;
 
     int calls;
     int period;
