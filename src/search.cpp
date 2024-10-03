@@ -414,6 +414,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             lmr -= std::clamp(history/8474, -2,2);
             lmr += cutNode;
             lmr += ttMove && isTactical(ttMove);
+            lmr -= std::abs(ss->staticEval - rawEval) > 250; // do less reduction if the corrhist score is high
         }
         
         lmr = std::max(0, std::min(depth - 1, lmr));
