@@ -122,7 +122,7 @@ void Board::addPiece(int piece, int sq) {
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    auto regionIndex = (sq % 8)/2;
+    auto regionIndex = fileIndex(sq)/2;
     regionKeys[regionIndex] ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
@@ -138,7 +138,7 @@ void Board::removePiece(int piece, int sq) {
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    auto regionIndex = (sq % 8)/2;
+    auto regionIndex = fileIndex(sq)/2;
     regionKeys[regionIndex] ^= Zobrist::Instance()->PieceKeys[piece][sq];
 }
 
