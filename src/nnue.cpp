@@ -53,39 +53,35 @@ int NNUE::calculateIndices(Board &board, int (&weightIndices)[N_SQUARES], Color 
 void NNUE::incrementalUpdate(Board &board, Color c) {
     int king = bitScanForward(board.bitboards[pieceIndex(c, KING)]);
 
-    int pieceAddition[2];
-    int pieceRemoval[2];
+    vecType * weightAdd[2] = {nullptr};
+    vecType * weightSub[2] = {nullptr};
+
     int j = 0, k = 0;
 
     for (auto &element: board.nnueData.nnueChanges) {
-        if (element.sign == 1) {
-            pieceAddition[j++] = nnueIndex(king, element.piece, element.sq, c);
-        } else {
-            pieceRemoval[k++] = nnueIndex(king, element.piece, element.sq, c);
+        if (element.sign == 1)
+        {
+            auto idx = nnueIndex(king, element.piece, element.sq, c);
+            weightAdd[j++] = (vecType *) &feature_weights[L1 * idx];
+        } else
+        {
+            auto idx = nnueIndex(king, element.piece, element.sq, c);
+            weightSub[k++] = (vecType *) &feature_weights[L1 * idx];
         }
     }
 
     auto *acc = (vecType *) &board.nnueData.accumulator[board.nnueData.size - 1][c];
     auto *outputs = (vecType *) &board.nnueData.accumulator[board.nnueData.size][c];
 
-    auto *weights = (vecType *) &feature_weights[L1 * pieceAddition[--j]];
-
     for (int i = 0; i < L1 / vecSize; i++) {
-        outputs[i] = vecAddEpi16(acc[i], weights[i]);
-    }
+        outputs[i] = vecSubEpi16(weightAdd[0][i], weightSub[0][i]);
+        outputs[i] = vecAddEpi16(outputs[i], acc[i]);
 
-    while (j--) {
-        weights = (vecType *) &feature_weights[L1 * pieceAddition[j]];
-        for (int i = 0; i < L1 / vecSize; i++) {
-            outputs[i] = vecAddEpi16(outputs[i], weights[i]);
-        }
-    }
+        if(weightAdd[1] != nullptr)
+            outputs[i] = vecAddEpi16(outputs[i], weightAdd[1][i]);
 
-    while (k--) {
-        weights = (vecType *) &feature_weights[L1 * pieceRemoval[k]];
-        for (int i = 0; i < L1 / vecSize; i++) {
-            outputs[i] = vecSubEpi16(outputs[i], weights[i]);
-        }
+        if(weightSub[1] != nullptr)
+            outputs[i] = vecSubEpi16(outputs[i], weightSub[1][i]);
     }
 }
 int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights, const int16_t bias){
