@@ -144,7 +144,6 @@ void Board::print() {
     std::cout << "fen : " + fen << std::endl;
     std::cout << "eval: " << eval() << std::endl;
     std::cout << "key : " << key << std::endl;
-    // 7409793769312533240
     for (int i = 7; i >= 0; i--) {
         printf("\n  |----|----|----|----|----|----|----|----|\n");
         for (int j = 0; j < 8; j++) {
