@@ -194,8 +194,6 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
             }
             if (bestScore >= beta)
                 break;
-
-            
         }
     }
 
