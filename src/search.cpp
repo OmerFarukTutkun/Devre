@@ -9,8 +9,6 @@
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
 
-DEFINE_PARAM_B(nodeTmBase, 150, 0, 350);
-DEFINE_PARAM_B(nodeTmMultp, -100, -300, 0);
 
 int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth)
@@ -610,7 +608,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                       << std::endl;
 
             float bestMoveFraction = static_cast<double>(moveNodes[m_bestMove])/nodes;
-            float nodeTm = (nodeTmBase + bestMoveFraction*nodeTmMultp)/100.0f;
+            float nodeTm = 1.5 - bestMoveFraction;
 
             if (elapsed > timeManager->softTime*nodeTm)
                 break;

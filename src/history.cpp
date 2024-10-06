@@ -2,6 +2,13 @@
 #include "tuning.h"
 #include "nnue.h"
 
+DEFINE_PARAM_S(pawnCorrhistScalar, 750, 75);
+DEFINE_PARAM_S(nonpawnWhiteCorrhistScalar, 750, 75);
+DEFINE_PARAM_S(nonpawnBlackCorrhistScalar, 750, 75);
+DEFINE_PARAM_S(contCorrhistScalar, 750, 75);
+DEFINE_PARAM_S(cont2CorrhistScalar, 750, 75);
+DEFINE_PARAM_S(lastmoveCorrhistScalar, 750, 75);
+DEFINE_PARAM_S(corrhistDivisor, 8192, 75);
 const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
@@ -168,6 +175,7 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
     bool isMoveOk = (ss-1)->move != NO_MOVE && (ss-1)->move != NULL_MOVE;
 
     auto contcorrHistEntry = 0;
+    auto cont2corrHistEntry = 0;
     auto threatLastMoveCorrHistEntry = 0;
 
     if(isMoveOk) {
@@ -175,14 +183,14 @@ int adjustEvalWithCorrHist(ThreadData &thread,Stack *ss, const int rawEval) {
         int to = moveTo((ss-1)->move);
         int piece = board->pieceBoard[to];
 
-        contcorrHistEntry = 2*(*(ss - 2)->contCorrHist)[piece][to];
-        contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
-        contcorrHistEntry /= 3;
+        contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
+        cont2corrHistEntry = (*(ss - 3)->contCorrHist)[piece][to];
         threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit(
                 (ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average = (47*pawnCorrHistEntry + 47*nonPawnCorrHistEntryWhite + 47*nonPawnCorrHistEntryBlack + contcorrHistEntry*40 +threatLastMoveCorrHistEntry*47)/ 512;
+    const int average = (pawnCorrhistScalar*pawnCorrHistEntry + nonpawnWhiteCorrhistScalar*nonPawnCorrHistEntryWhite + nonpawnBlackCorrhistScalar*nonPawnCorrHistEntryBlack
+            + contcorrHistEntry*contCorrhistScalar + cont2corrHistEntry*cont2CorrhistScalar +threatLastMoveCorrHistEntry*lastmoveCorrhistScalar)/ corrhistDivisor;
 
     auto eval = rawEval + average;
     eval = eval*NNUE::Instance()->halfMoveScale(thread.board)*NNUE::Instance()->materialScale(thread.board);
