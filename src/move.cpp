@@ -143,7 +143,8 @@ bool SEE(Board &board, uint16_t move, int threshold) {
     return side != board.sideToMove;
 }
 
-MoveList::MoveList(uint16_t ttMove) {
+MoveList::MoveList(uint16_t ttMove, bool qsearch) {
+    this->qsearch = qsearch;
     this->ttMove = ttMove;
     numMove = 0;
     isSorted = false;
@@ -173,10 +174,16 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
-                if (SEE(*board, move))
+                if(qsearch)
+                {
                     scores[i] += getCaptureHistory(thread, ss, move);
-                else
-                    scores[i] = MIL + getCaptureHistory(thread, ss, move);
+                }
+                else {
+                    if (SEE(*board, move))
+                        scores[i] += getCaptureHistory(thread, ss, move);
+                    else
+                        scores[i] = MIL + getCaptureHistory(thread, ss, move);
+                }
             }
         }
     }

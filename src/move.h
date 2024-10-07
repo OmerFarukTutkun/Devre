@@ -78,8 +78,8 @@ public:
 
     int numMove;
     bool isSorted;
-
-    explicit MoveList(uint16_t ttMove=NO_MOVE);
+    bool qsearch;
+    MoveList (uint16_t ttMove=NO_MOVE, bool qsearch=false);
     void addMove(uint16_t move);
     void scoreMoves(ThreadData& thread, Stack * ss);
     uint16_t pickMove(ThreadData &thread, Stack *ss, int skipThreshold = -50 * MIL);
