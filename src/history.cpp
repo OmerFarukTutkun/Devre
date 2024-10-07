@@ -2,13 +2,13 @@
 #include "tuning.h"
 #include "nnue.h"
 
-DEFINE_PARAM_S(pawnCorrhistScalar, 750, 75);
-DEFINE_PARAM_S(nonpawnWhiteCorrhistScalar, 750, 75);
-DEFINE_PARAM_S(nonpawnBlackCorrhistScalar, 750, 75);
-DEFINE_PARAM_S(contCorrhistScalar, 750, 75);
-DEFINE_PARAM_S(cont2CorrhistScalar, 750, 75);
-DEFINE_PARAM_S(lastmoveCorrhistScalar, 750, 75);
-DEFINE_PARAM_S(corrhistDivisor, 8192, 75);
+DEFINE_PARAM_S(pawnCorrhistScalar, 754, 75);
+DEFINE_PARAM_S(nonpawnWhiteCorrhistScalar, 820, 75);
+DEFINE_PARAM_S(nonpawnBlackCorrhistScalar, 816, 75);
+DEFINE_PARAM_S(contCorrhistScalar, 724, 75);
+DEFINE_PARAM_S(cont2CorrhistScalar, 784, 75);
+DEFINE_PARAM_S(lastmoveCorrhistScalar, 745, 75);
+DEFINE_PARAM_S(corrhistDivisor, 8233, 75);
 const int HistoryDivisor = 16384;
 
 int statBonus(int depth) {
