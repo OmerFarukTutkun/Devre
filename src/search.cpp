@@ -174,7 +174,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
 
     while ((move = moveList.pickMove(thread, ss))) {
 
-        if (!SEE(*board, move))
+        if (move != ttMove && !SEE(*board, move))
             continue;
         ss->move = move;
         board->makeMove(move);
