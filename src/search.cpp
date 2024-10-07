@@ -179,22 +179,6 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         ss->playedMoves[ss->played++] = move;
         ss->move = move;
 
-        if(moveType(move) == CAPTURE) {
-            if (ss->played > 6)
-                continue;
-
-            auto futilityValue = futilityBase + PieceValue[board->pieceBoard[moveTo(move)]];
-
-            if (futilityValue <= alpha) {
-                bestScore = std::max(bestScore, futilityValue);
-                continue;
-            }
-
-            if (!SEE(*board, move, alpha - futilityBase)) {
-                bestScore = (futilityBase > alpha) ? alpha : std::max(bestScore, futilityBase);
-                continue;
-            }
-        }
         if (move != ttMove && !SEE(*board, move,-82))
             continue;
 
