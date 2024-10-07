@@ -179,6 +179,12 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         ss->playedMoves[ss->played++] = move;
         ss->move = move;
 
+        auto futilityValue = ss->staticEval+ 300 + 2*PieceValue[board->pieceBoard[moveTo(move)]];
+
+        if (futilityValue <= alpha) {
+            continue;
+        }
+
         if (move != ttMove && !SEE(*board, move,-82))
             continue;
 
