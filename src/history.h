@@ -15,4 +15,6 @@ int getContHistory(ThreadData &thread, Stack *ss, uint16_t move);
 
 void updateCorrHistScore(ThreadData &thread, Stack *ss, int depth, int diff) ;
 int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, int rawEval) ;
+void updateEvalHistScore(ThreadData &thread, Stack *ss, const int depth, const int score);
+int getEvalHist(ThreadData &thread,Stack *ss);
 #endif //DEVRE_HISTORY_H

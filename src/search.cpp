@@ -149,9 +149,14 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     if (ss->ply > MAX_PLY) {
         return board->eval();
     }
+    auto evalHistScore = getEvalHist(thread,ss);
+    if(evalHistScore != SCORE_NONE && evalHistScore - 250 >= beta) {
+        return beta;
+    }
 
     auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
+
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
@@ -351,6 +356,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
         ss->contCorrHist        = &thread.contCorrHist[PAWN][A1];
+        ss->contEvalHist        = &thread.contEvalHist[PAWN][A1];
         board->makeNullMove();
 
         score = -alphaBeta(-beta, -beta + 1, depth - R, !cutNode, thread, ss + 1);
@@ -420,6 +426,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         lmr = std::max(0, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         ss->contCorrHist = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+        ss->contEvalHist = &thread.contEvalHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
         if( ss->ply < thread.searchDepth
@@ -465,6 +472,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->playedMoves[ss->played++] = move;
             ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
             ss->contCorrHist = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->contEvalHist = &thread.contEvalHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
         int d = newDepth -lmr;
@@ -527,6 +535,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
             updateCorrHistScore(thread,ss, depth, bestScore - ss->staticEval);
+            updateEvalHistScore(thread,ss, depth, bestScore);
         }
 
         TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, depth, bestMove);
@@ -561,6 +570,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
         (ss + i)->ply = i - 6;
         (ss + i)->continuationHistory = &threads.at(ThreadID)->contHist[0][0];
         (ss + i)->contCorrHist = &threads.at(ThreadID)->contCorrHist[0][0];
+        (ss + i)->contEvalHist = &threads.at(ThreadID)->contEvalHist[0][0];
     }
 
     int score = 0;
