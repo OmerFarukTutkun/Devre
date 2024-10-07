@@ -179,6 +179,8 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         ss->playedMoves[ss->played++] = move;
         ss->move = move;
 
+        if(ss->played > 6)
+            continue;
         if (move != ttMove && !SEE(*board, move,-82))
             continue;
 
