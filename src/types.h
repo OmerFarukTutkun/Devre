@@ -22,6 +22,8 @@
 constexpr auto MAX_PLY = 100;
 constexpr auto START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+constexpr int16_t PieceValue[] = {104, 390, 412, 638, 1269, 0 , 0, 0, 104, 390, 412, 638, 1269, 0 , 0 , 0};
+
 enum Score : int16_t {
     MAX_MATE_SCORE = 32000,
     VALUE_INFINITE = 32500,

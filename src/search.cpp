@@ -151,7 +151,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     }
 
     auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-    auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
+    auto standPat = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
@@ -169,14 +169,35 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int bestScore = standPat, score;
     uint16_t move, bestMove = NO_MOVE;
 
+    auto futilityBase = ss->staticEval + 300;
+
     auto moveList = MoveList(ttMove, true);
     legalmoves<TACTICAL_MOVES>(*board, moveList);
-
+    ss->played = 0;
     while ((move = moveList.pickMove(thread, ss))) {
 
-        if (move != ttMove && !SEE(*board, move))
-            continue;
+        ss->playedMoves[ss->played++] = move;
         ss->move = move;
+
+        if(moveType(move) == CAPTURE) {
+            if (ss->played > 6)
+                continue;
+
+            auto futilityValue = futilityBase + PieceValue[board->pieceBoard[moveTo(move)]];
+
+            if (futilityValue <= alpha) {
+                bestScore = std::max(bestScore, futilityValue);
+                continue;
+            }
+
+            if (!SEE(*board, move, alpha - futilityBase)) {
+                bestScore = (futilityBase > alpha) ? alpha : std::max(bestScore, futilityBase);
+                continue;
+            }
+        }
+        if (move != ttMove && !SEE(*board, move,-82))
+            continue;
+
         board->makeMove(move);
 
         score = -qsearch(-beta, -alpha, thread, ss + 1);

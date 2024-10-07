@@ -5,7 +5,6 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0 , 0};
 std::string moveToUci(uint16_t move, Board &board) {
     std::stringstream ss;
     if (move == NULL_MOVE) {
@@ -93,11 +92,11 @@ bool SEE(Board &board, uint16_t move, int threshold) {
     int to = moveTo(move);
     int side = board.sideToMove;
     int nextVictim = board.pieceBoard[from];
-    int balance    = SEE_VALUE[board.pieceBoard[to]] - threshold;
+    int balance    = PieceValue[board.pieceBoard[to]] - threshold;
 
     if(balance < 0)
         return false;
-    balance -= SEE_VALUE[nextVictim];
+    balance -= PieceValue[nextVictim];
     if(balance >= 0)
         return true;
 
@@ -131,7 +130,7 @@ bool SEE(Board &board, uint16_t move, int threshold) {
             attackers |= rookAttacks(occ, to) & horizontalX & occ;
 
         side = !side;
-        balance = - balance - 1 - SEE_VALUE[piece];
+        balance = - balance - 1 - PieceValue[piece];
         if(balance >= 0)
         {
             if(piece == KING && (attackers & board.occupied[side]))
@@ -179,7 +178,7 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
                     scores[i] += getCaptureHistory(thread, ss, move);
                 }
                 else {
-                    if (SEE(*board, move))
+                    if (SEE(*board, move, -40))
                         scores[i] += getCaptureHistory(thread, ss, move);
                     else
                         scores[i] = MIL + getCaptureHistory(thread, ss, move);
