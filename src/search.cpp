@@ -169,11 +169,13 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     int bestScore = standPat, score;
     uint16_t move, bestMove = NO_MOVE;
 
-    auto moveList = MoveList(ttMove);
+    auto moveList = MoveList(ttMove, true);
     legalmoves<TACTICAL_MOVES>(*board, moveList);
 
-    while ((move = moveList.pickMove(thread, ss, moveTypeScores[CAPTURE] - 5 * MIL))) {
+    while ((move = moveList.pickMove(thread, ss))) {
 
+        if (move != ttMove && !SEE(*board, move))
+            continue;
         ss->move = move;
         board->makeMove(move);
 
@@ -194,8 +196,6 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
             }
             if (bestScore >= beta)
                 break;
-
-            
         }
     }
 
