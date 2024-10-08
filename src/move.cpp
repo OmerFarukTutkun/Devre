@@ -174,15 +174,16 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
+                int mvvLva = SEE_VALUE[ board->pieceBoard[moveTo(move)] ]*1000 - SEE_VALUE[ board->pieceBoard[moveFrom(move)] ];
                 if(qsearch)
                 {
-                    scores[i] += getCaptureHistory(thread, ss, move);
+                    scores[i] += mvvLva + getCaptureHistory(thread, ss, move);
                 }
                 else {
                     if (SEE(*board, move))
-                        scores[i] += getCaptureHistory(thread, ss, move);
+                        scores[i] +=  mvvLva + getCaptureHistory(thread, ss, move);
                     else
-                        scores[i] = getCaptureHistory(thread, ss, move);
+                        scores[i] =  mvvLva + MIL + getCaptureHistory(thread, ss, move);
                 }
             }
         }
