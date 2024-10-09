@@ -89,7 +89,7 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
 
     if ((ss - 1)->move)
     {
-        score += (*(ss - 1)->continuationHistory)[piece][to];
+        score += 2*(*(ss - 1)->continuationHistory)[piece][to];
     }
     if ((ss - 2)->move)
     {
@@ -110,7 +110,7 @@ int getContHistory(ThreadData &thread, Stack *ss, uint16_t move)
 
     if ((ss - 1)->move)
     {
-        score += (*(ss - 1)->continuationHistory)[piece][to];
+        score += 2*(*(ss - 1)->continuationHistory)[piece][to];
     }
     if ((ss - 2)->move)
     {
