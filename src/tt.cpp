@@ -3,6 +3,10 @@
 #include "move.h"
 #include "zobrist.h"
 
+#if defined(__linux__)
+#include <sys/mman.h>
+#endif
+
 TT::TT() {
     ttMask = 0ull;
     table = nullptr;
@@ -93,7 +97,12 @@ void TT::ttAllocate(int megabyte) {
     ttMask = (ONE << keySize) - ONE;
 
     ttFree();
-    table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ONE << keySize)));
+    #if defined(__linux__)
+        table =static_cast<TTBucket *>( aligned_alloc(2 * 1024*1024,sizeof(TTBucket) * (ttMask +1)) );
+        madvise(table, sizeof(TTBucket) * (ttMask +1), MADV_HUGEPAGE);
+    #else
+         table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ttMask +1)));
+    #endif
     ttClear();
 }
 
