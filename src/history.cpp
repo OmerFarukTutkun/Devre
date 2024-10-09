@@ -46,6 +46,11 @@ void updateQuietHistories(ThreadData &thread, Stack *ss, int depth, uint16_t bes
                 current = &(*(ss - 2)->continuationHistory)[piece][to];
                 updateHistory(current, depth, isGood);
             }
+            if ((ss - 4)->move)
+            {
+                current = &(*(ss - 4)->continuationHistory)[piece][to];
+                updateHistory(current, depth, isGood);
+            }
         }
     }
 }
@@ -83,20 +88,9 @@ int getQuietHistory(ThreadData &thread, Stack *ss, uint16_t move) {
     Board *board = &thread.board;
     int from = moveFrom(move);
     int to = moveTo(move);
-    int piece = board->pieceBoard[from];
     int score = thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
 
-
-    if ((ss - 1)->move)
-    {
-        score += 2*(*(ss - 1)->continuationHistory)[piece][to];
-    }
-    if ((ss - 2)->move)
-    {
-
-        score += (*(ss - 2)->continuationHistory)[piece][to];
-    }
-    return score;
+    return score + getContHistory(thread,ss,move);
 }
 
 
@@ -116,6 +110,10 @@ int getContHistory(ThreadData &thread, Stack *ss, uint16_t move)
     {
 
         score += (*(ss - 2)->continuationHistory)[piece][to];
+    }
+    if ((ss - 4)->move)
+    {
+        score += (*(ss - 4)->continuationHistory)[piece][to];
     }
     return score;
 }
