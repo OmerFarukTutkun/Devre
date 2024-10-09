@@ -485,6 +485,19 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             }
         }
         else if (!PVNode || ss->played > 1) {
+
+            auto sBeta = beta + 300 - 50 * improving;
+            if ( ss->played == 1 && !PVNode && depth >= 6
+                && std::abs(beta) < MIN_MATE_SCORE && extension == 0
+                && isTactical(ttMove)
+                && !(ttDepth >= depth - 3 && ttScore != SCORE_NONE &&  ttScore < sBeta)) {
+                score = -alphaBeta(-sBeta, -sBeta + 1, depth - 4, !cutNode, thread, ss + 1);
+
+                if (score >= sBeta) {
+                    board->unmakeMove(move);
+                    return score;
+                }
+            }
             score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
         }
 
