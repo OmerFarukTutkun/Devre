@@ -322,8 +322,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         eval = ttScore;
 
     //IIR
-    if (!ttHit && depth >= 3 && !PVNode)
+    if (!ttHit && !PVNode)
         depth -= 1;
+
+    if (depth <= 0)
+         return qsearch(alpha, beta, thread, ss);
 
     //Reverse Futility Pruning
     if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 107 && !rootNode) {
