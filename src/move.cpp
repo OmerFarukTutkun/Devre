@@ -170,7 +170,7 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
                 scores[i] = 8.5 * MIL;
             } else if (counterMove == move) {
                 scores[i] = 8 * MIL;
-            } else if (type < 2) //history heuristic
+            } else if (type < 4) //history heuristic
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
