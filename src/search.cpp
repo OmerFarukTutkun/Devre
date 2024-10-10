@@ -344,7 +344,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2
+        && eval > beta &&  ss->staticEval >= beta - 23 * depth + 400 &&
         board->hasNonPawnPieces()) {
         int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
 
