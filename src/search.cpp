@@ -273,6 +273,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 return ttScore;
         }
     }
+    const bool ttCapture = isTactical(ttMove);
+
     // Probe tablebases
     uint32_t tbResult = (rootNode || ss->excludedMove) ? TB_RESULT_FAILED : probeTB(*board);
 
@@ -326,7 +328,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && eval > beta + depth * 107 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode) {
         return eval;
     }
 
@@ -413,7 +415,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             lmr -= std::clamp(history/8474, -2,2);
             lmr += cutNode;
-            lmr += ttMove && isTactical(ttMove);
+            lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 250; // do less reduction if the corrhist score is high
         }
         
