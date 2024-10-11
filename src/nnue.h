@@ -36,7 +36,7 @@ public:
 
     static NNUE *Instance();
 
-    static int32_t quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, int16_t bias);
+    static int32_t quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, int16_t bias, uint16_t& hash);
 };
 
 #endif //DEVRE_NNUE_H

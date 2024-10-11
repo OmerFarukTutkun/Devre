@@ -85,7 +85,7 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
     }
 }
 
-int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, const int16_t bias) {
+int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, const int16_t bias, uint16_t& hash) {
     auto zero = vecSetZeroEpi16();
     auto one = vecSetEpi16(QA);
 
@@ -106,6 +106,7 @@ int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights
 
     int32_t sum = 0;
     sum = vecReduceEpi32(out);
+    hash = nnueHash(out);
     float constexpr scalar = NET_SCALE / (QA * QB);
     return (sum / QA + bias) * scalar;
 }
@@ -149,7 +150,7 @@ int NNUE::evaluate(Board &board) {
     const int outputBucket = 0;
 
 
-    int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
+    int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket], board.nnueKey);
     return eval;
 }
 

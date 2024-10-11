@@ -43,6 +43,7 @@ public:
     uint64_t threat();
 
     uint64_t key;
+    uint16_t nnueKey;
     uint64_t pawnKey;
     uint64_t nonPawnKey[2];
     uint64_t bitboards[N_PIECES];
@@ -54,6 +55,7 @@ public:
     uint8_t castlingRooks[4];
     uint8_t enPassant;
     uint16_t fullMove;
+
 
     std::vector<BoardHistory> boardHistory;
     NNUEData nnueData;

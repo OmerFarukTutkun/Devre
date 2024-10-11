@@ -56,6 +56,10 @@ namespace SIMD {
         return (reslt == 0);
     }
 
+    inline uint64_t nnueHash(vecType a) {
+        return _mm512_cmp_epi32_mask (a, vecSetZeroEpi16(), _MM_CMPINT_NLT);
+    }
+
     constexpr int vecSize = 32;
 #elif defined(__AVX2__)
 #include <immintrin.h>

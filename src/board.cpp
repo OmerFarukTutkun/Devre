@@ -168,7 +168,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         capturedPiece = pieceIndex(~sideToMove, PAWN);
     }
 
-    boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
+    boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key, nnueKey);
     nnueData.nnueChanges.clear();
 
 
@@ -264,6 +264,7 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     castlings = info.castlings;
     sideToMove = ~sideToMove;
     fullMove -= sideToMove;
+    nnueKey = info.nnueKey;
 
     int capturedPiece = info.capturedPiece;
     int piece = this->pieceBoard[to];
@@ -367,7 +368,7 @@ std::string Board::getFen() {
 }
 
 void Board::makeNullMove() {
-    boardHistory.emplace_back(enPassant, castlings, EMPTY, halfMove, key);
+    boardHistory.emplace_back(enPassant, castlings, EMPTY, halfMove, key, nnueKey);
     sideToMove = ~sideToMove;
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
     enPassant = NO_SQ;
@@ -384,6 +385,7 @@ void Board::unmakeNullMove() {
     halfMove = info.halfMove;
     key = info.key;
     castlings = info.castlings;
+    nnueKey = info.nnueKey;
     sideToMove = ~sideToMove;
 }
 

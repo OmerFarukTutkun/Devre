@@ -126,6 +126,7 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
+    int &nnueCorrHistEntry = thread.corrHist[board->sideToMove][board->nnueKey % 16384][3];
 
 
     const int bonus = diff * depth / 8;
@@ -135,6 +136,7 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
+    nnueCorrHistEntry += clampedBonus - nnueCorrHistEntry * std::abs(clampedBonus) / D;
 
     if (isMoveOk) {
         int from = moveFrom((ss - 1)->move);
@@ -159,6 +161,7 @@ int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
+    int &nnueCorrHistEntry = thread.corrHist[board->sideToMove][board->nnueKey % 16384][3];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
@@ -177,7 +180,7 @@ int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     }
 
     const int average = (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack +
-                         contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47) / 512;
+                         contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47 +nnueCorrHistEntry*59) / 512;
 
     auto eval = rawEval + average;
     eval = eval * NNUE::Instance()->halfMoveScale(thread.board) * NNUE::Instance()->materialScale(thread.board);
