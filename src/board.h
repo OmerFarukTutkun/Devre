@@ -42,6 +42,8 @@ public:
 
     uint64_t threat();
 
+    uint64_t threatUs();
+
     uint64_t key;
     uint64_t pawnKey;
     uint64_t nonPawnKey[2];

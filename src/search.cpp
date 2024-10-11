@@ -88,6 +88,7 @@ Stack::Stack() {
     staticEval = VALUE_INFINITE;
     move = NO_MOVE;
     threat = 0ull;
+    threatUs = 0ull;
     killers[0] = NO_MOVE;
     killers[1] = NO_MOVE;
     pv[0] = NO_MOVE;
@@ -150,7 +151,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     }
 
     ss->threat = 0ull;
-
+    ss->threatUs = 0ull;
     auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
@@ -242,8 +243,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     if (ss->ply > MAX_PLY) {
         return board->eval();
     }
-    //calculate opponent threats
+    //calculate threats
     ss->threat = board->threat();
+    ss->threatUs = board->threatUs();
+
     //find we are in check or not by using opponent threat
     bool inCheck = board->inCheck(ss->threat);
 

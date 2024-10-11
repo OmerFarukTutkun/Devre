@@ -444,6 +444,12 @@ uint64_t Board::threat() {
     else
         return allAttackedSquares<WHITE>(*this, occupied[WHITE] | occupied[BLACK]);
 }
+uint64_t Board::threatUs() {
+    if (sideToMove == WHITE)
+        return allAttackedSquares<WHITE>(*this, occupied[WHITE] | occupied[BLACK]);
+    else
+        return allAttackedSquares<BLACK>(*this, occupied[WHITE] | occupied[BLACK]);
+}
 
 bool Board::inCheck(uint64_t threat) {
     if (threat & bitboards[pieceIndex(sideToMove, KING)])

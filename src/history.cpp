@@ -125,7 +125,7 @@ auto murmur_hash_3(std::uint64_t key) -> std::uint64_t {
 
 void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const int diff) {
     auto *board = &thread.board;
-    auto threatKey = murmur_hash_3(ss->threat & (board->occupied[board->sideToMove]));
+    auto threatKey = murmur_hash_3(ss->threatUs & (board->occupied[!board->sideToMove]));
 
     const int bonus = diff * depth / 8;
     const int D = 1024;
@@ -160,7 +160,7 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
 
 int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     auto *board = &thread.board;
-    const auto threatKey = murmur_hash_3(ss->threat & (board->occupied[board->sideToMove]));
+    const auto threatKey = murmur_hash_3(ss->threatUs & (board->occupied[!board->sideToMove]));
 
     const int pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     const int nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
