@@ -114,28 +114,34 @@ int getContHistory(ThreadData &thread, Stack *ss, uint16_t move) {
     }
     return score;
 }
+auto murmur_hash_3(std::uint64_t key) -> std::uint64_t {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccd;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53;
+    key ^= key >> 33;
+    return key;
+};
 
 void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const int diff) {
-
     auto *board = &thread.board;
-
-
-    bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
-
-
-    int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
-    int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
-    int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
-
+    auto threatKey = murmur_hash_3(ss->threat & (board->occupied[board->sideToMove]));
 
     const int bonus = diff * depth / 8;
     const int D = 1024;
     int clampedBonus = std::clamp(bonus, -D, D);
 
+    int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
+    int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
+    int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
+    int &threatCorrHistEntry = thread.corrHist[board->sideToMove][threatKey % 16384][3];
+
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
+    threatCorrHistEntry += clampedBonus - threatCorrHistEntry * std::abs(clampedBonus) / D;
 
+    bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
     if (isMoveOk) {
         int from = moveFrom((ss - 1)->move);
         int to = moveTo((ss - 1)->move);
@@ -148,18 +154,18 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
 
         contcorrHistEntry += clampedBonus - contcorrHistEntry * std::abs(clampedBonus) / D;
         contcorrHistEntryPly3 += clampedBonus - contcorrHistEntryPly3 * std::abs(clampedBonus) / D;
-
         threatLastMoveCorrHistEntry += clampedBonus - threatLastMoveCorrHistEntry * std::abs(clampedBonus) / D;
     }
 }
 
 int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     auto *board = &thread.board;
+    const auto threatKey = murmur_hash_3(ss->threat & (board->occupied[board->sideToMove]));
 
-    int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
-    int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
-    int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
-
+    const int pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
+    const int nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
+    const int nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
+    const int threatCorrHistEntry = thread.corrHist[board->sideToMove][threatKey % 16384][3];
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
     auto contcorrHistEntry = 0;
@@ -177,7 +183,7 @@ int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     }
 
     const int average = (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack +
-                         contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47) / 512;
+                         contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47 + threatCorrHistEntry*35) / 512;
 
     auto eval = rawEval + average;
     eval = eval * NNUE::Instance()->halfMoveScale(thread.board) * NNUE::Instance()->materialScale(thread.board);
