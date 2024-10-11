@@ -69,7 +69,7 @@ Board::Board(const std::string &fen) {
                 castlings |= BLACK_LONG_CASTLE;
                 castlingRooks[3] = A8;
             }
-            //FRC castling rights
+                //FRC castling rights
             else if (c <= 'H' && c >= 'A') {
                 int queenSide = (c - 'A') < fileIndex(wking);
                 if (queenSide)
@@ -115,7 +115,7 @@ void Board::addPiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, 1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if(pieceType(piece) == PAWN)
+    if (pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
@@ -128,7 +128,7 @@ void Board::removePiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, -1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if(pieceType(piece) == PAWN)
+    if (pieceType(piece) == PAWN)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
@@ -362,7 +362,7 @@ std::string Board::getFen() {
 
     //4-5-6: en-passsant, halfmove , fullmove
     ss << " " << SQUARE_IDENTIFIER[enPassant];
-    ss << " " << (int)halfMove << " " << fullMove;
+    ss << " " << (int) halfMove << " " << fullMove;
     return ss.str();
 }
 
@@ -393,13 +393,12 @@ bool Board::hasNonPawnPieces() {
 }
 
 
-bool Board::isMaterialDraw()
-{
+bool Board::isMaterialDraw() {
     if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] ||
         bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
         return false;
     if (popcount64(occupied[0] | occupied[1]) < 4) {
-    // here only left: K v K, K+B v K, K+N v K.
+        // here only left: K v K, K+B v K, K+N v K.
         return true;
     }
     if (popcount64(bitboards[WHITE_KNIGHT] | bitboards[BLACK_KNIGHT]) != 0) {

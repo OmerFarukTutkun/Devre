@@ -6,14 +6,13 @@
 #include "types.h"
 
 
-
 class NNUE {
 private:
     NNUE();
 
     alignas(64) int16_t feature_weights[INPUT_SIZE * L1];
     alignas(64) int16_t feature_biases[L1];
-    alignas(64) int16_t layer1_weights[2 * L1*OUTPUT_BUCKETS];
+    alignas(64) int16_t layer1_weights[2 * L1 * OUTPUT_BUCKETS];
     alignas(64) int16_t layer1_bias[OUTPUT_BUCKETS];
 
     static int nnueIndex(int king, int piece, int sq, int side);
@@ -28,12 +27,15 @@ private:
 
 public:
     static float materialScale(Board &board);
+
     static float halfMoveScale(Board &board);
+
     void calculateInputLayer(Board &board, bool fromScratch = false);
 
     int evaluate(Board &board);
 
     static NNUE *Instance();
+
     static int32_t quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, int16_t bias);
 };
 

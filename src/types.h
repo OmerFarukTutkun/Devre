@@ -179,7 +179,7 @@ struct __attribute__((__packed__)) TTentry {
 };
 constexpr int numEntryPerBucket = 5;
 
-struct __attribute__((__packed__)) TTBucket{
+struct __attribute__((__packed__)) TTBucket {
     TTentry entries[numEntryPerBucket];
     uint32_t padding;
 };
@@ -204,8 +204,8 @@ auto constexpr L1 = 1536;
 constexpr int OUTPUT_BUCKETS = 1;
 
 
-constexpr int QA  = 181;
-constexpr int QB  = 128;
+constexpr int QA = 181;
+constexpr int QB = 128;
 constexpr float NET_SCALE = 450.0f;
 
 
@@ -245,7 +245,7 @@ struct BoardHistory {
     uint8_t halfMove;
     uint64_t key;
 
-    BoardHistory(uint8_t enPassant, uint8_t castling,  uint8_t capturedPiece, uint8_t halfMove, uint64_t key)
+    BoardHistory(uint8_t enPassant, uint8_t castling, uint8_t capturedPiece, uint8_t halfMove, uint64_t key)
             : enPassant(enPassant),
               castlings(castling),
               capturedPiece(capturedPiece),

@@ -5,7 +5,8 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150 ,0,0,100, 300, 300, 500, 1000, 150 , 0 , 0};
+constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0, 100, 300, 300, 500, 1000, 150, 0, 0};
+
 std::string moveToUci(uint16_t move, Board &board) {
     std::stringstream ss;
     if (move == NULL_MOVE) {
@@ -82,6 +83,7 @@ uint16_t moveFromUci(Board &board, std::string uciMove) {
     }
     return NO_MOVE;
 }
+
 bool SEE(Board &board, uint16_t move, int threshold) {
 
     // Do not calculate SEE for castlings, ep, promotions
@@ -93,12 +95,12 @@ bool SEE(Board &board, uint16_t move, int threshold) {
     int to = moveTo(move);
     int side = board.sideToMove;
     int nextVictim = board.pieceBoard[from];
-    int balance    = SEE_VALUE[board.pieceBoard[to]] - threshold;
+    int balance = SEE_VALUE[board.pieceBoard[to]] - threshold;
 
-    if(balance < 0)
+    if (balance < 0)
         return false;
     balance -= SEE_VALUE[nextVictim];
-    if(balance >= 0)
+    if (balance >= 0)
         return true;
 
     uint64_t occ = board.occupied[0] | board.occupied[1];
@@ -115,10 +117,9 @@ bool SEE(Board &board, uint16_t move, int threshold) {
 
     side = !side;
 
-    while(true)
-    {
+    while (true) {
         from = getLeastValuableAttacker(board, attackers, side);
-        if(from == NO_SQ)
+        if (from == NO_SQ)
             break;
         //remove attacker from occupancy and attackers
         clearBit(occ, from);
@@ -131,10 +132,9 @@ bool SEE(Board &board, uint16_t move, int threshold) {
             attackers |= rookAttacks(occ, to) & horizontalX & occ;
 
         side = !side;
-        balance = - balance - 1 - SEE_VALUE[piece];
-        if(balance >= 0)
-        {
-            if(piece == KING && (attackers & board.occupied[side]))
+        balance = -balance - 1 - SEE_VALUE[piece];
+        if (balance >= 0) {
+            if (piece == KING && (attackers & board.occupied[side]))
                 side = !side;
 
             break;
@@ -174,11 +174,9 @@ void MoveList::scoreMoves(ThreadData &thread, Stack *ss) {
             {
                 scores[i] += getQuietHistory(thread, ss, move);
             } else if (type == CAPTURE) {
-                if(qsearch)
-                {
+                if (qsearch) {
                     scores[i] += getCaptureHistory(thread, ss, move);
-                }
-                else {
+                } else {
                     if (SEE(*board, move))
                         scores[i] += getCaptureHistory(thread, ss, move);
                     else
@@ -211,7 +209,7 @@ uint16_t MoveList::pickMove(ThreadData &thread, Stack *ss, int skipThreshold) {
 
     uint16_t move = moves[maxScoreIndex];
     scores[maxScoreIndex] = scores[numMove - 1];
-    moves[maxScoreIndex] = moves[numMove  - 1];
+    moves[maxScoreIndex] = moves[numMove - 1];
     numMove--;
 
     return move;

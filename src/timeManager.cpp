@@ -3,28 +3,26 @@
 #include "util.h"
 #include "tuning.h"
 
-DEFINE_PARAM_B(hardTimePercentage,40,0,100);
-DEFINE_PARAM_B(softTimePercentage,5,0,100);
+DEFINE_PARAM_B(hardTimePercentage, 40, 0, 100);
+DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
-    if(--calls > 0)
+    if (--calls > 0)
         return false;
 
     calls = period;
 
     auto elapsed = currentTime() - startTime;
-    if(elapsed >= hardTime)
+    if (elapsed >= hardTime)
         return true;
-    if(fixedMoveTime != -1)
-    {
+    if (fixedMoveTime != -1) {
         auto moveOverhead = Options.at("MoveOverhead");
-        if(elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
+        if (elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
             return true;
     }
-    if(nodeLimit != -1)
-    {
-        if(totalNodes >= nodeLimit)
+    if (nodeLimit != -1) {
+        if (totalNodes >= nodeLimit)
             return true;
     }
     return false;
@@ -47,6 +45,6 @@ TimeManager::TimeManager() {
 void TimeManager::start() {
     startTime = currentTime();
     auto moveOverhead = Options.at("MoveOverhead");
-    hardTime    = remainingTime*hardTimePercentage/100 + inc - std::stoi(moveOverhead.currentValue);
-    softTime    = remainingTime*softTimePercentage/100 + inc - std::stoi(moveOverhead.currentValue);
+    hardTime = remainingTime * hardTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
+    softTime = remainingTime * softTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
 }

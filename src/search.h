@@ -23,7 +23,7 @@ struct Stack {
     Stack();
 };
 
-struct SearchResult{
+struct SearchResult {
     int cp;
     uint16_t move;
     uint64_t nodes;
@@ -34,21 +34,31 @@ private:
     bool stopped;
     int numThread;
     uint16_t m_bestMove{};
-    uint64_t* moveNodes;
+    uint64_t *moveNodes;
 
     TimeManager *timeManager{};
+
     uint64_t totalNodes();
+
     uint64_t totalTbHits();
+
     int qsearch(int alpha, int beta, ThreadData &thread, Stack *ss);
+
     int alphaBeta(int alpha, int beta, int depth, bool cutNode, ThreadData &thread, Stack *ss);
 
 public:
     static void initSearchParameters();
+
     std::vector<ThreadData *> threads;
+
     void stop();
+
     void setThread(int thread);
+
     SearchResult start(Board *board, TimeManager *timeManager, int ThreadID = 0);
+
     Search();
+
     virtual ~Search();
 };
 

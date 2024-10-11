@@ -13,14 +13,14 @@ DEFINE_PARAM_B(nodeTmBase, 150, 0, 350);
 DEFINE_PARAM_B(nodeTmMultp, -100, -300, 0);
 
 int LMR_TABLE[MAX_PLY][256];
-int seeThreshold(bool quiet, int depth)
-{
-    if(quiet) {
-        return -97*depth;
-    }
-    else
-        return -324*depth;
+
+int seeThreshold(bool quiet, int depth) {
+    if (quiet) {
+        return -97 * depth;
+    } else
+        return -324 * depth;
 }
+
 void Search::initSearchParameters() {
     for (int i = 0; i < MAX_PLY; i++) {
         for (int j = 0; j < 256; j++) {
@@ -57,19 +57,20 @@ std::string getPV(Stack *stack, Board &board) {
     }
     return ss.str();
 }
-uint32_t probeTB(Board& pos) {
-    if ( pos.halfMove != 0 || pos.castlings != 0 || (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST))
+
+uint32_t probeTB(Board &pos) {
+    if (pos.halfMove != 0 || pos.castlings != 0 || (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST))
         return TB_RESULT_FAILED;
 
     auto white = pos.occupied[WHITE];
     auto black = pos.occupied[BLACK];
 
-    auto knights= pos.bitboards[WHITE_KNIGHT] | pos.bitboards[BLACK_KNIGHT];
-    auto bishops= pos.bitboards[WHITE_BISHOP] | pos.bitboards[BLACK_BISHOP];
-    auto queens = pos.bitboards[WHITE_QUEEN]  | pos.bitboards[BLACK_QUEEN];
-    auto kings  = pos.bitboards[WHITE_KING]   | pos.bitboards[BLACK_KING];
-    auto rooks   = pos.bitboards[WHITE_ROOK]   | pos.bitboards[BLACK_ROOK];
-    auto pawns  = pos.bitboards[WHITE_PAWN]   | pos.bitboards[BLACK_PAWN];
+    auto knights = pos.bitboards[WHITE_KNIGHT] | pos.bitboards[BLACK_KNIGHT];
+    auto bishops = pos.bitboards[WHITE_BISHOP] | pos.bitboards[BLACK_BISHOP];
+    auto queens = pos.bitboards[WHITE_QUEEN] | pos.bitboards[BLACK_QUEEN];
+    auto kings = pos.bitboards[WHITE_KING] | pos.bitboards[BLACK_KING];
+    auto rooks = pos.bitboards[WHITE_ROOK] | pos.bitboards[BLACK_ROOK];
+    auto pawns = pos.bitboards[WHITE_PAWN] | pos.bitboards[BLACK_PAWN];
 
     return tb_probe_wdl(
             white, black,
@@ -106,13 +107,11 @@ Search::Search() {
 
 void Search::setThread(int thread) {
     numThread = thread;
-    for (auto th:threads)
-    {
+    for (auto th: threads) {
         delete th;
     }
     threads.clear();
-    for (int i = 0; i < numThread; i++)
-    {
+    for (int i = 0; i < numThread; i++) {
         auto th = new ThreadData(START_FEN, i);
         threads.emplace_back(th);
     }
@@ -133,7 +132,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     thread.nodes++;
 
     //TT Probing
-    int ttDepth=0, ttScore=SCORE_NONE, ttBound = TT_NONE, ttStaticEval=SCORE_NONE;
+    int ttDepth = 0, ttScore = SCORE_NONE, ttBound = TT_NONE, ttStaticEval = SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
     if (ttHit && !PVNode) {
@@ -154,8 +153,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
     auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     //ttValue can be used as a better position evaluation
-    if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
-    {
+    if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND))) {
         standPat = ttScore;
     }
 
@@ -182,15 +180,14 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         score = -qsearch(-beta, -alpha, thread, ss + 1);
 
         board->unmakeMove(move);
-        
-        if(this->stopped)
+
+        if (this->stopped)
             return 0;
 
         if (score > bestScore) {
             bestScore = score;
-            
-            if (score > alpha)
-            {
+
+            if (score > alpha) {
                 bestMove = move;
                 alpha = score;
             }
@@ -238,7 +235,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
     //draw check
     if (!rootNode && board->isDraw()) {
-        return  4 - (thread.nodes & 7);
+        return 4 - (thread.nodes & 7);
     }
     if (ss->ply > MAX_PLY) {
         return board->eval();
@@ -259,13 +256,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     thread.nodes++;
 
     //TT Probing
-    int ttDepth=0, ttScore=SCORE_NONE, ttBound=TT_NONE, ttStaticEval=SCORE_NONE;
+    int ttDepth = 0, ttScore = SCORE_NONE, ttBound = TT_NONE, ttStaticEval = SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
     bool ttHit = false;
-    if( ss->excludedMove == NO_MOVE )
+    if (ss->excludedMove == NO_MOVE)
         ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
 
-    if (ttHit  && !rootNode && !PVNode) {
+    if (ttHit && !rootNode && !PVNode) {
         if (ttDepth >= depth) {
             if (ttBound == TT_EXACT
                 || (ttBound == TT_UPPERBOUND && alpha >= ttScore)
@@ -289,12 +286,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (tbResult == TB_LOSS) {
             tbScore = -(TB_SCORE - ss->ply);
             bound = TT_UPPERBOUND;
-        }
-        else if (tbResult == TB_WIN) {
+        } else if (tbResult == TB_WIN) {
             tbScore = TB_SCORE - ss->ply;
             bound = TT_LOWERBOUND;
-        }
-        else {
+        } else {
             tbScore = 0;
             bound = TT_EXACT;
         }
@@ -307,8 +302,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (PVNode) {
             bestScore = tbScore;
-            if (ttBound == TT_LOWERBOUND)
-            {
+            if (ttBound == TT_LOWERBOUND) {
                 alpha = std::max(alpha, tbScore);
             }
         }
@@ -328,31 +322,33 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode) {
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) &&
+        eval > beta + depth * 107 && !rootNode) {
         return eval;
     }
 
     //Razoring
     if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 408 * depth < alpha) {
-        int score = qsearch(alpha, beta, thread,ss);
-        if(score < alpha)
+        int score = qsearch(alpha, beta, thread, ss);
+        if (score < alpha)
             return score;
     }
     (ss + 1)->excludedMove = NO_MOVE;
     (ss + 1)->killers[0] = NO_MOVE;
     (ss + 1)->killers[1] = NO_MOVE;
-    ss->doubleExtension = (ss-1)->doubleExtension;
+    ss->doubleExtension = (ss - 1)->doubleExtension;
 
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta &&
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 &&
+        eval > beta &&
         board->hasNonPawnPieces()) {
         int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
 
         ss->move = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
-        ss->contCorrHist        = &thread.contCorrHist[PAWN][A1];
+        ss->contCorrHist = &thread.contCorrHist[PAWN][A1];
         board->makeNullMove();
 
         score = -alphaBeta(-beta, -beta + 1, depth - R, !cutNode, thread, ss + 1);
@@ -370,16 +366,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     }
     int beforeNodes = 0;
     int lmr;
-    uint16_t  bestMove = NO_MOVE, move =NO_MOVE;
+    uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
     ss->played = 0;
 
     //loop moves
     while ((move = moveList.pickMove(thread, ss)) != NO_MOVE) {
 
-        if(move == ss->excludedMove)
+        if (move == ss->excludedMove)
             continue;
-        if(rootNode)
+        if (rootNode)
             beforeNodes = thread.nodes;
         ss->move = move;
         ss->playedMoves[ss->played++] = move;
@@ -394,11 +390,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 continue;
 
             //contHist pruning
-            int contHist = getContHistory(thread,ss, move);
-            if(depth <= 3 && contHist < -3633 )
+            int contHist = getContHistory(thread, ss, move);
+            if (depth <= 3 && contHist < -3633)
                 continue;
         }
-        if(ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
+        if (ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth))) {
             continue;
         }
         int history = 0;
@@ -407,58 +403,54 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             lmr = LMR_TABLE[depth][ss->played];
             lmr -= PVNode; //reduce less for PV nodes
             lmr += !improving;
-            
-            if(isQuiet(move))
-                history = getQuietHistory(thread,ss, move);
-            else
-                history = getCaptureHistory(thread,ss, move);
 
-            lmr -= std::clamp(history/8474, -2,2);
+            if (isQuiet(move))
+                history = getQuietHistory(thread, ss, move);
+            else
+                history = getCaptureHistory(thread, ss, move);
+
+            lmr -= std::clamp(history / 8474, -2, 2);
             lmr += cutNode;
             lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 250; // do less reduction if the corrhist score is high
         }
-        
+
         lmr = std::max(0, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         ss->contCorrHist = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if( ss->ply < thread.searchDepth
+        if (ss->ply < thread.searchDepth
             && !rootNode
             && depth >= 8
             && move == ttMove
             && ss->excludedMove == NO_MOVE
             && (ttBound & TT_LOWERBOUND)
-            && ttDepth >= depth -3
-        )
-        {
-            const int singularBeta = ttScore - 4*depth;
+            && ttDepth >= depth - 3
+                ) {
+            const int singularBeta = ttScore - 4 * depth;
             const int singularDepth = (depth - 1) / 2;
 
             ss->excludedMove = move;
-            int singularScore = alphaBeta(singularBeta - 1, singularBeta , singularDepth, cutNode, thread, ss);
+            int singularScore = alphaBeta(singularBeta - 1, singularBeta, singularDepth, cutNode, thread, ss);
             ss->excludedMove = NO_MOVE;
 
-            if(singularScore < singularBeta) {
+            if (singularScore < singularBeta) {
                 extension = 1;
                 int margin = 300 * PVNode - 200 * !isTactical(ttMove);
-                if( (singularScore + margin < singularBeta) && ss->doubleExtension <= 5)
-                {
-                    ss->doubleExtension = (ss-1)->doubleExtension + 1;
+                if ((singularScore + margin < singularBeta) && ss->doubleExtension <= 5) {
+                    ss->doubleExtension = (ss - 1)->doubleExtension + 1;
                     extension++;
                 }
-            }
-            else if(singularScore >= beta )
-            {
+            } else if (singularScore >= beta) {
                 return singularScore;
             }
 
-            //negative extensions
-            else if(ttScore >= beta)
+                //negative extensions
+            else if (ttScore >= beta)
                 extension = -2;
 
-            else if(cutNode)
+            else if (cutNode)
                 extension = -1;
 
             //reAssign some stack values that might have been changed
@@ -469,11 +461,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->contCorrHist = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
-        int d = newDepth -lmr;
+        int d = newDepth - lmr;
         //make move
         board->makeMove(move);
-        if(lmr >= 1)
-        {
+        if (lmr >= 1) {
             score = -alphaBeta(-alpha - 1, -alpha, d, true, thread, ss + 1);
             if (score > alpha && d < newDepth) {
 
@@ -485,22 +476,20 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 if (newDepth > d)
                     score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
             }
-        }
-        else if (!PVNode || ss->played > 1) {
+        } else if (!PVNode || ss->played > 1) {
             score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
         }
 
-        if(PVNode && (ss->played == 1 || score > alpha))
-        {
+        if (PVNode && (ss->played == 1 || score > alpha)) {
             score = -alphaBeta(-beta, -alpha, newDepth, false, thread, ss + 1);
         }
         board->unmakeMove(move);
 
-        if(this->stopped)
+        if (this->stopped)
             return 0;
 
-        if(rootNode)
-            moveNodes[move] += thread.nodes -beforeNodes;
+        if (rootNode)
+            moveNodes[move] += thread.nodes - beforeNodes;
 
         if (score > bestScore) {
 
@@ -520,15 +509,15 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             }
         }
     }
-    if(ss->excludedMove == NO_MOVE) {
+    if (ss->excludedMove == NO_MOVE) {
         TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
 
-        if (    !inCheck
-                && (!bestMove || !isTactical(bestMove))
-                &&  !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
-                &&  !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
+        if (!inCheck
+            && (!bestMove || !isTactical(bestMove))
+            && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
+            && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval)) {
 
-            updateCorrHistScore(thread,ss, depth, bestScore - ss->staticEval);
+            updateCorrHistScore(thread, ss, depth, bestScore - ss->staticEval);
         }
 
         TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, depth, bestMove);
@@ -544,12 +533,11 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
 
         std::fill(moveNodes, moveNodes + (1 << 16), 0);
 
-        for (int i = 0; i < numThread; i++)
-        {
-            threads.at(i)->nodes       = 0ull;
-            threads.at(i)->tbHits       = 0ull;
+        for (int i = 0; i < numThread; i++) {
+            threads.at(i)->nodes = 0ull;
+            threads.at(i)->tbHits = 0ull;
             threads.at(i)->searchDepth = 0;
-            threads.at(i)->board       = *board;
+            threads.at(i)->board = *board;
         }
 
         this->timeManager = tm;
@@ -582,7 +570,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
                 else if (score >= beta)
                     beta = std::min(+VALUE_INFINITE, beta + windowSize);
 
-                windowSize += windowSize/3;
+                windowSize += windowSize / 3;
             }
         } else {
             score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
@@ -598,25 +586,24 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
             auto nps = (1000 * nodes) / elapsed;
 
             std::cout << " info depth " << i;
-            if(abs(score) < MIN_MATE_SCORE) {
-                std::cout<< " score cp " << score / 2;
+            if (abs(score) < MIN_MATE_SCORE) {
+                std::cout << " score cp " << score / 2;
+            } else {
+                int mate = (MAX_MATE_SCORE - abs(score) + 1) * (2 * (score > 0) - 1) / 2;
+                std::cout << " score mate " << mate;
             }
-            else{
-                int mate= (MAX_MATE_SCORE - abs(score) +1) *(2*(score > 0) -1 ) /2;
-                std::cout<< " score mate " << mate;
-            }
-                      std::cout << " nps " << nps
+            std::cout << " nps " << nps
                       << " nodes " << nodes
                       << " time " << elapsed
                       << " hashfull " << TT::Instance()->getHashfull()
-                      << " tbhits "   << totalTbHits()
+                      << " tbhits " << totalTbHits()
                       << " pv " << getPV(ss + 6, threads.at(ThreadID)->board)
                       << std::endl;
 
-            float bestMoveFraction = static_cast<double>(moveNodes[m_bestMove])/nodes;
-            float nodeTm = (nodeTmBase + bestMoveFraction*nodeTmMultp)/100.0f;
+            float bestMoveFraction = static_cast<double>(moveNodes[m_bestMove]) / nodes;
+            float nodeTm = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
 
-            if (elapsed > timeManager->softTime*nodeTm)
+            if (elapsed > timeManager->softTime * nodeTm)
                 break;
         }
     }
@@ -637,6 +624,7 @@ SearchResult Search::start(Board *board, TimeManager *tm, int ThreadID) {
     }
     return res;
 }
+
 uint64_t Search::totalNodes() {
     uint64_t sum = 0ull;
     for (int i = 0; i < numThread; i++) {

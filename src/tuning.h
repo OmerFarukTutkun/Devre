@@ -6,41 +6,39 @@
 
 struct EngineParam;
 
-void registerParam(EngineParam* param);
+void registerParam(EngineParam *param);
 
-EngineParam* findParam(std::string name);
+EngineParam *findParam(std::string name);
 
 std::string paramsToUci();
 
 std::string paramsToSpsaInput();
 
 struct EngineParam {
-  std::string name;
-  int value;
-  int min, max;
+    std::string name;
+    int value;
+    int min, max;
 
-  EngineParam(std::string _name, int _value, int _min, int _max) :
-    name(_name), value(_value), min(_min), max(_max)
-  {
-    if (_max < _min) {
-      std::cout << "[Warning] Parameter " << _name << " has invalid bounds" << std::endl;
+    EngineParam(std::string _name, int _value, int _min, int _max) :
+            name(_name), value(_value), min(_min), max(_max) {
+        if (_max < _min) {
+            std::cout << "[Warning] Parameter " << _name << " has invalid bounds" << std::endl;
+        }
+
+        registerParam(this);
     }
 
-    registerParam(this);
-  }
+    EngineParam(std::string _name, int _value, int _step) :
+            name(_name), value(_value) {
+        this->min = _value - 10 * _step;
+        this->max = _value + 10 * _step;
 
-  EngineParam(std::string _name, int _value, int _step) :
-    name(_name), value(_value)
-  {
-    this->min = _value - 10 * _step;
-    this->max = _value + 10 * _step;
+        registerParam(this);
+    }
 
-    registerParam(this);
-  }
-
-  inline operator int() const {
-    return value;
-  }
+    inline operator int() const {
+        return value;
+    }
 };
 
 //#define DO_TUNING

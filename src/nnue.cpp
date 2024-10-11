@@ -1,5 +1,6 @@
 #include "nnue.h"
 #include "simd.h"
+
 using namespace SIMD;
 constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4,  5,  0, 0, 6, 7, 8, 9, 10, 11},
                                          {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4,  5}};
@@ -8,6 +9,7 @@ constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4,  5,  0, 0, 6, 7, 8, 9, 
 #define NET "devre_06.08.2024.nnue"
 #endif
 INCBIN(EmbeddedWeights, NET);
+
 NNUE *NNUE::Instance() {
     static NNUE instance = NNUE();
     return &instance;
@@ -26,7 +28,7 @@ NNUE::NNUE() {
     for (int16_t &layer1_weight: layer1_weights)
         layer1_weight = (*data_int16++);
 
-    for (int16_t& bias: layer1_bias)
+    for (int16_t &bias: layer1_bias)
         bias = (*data_int16++);
 }
 
@@ -53,18 +55,16 @@ int NNUE::calculateIndices(Board &board, int (&weightIndices)[N_SQUARES], Color 
 void NNUE::incrementalUpdate(Board &board, Color c) {
     int king = bitScanForward(board.bitboards[pieceIndex(c, KING)]);
 
-    vecType * weightAdd[2] = {nullptr};
-    vecType * weightSub[2] = {nullptr};
+    vecType *weightAdd[2] = {nullptr};
+    vecType *weightSub[2] = {nullptr};
 
     int j = 0, k = 0;
 
     for (auto &element: board.nnueData.nnueChanges) {
-        if (element.sign == 1)
-        {
+        if (element.sign == 1) {
             auto idx = nnueIndex(king, element.piece, element.sq, c);
             weightAdd[j++] = (vecType *) &feature_weights[L1 * idx];
-        } else
-        {
+        } else {
             auto idx = nnueIndex(king, element.piece, element.sq, c);
             weightSub[k++] = (vecType *) &feature_weights[L1 * idx];
         }
@@ -77,14 +77,15 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
         outputs[i] = vecSubEpi16(weightAdd[0][i], weightSub[0][i]);
         outputs[i] = vecAddEpi16(outputs[i], acc[i]);
 
-        if(weightAdd[1] != nullptr)
+        if (weightAdd[1] != nullptr)
             outputs[i] = vecAddEpi16(outputs[i], weightAdd[1][i]);
 
-        if(weightSub[1] != nullptr)
+        if (weightSub[1] != nullptr)
             outputs[i] = vecSubEpi16(outputs[i], weightSub[1][i]);
     }
 }
-int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights, const int16_t bias){
+
+int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, const int16_t bias) {
     auto zero = vecSetZeroEpi16();
     auto one = vecSetEpi16(QA);
 
@@ -94,16 +95,16 @@ int32_t NNUE::quanMatrixMultp(int16_t *us,int16_t *them, const int16_t *weights,
     auto out = vecSetZeroEpi16();
 
     int weightOffset = 0;
-    for (const auto *acc : {vepi16Us, vepi16Them}) {
-        for (int i = 0; i < L1/vecSize; i ++) {
-            vecType clipped = vecMinEpi16(one,  vecMaxEpi16(zero, acc[i]));
-            out = vecAddEpi32(out, vecMaddEpi16(vecMulloEpi16( clipped, clipped), vepi16Weights[i]));
+    for (const auto *acc: {vepi16Us, vepi16Them}) {
+        for (int i = 0; i < L1 / vecSize; i++) {
+            vecType clipped = vecMinEpi16(one, vecMaxEpi16(zero, acc[i]));
+            out = vecAddEpi32(out, vecMaddEpi16(vecMulloEpi16(clipped, clipped), vepi16Weights[i]));
         }
 
         vepi16Weights = (vecType *) &weights[L1];
     }
 
-    int32_t sum =0;
+    int32_t sum = 0;
     sum = vecReduceEpi32(out);
     float constexpr scalar = NET_SCALE / (QA * QB);
     return (sum / QA + bias) * scalar;
@@ -134,8 +135,8 @@ void NNUE::calculateInputLayer(Board &board, bool fromScratch) {
         recalculateInputLayer(board, WHITE);
         recalculateInputLayer(board, BLACK);
     } else {
-         incrementalUpdate(board, WHITE);
-         incrementalUpdate(board, BLACK);
+        incrementalUpdate(board, WHITE);
+        incrementalUpdate(board, BLACK);
 
     }
     board.nnueData.addAccumulator();
@@ -148,17 +149,20 @@ int NNUE::evaluate(Board &board) {
     const int outputBucket = 0;
 
 
-    int eval = quanMatrixMultp( us, enemy, &layer1_weights[2*L1*outputBucket], layer1_bias[outputBucket]);
+    int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
     return eval;
 }
+
 float NNUE::halfMoveScale(Board &board) {
     return (100.0f - board.halfMove) / 100.0f;
 }
 
 float NNUE::materialScale(Board &board) {
-    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT] | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP])*3;
-    gamePhase += popcount64(board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK])*5;
-    gamePhase += popcount64(board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN])*10;
+    float gamePhase = popcount64(
+            board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT] | board.bitboards[WHITE_BISHOP] |
+            board.bitboards[BLACK_BISHOP]) * 3;
+    gamePhase += popcount64(board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK]) * 5;
+    gamePhase += popcount64(board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]) * 10;
 
     gamePhase = std::min(gamePhase, 64.0f);
 
@@ -166,5 +170,5 @@ float NNUE::materialScale(Board &board) {
     float b = 1.0;
 
     //[a,b]
-    return a + (b-a)*gamePhase/64.0f;
+    return a + (b - a) * gamePhase / 64.0f;
 }

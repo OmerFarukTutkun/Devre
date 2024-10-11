@@ -3,29 +3,41 @@
 
 #include "bitboard.h"
 #include "types.h"
-class Board { 
+
+class Board {
 public:
     explicit Board(const std::string &fen = START_FEN);
 
     void print();
+
     std::string getFen();
 
     void addPiece(int piece, int sq);
+
     void removePiece(int piece, int sq);
+
     void movePiece(int piece, int from, int to);
 
     int eval();
 
-    void makeMove(uint16_t move, bool updateNNUE=true);
-    void unmakeMove(uint16_t move, bool updateNNUE=true);
+    void makeMove(uint16_t move, bool updateNNUE = true);
+
+    void unmakeMove(uint16_t move, bool updateNNUE = true);
+
     void makeNullMove();
+
     void unmakeNullMove();
 
     bool hasNonPawnPieces();
+
     bool isDraw();
+
     bool isMaterialDraw();
+
     bool isRepetition();
+
     bool inCheck();
+
     bool inCheck(uint64_t threat);
 
     uint64_t threat();

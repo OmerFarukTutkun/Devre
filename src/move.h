@@ -7,7 +7,8 @@
 #include  "threadData.h"
 
 constexpr int MIL = 1000000;
-constexpr int moveTypeScores[] = {MIL, MIL, 3*MIL, 2*MIL, 10*MIL, 11*MIL, 0, 0, -10*MIL, -9*MIL, -8*MIL, 20*MIL, -7*MIL, -6*MIL, -5*MIL, 25*MIL};
+constexpr int moveTypeScores[] = {MIL, MIL, 3 * MIL, 2 * MIL, 10 * MIL, 11 * MIL, 0, 0, -10 * MIL, -9 * MIL, -8 * MIL,
+                                  20 * MIL, -7 * MIL, -6 * MIL, -5 * MIL, 25 * MIL};
 
 enum MoveTypes : uint16_t {
     QUIET = 0,
@@ -33,7 +34,8 @@ enum MoveGenerationTypes {
     QUIET_MOVES = 1, //not exactly quiets move as it also contains under promotions
     ALL_MOVES = 2,
 };
-constexpr int  castlingSquares[N_COLORS][2][2] = {{{G1,F1} , {C1, D1}}, {{G8, F8}, {C8, D8}}};
+constexpr int castlingSquares[N_COLORS][2][2] = {{{G1, F1}, {C1, D1}},
+                                                 {{G8, F8}, {C8, D8}}};
 
 // 16-bit move
 // 001100 011100  0000    -> e2e4 quiet move
@@ -70,7 +72,8 @@ inline bool isTactical(uint16_t move) {
 inline bool isQuiet(uint16_t move) {
     return !isTactical(move);
 }
-class MoveList{
+
+class MoveList {
 public:
     uint16_t moves[256];
     int scores[256];
@@ -79,12 +82,20 @@ public:
     int numMove;
     bool isSorted;
     bool qsearch;
-    MoveList (uint16_t ttMove=NO_MOVE, bool qsearch=false);
+
+    MoveList(uint16_t ttMove = NO_MOVE, bool qsearch = false);
+
     void addMove(uint16_t move);
-    void scoreMoves(ThreadData& thread, Stack * ss);
+
+    void scoreMoves(ThreadData &thread, Stack *ss);
+
     uint16_t pickMove(ThreadData &thread, Stack *ss, int skipThreshold = -50 * MIL);
 };
-std::string moveToUci(uint16_t move, Board& board);
-uint16_t moveFromUci(Board& board, std::string move);
-bool SEE(Board& board, uint16_t move, int threshold = 0);
+
+std::string moveToUci(uint16_t move, Board &board);
+
+uint16_t moveFromUci(Board &board, std::string move);
+
+bool SEE(Board &board, uint16_t move, int threshold = 0);
+
 #endif //DEVRE_MOVE_H

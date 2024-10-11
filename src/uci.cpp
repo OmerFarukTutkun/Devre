@@ -7,6 +7,7 @@
 #include "bench.h"
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
+
 void Uci::UciLoop() {
 
     std::cout << "Devre  " << VERSION << " by Omer Faruk Tutkun" << std::endl;
@@ -45,7 +46,7 @@ void Uci::UciLoop() {
 
         } else if (cmd == "setoption")
             setoption(commands);
-        else if (cmd == "tune")       std::cout << paramsToSpsaInput();
+        else if (cmd == "tune") std::cout << paramsToSpsaInput();
     }
 }
 
@@ -169,9 +170,8 @@ void Uci::setoption(std::vector<std::string> &commands) {
                 std::cout << "info string Syzygy tablebases failed to load" << std::endl;
         }
         return;
-    }
-    else if constexpr (doTuning) {
-        EngineParam* param = findParam(name);
+    } else if constexpr (doTuning) {
+        EngineParam *param = findParam(name);
         popFront(commands);
         auto value = popFront(commands);
         if (param) {

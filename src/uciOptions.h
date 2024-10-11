@@ -11,12 +11,12 @@ public:
     int min{}, max{};
     std::string currentValue, type, defaultValue;
 
-    Option(int min, int max, const std::string& currentValue, std::string type)
+    Option(int min, int max, const std::string &currentValue, std::string type)
             :
             min(min), max(max),
             currentValue(currentValue), type(std::move(type)), defaultValue(currentValue) {}
 
-    Option(const std::string& currentValue, std::string type)
+    Option(const std::string &currentValue, std::string type)
             :
             currentValue(currentValue), type(std::move(type)), defaultValue(currentValue) {}
 
@@ -52,11 +52,11 @@ public:
 
 using OptionsMap = std::unordered_map<std::string, Option>;
 static OptionsMap Options({
-                                  {"Threads",       Option(1, 256, "1", "spin")},
-                                  {"Hash",          Option(1, 131072, "16", "spin")},
-                                  {"UCI_Chess960",  Option(0, 1, "false", "check")},
+                                  {"Threads",      Option(1, 256, "1", "spin")},
+                                  {"Hash",         Option(1, 131072, "16", "spin")},
+                                  {"UCI_Chess960", Option(0, 1, "false", "check")},
                                   {"MoveOverhead", Option(0, 10000, "50", "spin")},
-                                  {"SyzygyPath", Option("<empty>", "string")},
+                                  {"SyzygyPath",   Option("<empty>", "string")},
 
                           });
 

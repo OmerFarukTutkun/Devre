@@ -10,7 +10,7 @@ int slider_index(uint64_t occ, FancyMagic *table) {
 #ifdef USE_PEXT
     return _pext_u64(occ, table->mask);
 #else
-    return (occ & table->mask)* table->magic >> table->shift;
+    return (occ & table->mask) * table->magic >> table->shift;
 #endif
 }
 
@@ -134,9 +134,9 @@ uint64_t squareAttackedBy(Board &board, int square) {
 }
 
 int getLeastValuableAttacker(Board &board, uint64_t attackers, int side) {
-    if((attackers & board.occupied[side]) == 0ull)
+    if ((attackers & board.occupied[side]) == 0ull)
         return NO_SQ;
-    uint64_t temp ;
+    uint64_t temp;
     for (int i = pieceIndex(side, PAWN); i <= pieceIndex(side, KING); i++) {
         temp = attackers & board.bitboards[i];
         if (temp)

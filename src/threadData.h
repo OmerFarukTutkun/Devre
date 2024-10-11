@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "board.h"
+
 class ThreadData {
 public:
     int ThreadID;
@@ -20,9 +21,12 @@ public:
     int16_t threatLastMoveCorrHist[2][2][2][64][64]{0};
     Board board;
 
-    explicit ThreadData(const std::string &fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", int ID = 0);
-    explicit ThreadData(Board& b, int ID = 0);
+    explicit ThreadData(const std::string &fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                        int ID = 0);
+
+    explicit ThreadData(Board &b, int ID = 0);
 
     virtual ~ThreadData();
 };
+
 #endif //DEVRE_THREADDATA_H

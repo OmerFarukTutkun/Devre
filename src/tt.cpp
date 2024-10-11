@@ -17,27 +17,27 @@ TT::TT() {
 TT::~TT() {
     ttFree();
 }
+
 void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move) {
-    TTBucket* bucket = &table[key & ttMask];
+    TTBucket *bucket = &table[key & ttMask];
     auto key32 = (key >> 32);
 
 
-    auto * replace = &bucket->entries[0];
+    auto *replace = &bucket->entries[0];
     for (int i = 0; i < numEntryPerBucket; i++) {
-        auto * entry = &bucket->entries[i];
+        auto *entry = &bucket->entries[i];
 
-        if(entry->key == key32) {
+        if (entry->key == key32) {
             replace = entry;
             break;
         }
 
         auto replaceAgeDiff = (64 + this->age - getAge(replace)) & 63;
-        auto entryAgeDiff   = (64 + this->age - getAge(entry)) & 63;
+        auto entryAgeDiff = (64 + this->age - getAge(entry)) & 63;
 
         // find an entry with lower depth & high age to save our TT info
-        if( (replace->depth - replaceAgeDiff*8)
-          > (entry->depth - entryAgeDiff*8))
-        {
+        if ((replace->depth - replaceAgeDiff * 8)
+            > (entry->depth - entryAgeDiff * 8)) {
             replace = entry;
         }
     }
@@ -48,8 +48,7 @@ void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char b
     if (replace->key != key32
         || bound == TT_EXACT
         || depth + 5 > replace->depth
-        || getAge(replace) != age)
-    {
+        || getAge(replace) != age) {
 
         if (score > MIN_TB_SCORE)
             score += ply;
@@ -59,17 +58,17 @@ void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char b
         replace->key = key32;
         replace->score = score;
         replace->depth = depth;
-        replace->ageBound = bound | (age <<2);
+        replace->ageBound = bound | (age << 2);
         replace->staticEval = staticEval;
     }
 }
 
 bool TT::ttProbe(uint64_t key, int ply, int &ttDepth, int &ttScore, int &ttBound, int &ttStaticEval, uint16_t &ttMove) {
 
-    TTBucket* bucket = &table[key & ttMask];
+    TTBucket *bucket = &table[key & ttMask];
     auto key32 = (key >> 32);
     for (int i = 0; i < numEntryPerBucket; i++) {
-        auto * entry = &bucket->entries[i];
+        auto *entry = &bucket->entries[i];
 
         if (entry->key == key32) {
 
@@ -91,24 +90,24 @@ bool TT::ttProbe(uint64_t key, int ply, int &ttDepth, int &ttScore, int &ttBound
 }
 
 void TT::ttAllocate(int megabyte) {
-    int64_t size = 1024*1024;
-    size = size*megabyte / sizeof(TTBucket);
+    int64_t size = 1024 * 1024;
+    size = size * megabyte / sizeof(TTBucket);
     int keySize = static_cast<int> ( log2(size));
     ttMask = (ONE << keySize) - ONE;
 
     ttFree();
-    #if defined(__linux__)
-        table =static_cast<TTBucket *>( aligned_alloc(2 * 1024*1024,sizeof(TTBucket) * (ttMask +1)) );
-        madvise(table, sizeof(TTBucket) * (ttMask +1), MADV_HUGEPAGE);
-    #else
-         table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ttMask +1)));
-    #endif
+#if defined(__linux__)
+    table =static_cast<TTBucket *>( aligned_alloc(2 * 1024*1024,sizeof(TTBucket) * (ttMask +1)) );
+    madvise(table, sizeof(TTBucket) * (ttMask +1), MADV_HUGEPAGE);
+#else
+    table = static_cast<TTBucket *>(malloc(sizeof(TTBucket) * (ttMask + 1)));
+#endif
     ttClear();
 }
 
 void TT::ttClear() {
     age = 0;
-    std::memset(table, 0,sizeof(TTBucket) * (ttMask +1) );
+    std::memset(table, 0, sizeof(TTBucket) * (ttMask + 1));
 }
 
 void TT::ttFree() {
@@ -129,7 +128,7 @@ void TT::updateAge() {
     age = (age + 1) & 63;
 }
 
-uint8_t TT::getAge(TTentry * entry) {
+uint8_t TT::getAge(TTentry *entry) {
     return (entry->ageBound >> 2);
 }
 
@@ -139,7 +138,7 @@ int TT::getHashfull() {
         TTBucket *bucket = &table[i];
 
         for (int j = 0; j < numEntryPerBucket; j++) {
-            auto * entry = &bucket->entries[j];
+            auto *entry = &bucket->entries[j];
             if (entry->key != 0u && age == getAge(entry))
                 hit++;
         }

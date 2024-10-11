@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "util.h"
+
 class TimeManager {
 
 public:
@@ -21,6 +22,7 @@ public:
     int period;
 
     bool checkLimits(uint64_t totalNodes);
+
     //set start time and calculate optimal time to start
     void start();
 

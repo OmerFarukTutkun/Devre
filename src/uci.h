@@ -9,13 +9,17 @@
 
 class Uci {
 private:
-    Board* board;
+    Board *board;
     Search search;
     TimeManager timeManager;
     std::thread searchThread;
+
     static void printUci();
+
     void eval();
+
     void stop();
+
     void perft(std::vector<std::string> &commands);
 
     void setPosition(std::vector<std::string> &commands);
