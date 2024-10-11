@@ -5,11 +5,11 @@
 #include "types.h"
 
 class Zobrist {
-private:
+   private:
     Zobrist();
 
-public:
-    static Zobrist *Instance();
+   public:
+    static Zobrist* Instance();
 
     uint64_t PieceKeys[N_PIECES][64];
     uint64_t SideToPlayKey;
@@ -18,4 +18,4 @@ public:
 };
 
 
-#endif //DEVRE_ZOBRIST_H
+#endif  //DEVRE_ZOBRIST_H

@@ -8,20 +8,22 @@ uint64_t rand_u64() {
 }
 
 Zobrist::Zobrist() {
-    for (auto &PieceKey: PieceKeys) {
-        for (auto &j: PieceKey) {
+    for (auto& PieceKey : PieceKeys)
+    {
+        for (auto& j : PieceKey)
+        {
             j = rand_u64();
         }
     }
     SideToPlayKey = rand_u64();
-    for (auto &CastlingKey: CastlingKeys)
+    for (auto& CastlingKey : CastlingKeys)
         CastlingKey = rand_u64();
 
-    for (auto &EnPassantKey: EnPassantKeys)
+    for (auto& EnPassantKey : EnPassantKeys)
         EnPassantKey = rand_u64();
 }
 
-Zobrist *Zobrist::Instance() {
+Zobrist* Zobrist::Instance() {
     static auto instance = Zobrist();
     return &instance;
 }

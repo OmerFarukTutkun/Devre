@@ -6,17 +6,17 @@
 
 class TimeManager {
 
-public:
-    int depthLimit;
+   public:
+    int     depthLimit;
     int64_t nodeLimit;
-    int movesToGo;
+    int     movesToGo;
     int64_t fixedMoveTime;
     int64_t remainingTime;
     int64_t inc;
 
     uint64_t startTime;
-    int64_t softTime;
-    int64_t hardTime;
+    int64_t  softTime;
+    int64_t  hardTime;
 
     int calls;
     int period;
@@ -27,8 +27,7 @@ public:
     void start();
 
     TimeManager();
-
 };
 
 
-#endif //DEVRE_TIMEMANAGER_H
+#endif  //DEVRE_TIMEMANAGER_H

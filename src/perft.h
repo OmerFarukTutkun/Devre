@@ -3,6 +3,6 @@
 
 #include "board.h"
 
-void perftTest(Board &board, int depth, bool UpdateNNUE = false);
+void perftTest(Board& board, int depth, bool UpdateNNUE = false);
 
-#endif //DEVRE_PERFT_H
+#endif  //DEVRE_PERFT_H

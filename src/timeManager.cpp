@@ -16,12 +16,14 @@ bool TimeManager::checkLimits(uint64_t totalNodes) {
     auto elapsed = currentTime() - startTime;
     if (elapsed >= hardTime)
         return true;
-    if (fixedMoveTime != -1) {
+    if (fixedMoveTime != -1)
+    {
         auto moveOverhead = Options.at("MoveOverhead");
         if (elapsed + std::stoi(moveOverhead.currentValue) >= fixedMoveTime)
             return true;
     }
-    if (nodeLimit != -1) {
+    if (nodeLimit != -1)
+    {
         if (totalNodes >= nodeLimit)
             return true;
     }
@@ -29,22 +31,24 @@ bool TimeManager::checkLimits(uint64_t totalNodes) {
 }
 
 TimeManager::TimeManager() {
-    depthLimit = MAX_PLY;
-    nodeLimit = -1;
-    movesToGo = 20;
+    depthLimit    = MAX_PLY;
+    nodeLimit     = -1;
+    movesToGo     = 20;
     fixedMoveTime = -1;
     remainingTime = 1e9;
-    inc = 0;
-    startTime = 0;
-    softTime = 0;
-    period = 1000;
-    calls = period;
-    hardTime = 0;
+    inc           = 0;
+    startTime     = 0;
+    softTime      = 0;
+    period        = 1000;
+    calls         = period;
+    hardTime      = 0;
 }
 
 void TimeManager::start() {
-    startTime = currentTime();
+    startTime         = currentTime();
     auto moveOverhead = Options.at("MoveOverhead");
-    hardTime = remainingTime * hardTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
-    softTime = remainingTime * softTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
+    hardTime =
+      remainingTime * hardTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
+    softTime =
+      remainingTime * softTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
 }

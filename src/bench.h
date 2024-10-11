@@ -3,6 +3,6 @@
 
 #include "uci.h"
 
-void bench(int argc, char **argv);
+void bench(int argc, char** argv);
 
 #endif

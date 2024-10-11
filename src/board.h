@@ -5,8 +5,8 @@
 #include "types.h"
 
 class Board {
-public:
-    explicit Board(const std::string &fen = START_FEN);
+   public:
+    explicit Board(const std::string& fen = START_FEN);
 
     void print();
 
@@ -47,16 +47,16 @@ public:
     uint64_t nonPawnKey[2];
     uint64_t bitboards[N_PIECES];
     uint64_t occupied[N_COLORS];
-    uint8_t pieceBoard[N_SQUARES];
+    uint8_t  pieceBoard[N_SQUARES];
 
-    uint8_t castlings, halfMove;
-    Color sideToMove;
-    uint8_t castlingRooks[4];
-    uint8_t enPassant;
+    uint8_t  castlings, halfMove;
+    Color    sideToMove;
+    uint8_t  castlingRooks[4];
+    uint8_t  enPassant;
     uint16_t fullMove;
 
     std::vector<BoardHistory> boardHistory;
-    NNUEData nnueData;
+    NNUEData                  nnueData;
 };
 
-#endif //DEVRE_BOARD_H
+#endif  //DEVRE_BOARD_H

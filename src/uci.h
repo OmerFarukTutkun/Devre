@@ -8,9 +8,9 @@
 #include "timeManager.h"
 
 class Uci {
-private:
-    Board *board;
-    Search search;
+   private:
+    Board*      board;
+    Search      search;
     TimeManager timeManager;
     std::thread searchThread;
 
@@ -20,22 +20,21 @@ private:
 
     void stop();
 
-    void perft(std::vector<std::string> &commands);
+    void perft(std::vector<std::string>& commands);
 
-    void setPosition(std::vector<std::string> &commands);
+    void setPosition(std::vector<std::string>& commands);
 
-    void go(std::vector<std::string> &commands);
+    void go(std::vector<std::string>& commands);
 
-    void setoption(std::vector<std::string> &commands);
+    void setoption(std::vector<std::string>& commands);
 
-public:
+   public:
     Uci();
 
     virtual ~Uci();
 
     void UciLoop();
-
 };
 
 
-#endif //DEVRE_UCI_H
+#endif  //DEVRE_UCI_H

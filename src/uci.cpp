@@ -14,14 +14,17 @@ void Uci::UciLoop() {
     std::string line;
 
     bool quit = false;
-    while (!quit && std::getline(std::cin, line)) {
+    while (!quit && std::getline(std::cin, line))
+    {
         auto commands = splitString(line);
-        auto cmd = popFront(commands);
+        auto cmd      = popFront(commands);
 
-        if (cmd == "stop" || cmd == "quit") {
+        if (cmd == "stop" || cmd == "quit")
+        {
             this->stop();
             quit = (cmd == "quit");
-        } else if (cmd == "uci")
+        }
+        else if (cmd == "uci")
             printUci();
         else if (cmd == "perft")
             perft(commands);
@@ -37,16 +40,18 @@ void Uci::UciLoop() {
             bench(2, nullptr);
         else if (cmd == "eval")
             eval();
-        else if (cmd == "ucinewgame") {
+        else if (cmd == "ucinewgame")
+        {
 
             TT::Instance()->ttClear();
 
             auto option = Options.at("Threads");
             search.setThread(stoi(option.currentValue));
-
-        } else if (cmd == "setoption")
+        }
+        else if (cmd == "setoption")
             setoption(commands);
-        else if (cmd == "tune") std::cout << paramsToSpsaInput();
+        else if (cmd == "tune")
+            std::cout << paramsToSpsaInput();
     }
 }
 
@@ -54,36 +59,42 @@ void Uci::printUci() {
     std::cout << "id name Devre " << VERSION << std::endl;
     std::cout << "id author Omer Faruk Tutkun" << std::endl;
 
-    for (auto const &x: Options) {
+    for (auto const& x : Options)
+    {
         Option option = x.second;
         option.printOption(x.first);
     }
     std::cout << paramsToUci() << "uciok" << std::endl;
 }
 
-void Uci::perft(std::vector<std::string> &commands) {
-    if (!commands.empty()) {
+void Uci::perft(std::vector<std::string>& commands) {
+    if (!commands.empty())
+    {
         int depth = std::stoi(commands.at(0));
         perftTest(*board, depth, false);
     }
 }
 
-void Uci::setPosition(std::vector<std::string> &commands) {
-    auto cmd = popFront(commands);
+void Uci::setPosition(std::vector<std::string>& commands) {
+    auto        cmd = popFront(commands);
     std::string fen = START_FEN;
-    if (cmd == "fen") {
+    if (cmd == "fen")
+    {
         fen = "";
-        for (const auto &x: commands)
+        for (const auto& x : commands)
             fen += " " + x;
     }
     delete board;
     board = new Board(fen);
-    while (!commands.empty()) {
+    while (!commands.empty())
+    {
         cmd = popFront(commands);
-        if (cmd == "moves") {
-            while (!commands.empty()) {
+        if (cmd == "moves")
+        {
+            while (!commands.empty())
+            {
                 auto uciMove = popFront(commands);
-                auto move = moveFromUci(*board, uciMove);
+                auto move    = moveFromUci(*board, uciMove);
                 if (move)
                     board->makeMove(move, false);
             }
@@ -96,23 +107,29 @@ void Uci::setPosition(std::vector<std::string> &commands) {
 
 void Uci::eval() {
     int score = board->eval();
-    for (int i = 7; i >= 0; i--) {
+    for (int i = 7; i >= 0; i--)
+    {
         std::cout << "\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n";
-        for (int j = 0; j < 8; j++) {
+        for (int j = 0; j < 8; j++)
+        {
             int piece = board->pieceBoard[8 * i + j];
             std::cout << "       " << PIECE_TO_CHAR.at(piece);
         }
         std::cout << "\n" << i + 1;
-        for (int j = 0; j < 8; j++) {
-            int sq = 8 * i + j;
+        for (int j = 0; j < 8; j++)
+        {
+            int sq    = 8 * i + j;
             int piece = board->pieceBoard[sq];
-            if (piece != EMPTY && piece != BLACK_KING && piece != WHITE_KING) {
+            if (piece != EMPTY && piece != BLACK_KING && piece != WHITE_KING)
+            {
                 board->removePiece(piece, sq);
                 NNUE::Instance()->calculateInputLayer(*board, true);
                 printf("%8.2f", (score - board->eval()) / 100.0);
                 board->addPiece(piece, sq);
                 board->nnueData.popAccumulator();
-            } else {
+            }
+            else
+            {
                 std::cout << "        ";
             }
         }
@@ -120,17 +137,19 @@ void Uci::eval() {
     board->nnueData.nnueChanges.clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
-    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);
+    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n",
+           score / 100.0);
 }
 
-void Uci::go(std::vector<std::string> &commands) {
+void Uci::go(std::vector<std::string>& commands) {
     this->stop();
     timeManager = TimeManager();
 
-    auto cmd = popFront(commands);
+    auto cmd     = popFront(commands);
     auto cmdTime = (board->sideToMove == WHITE) ? "wtime" : "btime";
-    auto cmdInc = (board->sideToMove == WHITE) ? "winc" : "binc";
-    while (!cmd.empty()) {
+    auto cmdInc  = (board->sideToMove == WHITE) ? "winc" : "binc";
+    while (!cmd.empty())
+    {
         if (cmd == cmdTime)
             timeManager.remainingTime = std::stoi(popFront(commands));
         else if (cmd == cmdInc)
@@ -150,11 +169,12 @@ void Uci::go(std::vector<std::string> &commands) {
     searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);
 }
 
-void Uci::setoption(std::vector<std::string> &commands) {
+void Uci::setoption(std::vector<std::string>& commands) {
     popFront(commands);
     auto name = popFront(commands);
-    auto it = Options.find(name);
-    if (it != Options.end()) {
+    auto it   = Options.find(name);
+    if (it != Options.end())
+    {
         popFront(commands);
         auto value = popFront(commands);
         it->second.updateOption(value);
@@ -162,19 +182,24 @@ void Uci::setoption(std::vector<std::string> &commands) {
             TT::Instance()->ttAllocate(stoi(it->second.currentValue));
         if (name == "Threads")
             search.setThread(stoi(it->second.currentValue));
-        if (name == "SyzygyPath") {
+        if (name == "SyzygyPath")
+        {
             tb_init(it->second.currentValue.c_str());
             if (TB_LARGEST)
-                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST << std::endl;
+                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST
+                          << std::endl;
             else
                 std::cout << "info string Syzygy tablebases failed to load" << std::endl;
         }
         return;
-    } else if constexpr (doTuning) {
-        EngineParam *param = findParam(name);
+    }
+    else if constexpr (doTuning)
+    {
+        EngineParam* param = findParam(name);
         popFront(commands);
         auto value = popFront(commands);
-        if (param) {
+        if (param)
+        {
             param->value = std::stoi(value);
             search.initSearchParameters();
             return;
@@ -189,7 +214,7 @@ Uci::Uci() {
     board->nnueData.clear();
     NNUE::Instance()->calculateInputLayer(*board, true);
 
-    search = Search();
+    search      = Search();
     auto option = Options.at("Threads");
     search.setThread(stoi(option.defaultValue));
     timeManager = TimeManager();
@@ -197,11 +222,10 @@ Uci::Uci() {
 
 void Uci::stop() {
     search.stop();
-    if (searchThread.joinable()) {
+    if (searchThread.joinable())
+    {
         searchThread.join();
     }
 }
 
-Uci::~Uci() {
-    delete board;
-}
+Uci::~Uci() { delete board; }
