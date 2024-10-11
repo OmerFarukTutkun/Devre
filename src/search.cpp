@@ -149,7 +149,7 @@ int Search::qsearch(int alpha, int beta, ThreadData &thread, Stack *ss) {
         return board->eval();
     }
 
-    ss->threat = 0ull;
+    ss->threat = board->threat();
 
     auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
