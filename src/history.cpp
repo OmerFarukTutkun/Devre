@@ -165,8 +165,8 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     auto* board = &thread.board;
 
     int& pawnCorrHistEntry         = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
-    int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
-    int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
+    int& nonPawnCorrHistEntryUs = thread.corrHist[board->sideToMove][board->nonPawnKey[board->sideToMove] % 16384][1];
+    int& nonPawnCorrHistEntryThem = thread.corrHist[board->sideToMove][board->nonPawnKey[!board->sideToMove] % 16384][2];
     int majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
@@ -186,7 +186,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
           thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average = (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 60
+    const int average = (47 * pawnCorrHistEntry + 59 * nonPawnCorrHistEntryUs + 35 * nonPawnCorrHistEntryThem + contcorrHistEntry * 50
                          + threatLastMoveCorrHistEntry * 47 +majorCorrHistEntry*30)
                       / 512;
 
