@@ -297,13 +297,13 @@ struct BoardHistory {
     uint8_t  capturedPiece;
     uint8_t  halfMove;
     uint64_t key;
-    uint16_t nnueKey;
+    uint64_t nnueKey;
     BoardHistory(uint8_t  enPassant,
                  uint8_t  castling,
                  uint8_t  capturedPiece,
                  uint8_t  halfMove,
                  uint64_t key,
-                 uint16_t nnueKey) :
+                 uint64_t nnueKey) :
         enPassant(enPassant),
         castlings(castling),
         capturedPiece(capturedPiece),

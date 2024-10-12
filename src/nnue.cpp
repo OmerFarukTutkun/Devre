@@ -85,7 +85,7 @@ void NNUE::incrementalUpdate(Board &board, Color c) {
     }
 }
 
-int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, const int16_t bias, uint16_t& hash) {
+int32_t NNUE::quanMatrixMultp(int16_t *us, int16_t *them, const int16_t *weights, const int16_t bias, uint64_t& hash) {
     auto zero = vecSetZeroEpi16();
     auto one = vecSetEpi16(QA);
 

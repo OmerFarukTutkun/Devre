@@ -17,7 +17,7 @@ public:
     uint16_t counterMoves[2][64][64]{0}; // a counter move for move ordering
 
     int corrHist[2][16384][3]{0};
-    int nnueCorrHist[2][2][256]{0};
+    int nnueCorrHist[2][2][65535]{0};
     int16_t contCorrHist[N_PIECES][N_SQUARES][N_PIECES][N_SQUARES]{0};
     int16_t threatLastMoveCorrHist[2][2][2][64][64]{0};
     Board board;
