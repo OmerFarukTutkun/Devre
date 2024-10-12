@@ -126,8 +126,8 @@ void updateCorrHistScore(ThreadData &thread, Stack *ss, const int depth, const i
     int &pawnCorrHistEntry = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
-    int &nnueCorrHistEntry = thread.corrHist[board->sideToMove][0][board->nnueKey & 255];
-    int &nnueCorrHistEntry2 = thread.corrHist[board->sideToMove][1][(board->nnueKey >> 8) & 255];
+    int &nnueCorrHistEntry = thread.nnueCorrHist[board->sideToMove][0][board->nnueKey & 255];
+    int &nnueCorrHistEntry2 = thread.nnueCorrHist[board->sideToMove][1][(board->nnueKey >> 8) & 255];
 
     const int bonus = diff * depth / 8;
     const int D = 1024;
@@ -163,8 +163,8 @@ int adjustEvalWithCorrHist(ThreadData &thread, Stack *ss, const int rawEval) {
     int &nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int &nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
 
-    int nnueCorrHistScore = thread.corrHist[board->sideToMove][0][board->nnueKey & 255];
-    nnueCorrHistScore += thread.corrHist[board->sideToMove][1][(board->nnueKey >> 8) & 255];
+    int nnueCorrHistScore = thread.nnueCorrHist[board->sideToMove][0][board->nnueKey & 255];
+    nnueCorrHistScore += thread.nnueCorrHist[board->sideToMove][1][(board->nnueKey >> 8) & 255];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
