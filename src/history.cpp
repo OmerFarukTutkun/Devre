@@ -198,11 +198,13 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
           (ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average =
+    const int nonZeroCount = (pawnCorrHistEntry != 0) + (nonPawnCorrHistEntryWhite != 0) + (nonPawnCorrHistEntryBlack != 0) + (contcorrHistEntry != 0) + (threatLastMoveCorrHistEntry != 0);
+    int average =
       (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack
        + contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47)
       / 512;
 
+    average *= (15 - nonZeroCount)/10.0;
     auto eval = rawEval + average;
     eval      = eval * NNUE::Instance()->halfMoveScale(thread.board)
          * NNUE::Instance()->materialScale(thread.board);
