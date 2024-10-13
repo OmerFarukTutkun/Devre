@@ -200,7 +200,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
 
     const int average =
       (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack
-       + contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 47)
+       + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 47)
       / 512;
 
     auto eval = rawEval + average;
