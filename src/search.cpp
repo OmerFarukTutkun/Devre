@@ -147,6 +147,10 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     if (board->isDraw())
         return 0;
 
+    if(ss->ply > seldepth)
+    {
+        seldepth = ss->ply;
+    }
     if (ss->ply > MAX_PLY)
     {
         return board->eval();
@@ -251,6 +255,11 @@ int Search::alphaBeta(
     if (!rootNode && board->isDraw())
     {
         return 4 - (thread.nodes & 7);
+    }
+
+    if(ss->ply > seldepth)
+    {
+        seldepth = ss->ply;
     }
     if (ss->ply > MAX_PLY)
     {
@@ -648,6 +657,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             auto nps         = (1000 * nodes) / elapsed;
 
             std::cout << " info depth " << i;
+            std::cout << " seldepth " << seldepth;
             if (abs(score) < MIN_MATE_SCORE)
             {
                 std::cout << " score cp " << score / 2;
