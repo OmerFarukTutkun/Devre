@@ -140,7 +140,7 @@ void Board::addPiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, 1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if (pieceType(piece) == PAWN)
+    if (pieceType(piece) == PAWN || pieceType(piece) == KING)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
@@ -153,7 +153,7 @@ void Board::removePiece(int piece, int sq) {
     nnueData.nnueChanges.emplace_back(piece, sq, -1);
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
-    if (pieceType(piece) == PAWN)
+    if (pieceType(piece) == PAWN || pieceType(piece) == KING)
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
     else
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
