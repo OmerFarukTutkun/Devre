@@ -18,6 +18,7 @@ struct Stack {
     uint16_t killers[2];
     int      staticEval;
     uint64_t threat;
+    uint64_t threatUs;
     uint16_t excludedMove;
 
     Stack();
