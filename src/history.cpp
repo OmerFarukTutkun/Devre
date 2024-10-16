@@ -186,8 +186,8 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
           thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average = (47 * pawnCorrHistEntry + 47 * nonPawnCorrHistEntryWhite + 47 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 60
-                         + threatLastMoveCorrHistEntry * 47 +majorCorrHistEntry*30)
+    const int average = (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47
+                         + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry*30)
                       / 512;
 
     auto eval = rawEval + average;
