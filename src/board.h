@@ -44,6 +44,7 @@ class Board {
 
     uint64_t key;
     uint64_t pawnKey;
+    uint64_t majorKey;
     uint64_t nonPawnKey[2];
     uint64_t bitboards[N_PIECES];
     uint64_t occupied[N_COLORS];
