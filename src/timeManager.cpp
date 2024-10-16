@@ -4,7 +4,7 @@
 #include "tuning.h"
 
 DEFINE_PARAM_B(hardTimePercentage, 40, 0, 100);
-DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
+DEFINE_PARAM_B(softTimePercentage, 17, 0, 100);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
@@ -48,7 +48,7 @@ void TimeManager::start() {
     startTime         = currentTime();
     auto moveOverhead = Options.at("MoveOverhead");
     hardTime =
-      remainingTime * hardTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
+      (remainingTime - std::stoi(moveOverhead.currentValue))* hardTimePercentage / 100;
     softTime =
-      remainingTime * softTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
+      hardTime * softTimePercentage;
 }
