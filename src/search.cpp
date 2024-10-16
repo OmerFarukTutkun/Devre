@@ -588,10 +588,11 @@ int Search::alphaBeta(
 SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
     SearchResult             res{};
     std::vector<std::thread> runningThreads;
+
     if (ThreadID == 0)
     {
         stopped = false;
-
+        seldepth = 0;
         std::fill(moveNodes, moveNodes + (1 << 16), 0);
 
         for (int i = 0; i < numThread; i++)
