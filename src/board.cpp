@@ -51,7 +51,8 @@ Board::Board(const std::string& fen) {
             else
             {
                 std::cout << fen << "\n"
-                          << "Error: Fen isn't proper!!! " << "\n";
+                          << "Error: Fen isn't proper!!! "
+                          << "\n";
             }
             k++;
         }
@@ -437,16 +438,14 @@ void Board::unmakeNullMove() {
 }
 
 bool Board::hasNonPawnPieces() {
-    return (bitboards[WHITE_KNIGHT] || bitboards[WHITE_BISHOP] || bitboards[WHITE_ROOK]
-            || bitboards[WHITE_QUEEN])
-        && (bitboards[BLACK_KNIGHT] || bitboards[BLACK_BISHOP] || bitboards[BLACK_ROOK]
-            || bitboards[BLACK_QUEEN]);
+    return (bitboards[WHITE_KNIGHT] || bitboards[WHITE_BISHOP] || bitboards[WHITE_ROOK] || bitboards[WHITE_QUEEN])
+        && (bitboards[BLACK_KNIGHT] || bitboards[BLACK_BISHOP] || bitboards[BLACK_ROOK] || bitboards[BLACK_QUEEN]);
 }
 
 
 bool Board::isMaterialDraw() {
-    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK]
-        || bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
+    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] || bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN]
+        || bitboards[BLACK_QUEEN])
         return false;
     if (popcount64(occupied[0] | occupied[1]) < 4)
     {

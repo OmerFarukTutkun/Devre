@@ -137,8 +137,7 @@ void Uci::eval() {
     board->nnueData.nnueChanges.clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
-    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n",
-           score / 100.0);
+    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);
 }
 
 void Uci::go(std::vector<std::string>& commands) {
@@ -186,8 +185,7 @@ void Uci::setoption(std::vector<std::string>& commands) {
         {
             tb_init(it->second.currentValue.c_str());
             if (TB_LARGEST)
-                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST
-                          << std::endl;
+                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST << std::endl;
             else
                 std::cout << "info string Syzygy tablebases failed to load" << std::endl;
         }

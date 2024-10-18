@@ -52,8 +52,8 @@ inline vecType vecAddEpi32(vecType a, vecType b) { return _mm256_add_epi32(a, b)
 inline vecType vecSetEpi16(int a) { return _mm256_set1_epi16(a); }
 inline int     vecReduceEpi32(vecType sum) {
     __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(sum), _mm256_extracti128_si256(sum, 1));
-    sum128 = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_BADC));
-    sum128 = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_CDAB));
+    sum128         = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_BADC));
+    sum128         = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_CDAB));
     return _mm_cvtsi128_si32(sum128);
 }
 

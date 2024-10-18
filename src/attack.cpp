@@ -50,8 +50,7 @@ uint64_t sliderAttacks(int sq, uint64_t occ, int delta[4][2]) {
     return attack;
 }
 
-void init_slider_attacks(
-  FancyMagic* table, uint64_t mask, uint64_t magic, int shift, int sq, int delta[4][2]) {
+void init_slider_attacks(FancyMagic* table, uint64_t mask, uint64_t magic, int shift, int sq, int delta[4][2]) {
     uint64_t occ;
 
     table[sq].magic = magic;
@@ -76,10 +75,8 @@ AttackTables::AttackTables() {
 
     for (int sq = 0; sq < 64; sq++)
     {
-        init_slider_attacks(RookTable, rookMasks[sq], rookMagics[sq], rookShifts[sq], sq,
-                            rook_delta);
-        init_slider_attacks(BishopTable, bishopMasks[sq], bishopMagics[sq], bishopShifts[sq], sq,
-                            bishop_delta);
+        init_slider_attacks(RookTable, rookMasks[sq], rookMagics[sq], rookShifts[sq], sq, rook_delta);
+        init_slider_attacks(BishopTable, bishopMasks[sq], bishopMagics[sq], bishopShifts[sq], sq, bishop_delta);
     }
 }
 
@@ -104,21 +101,17 @@ bool isSquareAttacked(Board& board, int sq, int side) {
     uint64_t occ = board.occupied[WHITE] | board.occupied[BLACK];
     if (side == BLACK)
     {
-        return (PawnAttacks[WHITE][sq] & board.bitboards[BLACK_PAWN])
-            || (KnightAttacks[sq] & board.bitboards[BLACK_KNIGHT])
+        return (PawnAttacks[WHITE][sq] & board.bitboards[BLACK_PAWN]) || (KnightAttacks[sq] & board.bitboards[BLACK_KNIGHT])
             || (KingAttacks[sq] & board.bitboards[BLACK_KING])
             || (rookAttacks(occ, sq) & (board.bitboards[BLACK_ROOK] | board.bitboards[BLACK_QUEEN]))
-            || (bishopAttacks(occ, sq)
-                & (board.bitboards[BLACK_BISHOP] | board.bitboards[BLACK_QUEEN]));
+            || (bishopAttacks(occ, sq) & (board.bitboards[BLACK_BISHOP] | board.bitboards[BLACK_QUEEN]));
     }
     else
     {
-        return (PawnAttacks[BLACK][sq] & board.bitboards[WHITE_PAWN])
-            || (KnightAttacks[sq] & board.bitboards[WHITE_KNIGHT])
+        return (PawnAttacks[BLACK][sq] & board.bitboards[WHITE_PAWN]) || (KnightAttacks[sq] & board.bitboards[WHITE_KNIGHT])
             || (KingAttacks[sq] & board.bitboards[WHITE_KING])
             || (rookAttacks(occ, sq) & (board.bitboards[WHITE_ROOK] | board.bitboards[WHITE_QUEEN]))
-            || (bishopAttacks(occ, sq)
-                & (board.bitboards[WHITE_BISHOP] | board.bitboards[WHITE_QUEEN]));
+            || (bishopAttacks(occ, sq) & (board.bitboards[WHITE_BISHOP] | board.bitboards[WHITE_QUEEN]));
     }
 }
 
@@ -132,13 +125,10 @@ uint64_t squareAttackedBy(Board& board, int square) {
     uint64_t attackers =
       (knight_attacks & (board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT]))
       | (diagonal_attacks
-         & (board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP]
-            | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]))
+         & (board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP] | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]))
       | (horizontal_attacks
-         & (board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK] | board.bitboards[WHITE_QUEEN]
-            | board.bitboards[BLACK_QUEEN]))
-      | (king_attacks & (board.bitboards[WHITE_KING] | board.bitboards[BLACK_KING]))
-      | (PawnAttacks[BLACK][square] & board.bitboards[WHITE_PAWN])
+         & (board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK] | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]))
+      | (king_attacks & (board.bitboards[WHITE_KING] | board.bitboards[BLACK_KING])) | (PawnAttacks[BLACK][square] & board.bitboards[WHITE_PAWN])
       | (PawnAttacks[WHITE][square] & board.bitboards[BLACK_PAWN]);
     return attackers;
 }

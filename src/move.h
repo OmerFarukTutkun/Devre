@@ -7,9 +7,8 @@
 #include "threadData.h"
 
 constexpr int MIL              = 1000000;
-constexpr int moveTypeScores[] = {MIL,      MIL,      3 * MIL,   2 * MIL,  10 * MIL, 11 * MIL,
-                                  0,        0,        -10 * MIL, -9 * MIL, -8 * MIL, 20 * MIL,
-                                  -7 * MIL, -6 * MIL, -5 * MIL,  25 * MIL};
+constexpr int moveTypeScores[] = {MIL,       MIL,      3 * MIL,  2 * MIL,  10 * MIL, 11 * MIL, 0,        0,
+                                  -10 * MIL, -9 * MIL, -8 * MIL, 20 * MIL, -7 * MIL, -6 * MIL, -5 * MIL, 25 * MIL};
 
 enum MoveTypes : uint16_t {
     QUIET                    = 0,
