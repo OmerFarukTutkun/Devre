@@ -572,7 +572,7 @@ int Search::alphaBeta(
         TT_BOUND bound =
           bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
 
-        if (!inCheck && (!bestMove || !isTactical(bestMove))
+        if ((!bestMove || !isTactical(bestMove))
             && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
             && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval))
         {
