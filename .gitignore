@@ -2,3 +2,5 @@ devre*
 *.gcda
 /cmake-build-release/
 /cmake-build-debug/
+/src/incbin/
+/src/fathom/
