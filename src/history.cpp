@@ -133,6 +133,7 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int& kingCorrHistEntry = thread.corrHist[board->sideToMove][board->kingKey() % 16384][4];
 
     const int bonus        = diff * depth / 8;
     const int D            = 1024;
@@ -142,6 +143,7 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
     majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
+    kingCorrHistEntry += clampedBonus - kingCorrHistEntry * std::abs(clampedBonus) / D;
 
     if (isMoveOk)
     {
@@ -168,6 +170,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int& kingCorrHistEntry = thread.corrHist[board->sideToMove][board->kingKey() % 16384][4];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
@@ -187,7 +190,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     }
 
     const int average = (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47
-                         + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry*30)
+                         + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry*30 + kingCorrHistEntry*30)
                       / 512;
 
     auto eval = rawEval + average;

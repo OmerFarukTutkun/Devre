@@ -506,3 +506,16 @@ bool Board::inCheck(uint64_t threat) {
         return true;
     return false;
 }
+uint64_t Board::kingKey()
+{
+    uint64_t key = 0;
+    int wking = bitScanForward(bitboards[pieceIndex(WHITE, KING)]);
+    int bking = bitScanForward(bitboards[pieceIndex(BLACK, KING)]);
+    uint64_t b = (KingAttacks[wking] | KingAttacks[bking]) & (occupied[WHITE] | occupied[BLACK]);
+    while(b)
+    {
+        auto sq = poplsb(b);
+        key ^= Zobrist::Instance()->PieceKeys[pieceBoard[sq]][sq];
+    }
+    return key;
+}

@@ -42,6 +42,8 @@ class Board {
 
     uint64_t threat();
 
+    uint64_t kingKey();
+
     uint64_t key;
     uint64_t pawnKey;
     uint64_t majorKey;
