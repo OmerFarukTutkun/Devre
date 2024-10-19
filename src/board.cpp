@@ -517,5 +517,7 @@ uint64_t Board::kingKey()
         auto sq = poplsb(b);
         key ^= Zobrist::Instance()->PieceKeys[pieceBoard[sq]][sq];
     }
+    key ^= Zobrist::Instance()->PieceKeys[BLACK_KING][bking];
+    key ^= Zobrist::Instance()->PieceKeys[WHITE_KING][wking];
     return key;
 }
