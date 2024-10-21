@@ -128,16 +128,15 @@ Board::Board(const std::string& fen) {
     key ^= Zobrist::Instance()->CastlingKeys[castlings];
     if (sideToMove == BLACK)
         key ^= Zobrist::Instance()->SideToPlayKey;
-
-    nnueData.clear();
-    NNUE::Instance()->calculateInputLayer(*this, true);
 }
 
 void Board::addPiece(int piece, int sq) {
     pieceBoard[sq] = piece;
     setBit(bitboards[piece], sq);
     setBit(occupied[pieceColor(piece)], sq);
-    nnueData.nnueChanges.emplace_back(piece, sq, 1);
+
+    nnueData.accumulator[nnueData.size].nnueChanges.emplace_back(piece, sq, 1);
+
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
     auto type = pieceType(piece);
@@ -156,7 +155,9 @@ void Board::removePiece(int piece, int sq) {
     pieceBoard[sq] = EMPTY;
     clearBit(bitboards[piece], sq);
     clearBit(occupied[pieceColor(piece)], sq);
-    nnueData.nnueChanges.emplace_back(piece, sq, -1);
+
+    nnueData.accumulator[nnueData.size].nnueChanges.emplace_back(piece, sq, -1);
+
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
     auto type = pieceType(piece);
@@ -209,8 +210,13 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     }
 
     boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
-    nnueData.nnueChanges.clear();
 
+    if (updateNNUE)
+    {
+        nnueData.size++;
+        nnueData.accumulator[nnueData.size].move = move;
+        nnueData.accumulator[nnueData.size].clear();
+    }
 
     //remove enPassant and Castling keys
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
@@ -286,13 +292,6 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     sideToMove = ~sideToMove;
     if (isCapture(move) || pieceType(piece) == PAWN)
         halfMove = 0;
-
-    if (updateNNUE)
-    {
-        nnueData.move = move;
-        NNUE::Instance()->calculateInputLayer(*this);
-        nnueData.nnueChanges.clear();
-    }
 }
 
 void Board::unmakeMove(uint16_t move, bool updateNNUE) {
@@ -312,8 +311,6 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     int capturedPiece = info.capturedPiece;
     int piece         = this->pieceBoard[to];
 
-    if (updateNNUE)
-        nnueData.popAccumulator();
 
     switch (movetype)
     {
@@ -362,6 +359,11 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
         break;
     }
     key = info.key;
+    if (updateNNUE)
+    {
+        nnueData.accumulator[nnueData.size].clear();
+        nnueData.size = std::max(0, nnueData.size -1);
+    }
 }
 
 int Board::eval() { return NNUE::Instance()->evaluate(*this); }

@@ -265,29 +265,26 @@ constexpr int   QA        = 181;
 constexpr int   QB        = 128;
 constexpr float NET_SCALE = 450.0f;
 
-
+struct Accumulator{
+    alignas(64) int16_t data[2][L1]{};
+    bool nonEmpty{};
+    uint16_t  move{};
+    std::vector<nnueChange> nnueChanges;
+    Accumulator()
+    {
+        nnueChanges.reserve(10);
+        nnueChanges.clear();
+    }
+    void clear()
+    {
+        nnueChanges.clear();
+        nonEmpty = false;
+    }
+};
 class NNUEData {
    public:
-    alignas(64) int16_t accumulator[MAX_PLY + 10][2][L1]{};
-    int                     size{};
-    uint16_t                move{};
-    std::vector<nnueChange> nnueChanges;
-
-    NNUEData() {
-        nnueChanges.reserve(N_SQUARES);
-        nnueChanges.clear();
-        size = 0;
-    }
-
-    void addAccumulator() { size++; }
-
-    void clear() {
-        size = 0;
-        move = 0;
-        nnueChanges.clear();
-    }
-
-    void popAccumulator() { size = std::max(0, size - 1); }
+    Accumulator accumulator[MAX_PLY + 10];
+    int size{};
 };
 
 struct BoardHistory {
