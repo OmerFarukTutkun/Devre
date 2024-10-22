@@ -283,7 +283,7 @@ struct Accumulator{
 };
 class NNUEData {
    public:
-    Accumulator accumulator[MAX_PLY + 10];
+    alignas(64) Accumulator accumulator[MAX_PLY + 10];
     int size{};
 };
 
