@@ -97,11 +97,13 @@ void Uci::setPosition(std::vector<std::string>& commands) {
                 auto move    = moveFromUci(*board, uciMove);
                 if (move)
                     board->makeMove(move, false);
+
+                board->nnueData.size = 0;
+                board->nnueData.accumulator[0].clear();
             }
             break;
         }
     }
-    board->nnueData.size = 0;
 }
 
 void Uci::eval() {
