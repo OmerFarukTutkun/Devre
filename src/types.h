@@ -247,7 +247,7 @@ struct nnueChange {
     int sq;
     int sign;
 
-    nnueChange(int piece, int sq, int sign) :
+    nnueChange(int piece=0, int sq=0, int sign=0) :
         piece(piece),
         sq(sq),
         sign(sign) {}
@@ -269,21 +269,25 @@ struct Accumulator{
     alignas(64) int16_t data[2][L1]{};
     bool nonEmpty{};
     uint16_t  move{};
-    std::vector<nnueChange> nnueChanges;
-    Accumulator()
-    {
-        nnueChanges.reserve(10);
-        nnueChanges.clear();
-    }
+    nnueChange nnueChanges[4];
+    int numberOfChange{};
     void clear()
     {
-        nnueChanges.clear();
+        numberOfChange = 0;
         nonEmpty = false;
     }
+    void addChange(int piece, int sq, int sign)
+    {
+        if(numberOfChange < 4)
+        {
+            nnueChanges[numberOfChange++] = {piece, sq, sign};
+        }
+    }
+
 };
 class NNUEData {
    public:
-    alignas(64) Accumulator accumulator[MAX_PLY + 10];
+    alignas(64) Accumulator accumulator[MAX_PLY + 10]{};
     int size{};
 };
 

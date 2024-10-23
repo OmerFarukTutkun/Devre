@@ -60,8 +60,9 @@ void NNUE::incrementalUpdate(Board& board, Color c, int idx) {
     vecType* weightSub[2] = {nullptr};
 
     int j = 0, k = 0;
-    for (auto& element : board.nnueData.accumulator[idx].nnueChanges)
+    for (int i=0; i < board.nnueData.accumulator[idx].numberOfChange; i++)
     {
+        const auto & element = board.nnueData.accumulator[idx].nnueChanges[i];
         if (element.sign == 1)
         {
             auto featureIndex       = nnueIndex(king, element.piece, element.sq, c);
@@ -177,6 +178,21 @@ int NNUE::evaluate(Board& board) {
     const int outputBucket = 0;
 
     int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
+
+    constexpr bool debug = true;
+    if(debug)
+    {
+        calculateInputLayer(board,board.nnueData.size, true);
+        auto us    = board.nnueData.accumulator[board.nnueData.size].data[board.sideToMove];
+        auto enemy = board.nnueData.accumulator[board.nnueData.size].data[1 - board.sideToMove];
+        const int outputBucket = 0;
+
+        const auto evalStratch = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
+        if(evalStratch != eval)
+        {
+            std::cout << "fuck" << std::endl;
+        }
+    }
     return eval;
 }
 

@@ -145,6 +145,9 @@ void Uci::go(std::vector<std::string>& commands) {
     this->stop();
     timeManager = TimeManager();
 
+    board->nnueData.size = 0;
+    board->nnueData.accumulator[0].clear();
+
     auto cmd     = popFront(commands);
     auto cmdTime = (board->sideToMove == WHITE) ? "wtime" : "btime";
     auto cmdInc  = (board->sideToMove == WHITE) ? "winc" : "binc";
