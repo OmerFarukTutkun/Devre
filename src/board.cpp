@@ -212,6 +212,15 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         capturedPiece = pieceIndex(~sideToMove, PAWN);
     }
 
+    //tt prefetch
+    auto keyPrefetch = key;
+    keyPrefetch ^= Zobrist::Instance()->SideToPlayKey;
+    keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][from];
+    keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][to];
+    if(capturedPiece != EMPTY)
+        keyPrefetch ^= Zobrist::Instance()->PieceKeys[capturedPiece][to];
+    TT::Instance()->ttPrefetch(keyPrefetch);
+
     boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
 
     if (updateNNUE)
@@ -291,7 +300,6 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
     key ^= Zobrist::Instance()->CastlingKeys[castlings];
     key ^= Zobrist::Instance()->SideToPlayKey;
-    TT::Instance()->ttPrefetch(key);
     sideToMove = ~sideToMove;
     if (isCapture(move) || pieceType(piece) == PAWN)
         halfMove = 0;
