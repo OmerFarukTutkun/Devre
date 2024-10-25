@@ -178,13 +178,9 @@ void MoveList::scoreMoves(ThreadData& thread, Stack* ss) {
         {
             auto type = moveType(move);
             scores[i] = moveTypeScores[type];
-            if (ss->killers[0] == move)
+            if (ss->killer == move)
             {
                 scores[i] = 9 * MIL;
-            }
-            else if (ss->killers[1] == move)
-            {
-                scores[i] = 8.5 * MIL;
             }
             else if (counterMove == move)
             {

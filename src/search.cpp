@@ -90,8 +90,7 @@ Stack::Stack() {
     staticEval      = VALUE_INFINITE;
     move            = NO_MOVE;
     threat          = 0ull;
-    killers[0]      = NO_MOVE;
-    killers[1]      = NO_MOVE;
+    killer          = NO_MOVE;
     pv[0]           = NO_MOVE;
     played          = 0;
     doubleExtension = 0;
@@ -147,7 +146,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     if (board->isDraw())
         return 0;
 
-    if(ss->ply > seldepth)
+    if (ss->ply > seldepth)
     {
         seldepth = ss->ply;
     }
@@ -257,7 +256,7 @@ int Search::alphaBeta(
         return 4 - (thread.nodes & 7);
     }
 
-    if(ss->ply > seldepth)
+    if (ss->ply > seldepth)
     {
         seldepth = ss->ply;
     }
@@ -375,8 +374,7 @@ int Search::alphaBeta(
             return score;
     }
     (ss + 1)->excludedMove = NO_MOVE;
-    (ss + 1)->killers[0]   = NO_MOVE;
-    (ss + 1)->killers[1]   = NO_MOVE;
+    (ss + 1)->killer       = NO_MOVE;
     ss->doubleExtension    = (ss - 1)->doubleExtension;
 
     int score;
@@ -590,7 +588,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
 
     if (ThreadID == 0)
     {
-        stopped = false;
+        stopped  = false;
         seldepth = 0;
         std::fill(moveNodes, moveNodes + (1 << 16), 0);
 
@@ -652,10 +650,10 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         {
             auto elapsed = 1 + currentTime() - this->timeManager->startTime;
 
-            this->m_bestMove = (ss + 6)->pv[0];
-            auto bestMoveNode= moveNodes[m_bestMove];
-            auto nodes       = this->totalNodes();
-            auto nps         = (1000 * nodes) / elapsed;
+            this->m_bestMove  = (ss + 6)->pv[0];
+            auto bestMoveNode = moveNodes[m_bestMove];
+            auto nodes        = this->totalNodes();
+            auto nps          = (1000 * nodes) / elapsed;
 
             std::cout << " info depth " << i;
             std::cout << " seldepth " << seldepth;
@@ -674,8 +672,8 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
 
             float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
             //extra protection
-            std::clamp(bestMoveFraction,0.0f,1.0f);
-            float nodeTm           = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
+            std::clamp(bestMoveFraction, 0.0f, 1.0f);
+            float nodeTm = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
             if (elapsed > timeManager->softTime * nodeTm)
                 break;
         }

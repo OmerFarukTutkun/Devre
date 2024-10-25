@@ -15,7 +15,7 @@ struct Stack {
     uint16_t played;
     uint8_t  doubleExtension;
     uint16_t move;
-    uint16_t killers[2];
+    uint16_t killer;
     int      staticEval;
     uint64_t threat;
     uint16_t excludedMove;
