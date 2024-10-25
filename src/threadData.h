@@ -14,7 +14,7 @@ class ThreadData {
     int16_t  history[2][2][2][64][64]{0};  // history table for ordering quiet moves
     int16_t  contHist[N_PIECES][N_SQUARES][N_PIECES][N_SQUARES]{0};
     int16_t  captureHist[2][6][64][6]{0};
-    uint16_t counterMoves[2][64][64]{0};  // a counter move for move ordering
+    uint16_t counterMoves[2][64][N_SQUARES][N_SQUARES]{0};  // a counter move for move ordering
 
     int     corrHist[2][16384][4]{0};
     int16_t contCorrHist[N_PIECES][N_SQUARES][N_PIECES][N_SQUARES]{0};

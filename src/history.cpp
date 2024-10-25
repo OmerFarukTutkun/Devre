@@ -17,7 +17,7 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
         return;
 
     Board* board                                                                             = &thread.board;
-    thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)] = bestMove;
+    thread.counterMoves[board->sideToMove][board->pawnKey % 64][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)] = bestMove;
 
     ss->killer= bestMove;
     for (int i = 0; i < ss->played; i++)
