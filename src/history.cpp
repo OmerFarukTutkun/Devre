@@ -123,6 +123,8 @@ int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
 
 void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const int diff) {
 
+    return;
+
     auto* board = &thread.board;
 
 
@@ -162,6 +164,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
 }
 
 int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
+    return rawEval;
+
     auto* board = &thread.board;
 
     int& pawnCorrHistEntry         = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
