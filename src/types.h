@@ -16,7 +16,9 @@
 #include <algorithm>
 
 #ifndef VERSION
-    #define VERSION "6.37"
+
+  #define VERSION "6.38"
+
 #endif
 
 constexpr auto MAX_PLY   = 100;
@@ -247,7 +249,7 @@ struct nnueChange {
     int sq;
     int sign;
 
-    nnueChange(int piece, int sq, int sign) :
+    nnueChange(int piece=0, int sq=0, int sign=0) :
         piece(piece),
         sq(sq),
         sign(sign) {}
@@ -265,29 +267,30 @@ constexpr int   QA        = 181;
 constexpr int   QB        = 128;
 constexpr float NET_SCALE = 450.0f;
 
+struct Accumulator{
+    alignas(64) int16_t data[2][L1]{};
+    bool nonEmpty{};
+    uint16_t  move{};
+    nnueChange nnueChanges[4];
+    int numberOfChange{};
+    void clear()
+    {
+        numberOfChange = 0;
+        nonEmpty = false;
+    }
+    void addChange(int piece, int sq, int sign)
+    {
+        if(numberOfChange < 4)
+        {
+            nnueChanges[numberOfChange++] = {piece, sq, sign};
+        }
+    }
 
+};
 class NNUEData {
    public:
-    alignas(64) int16_t accumulator[MAX_PLY + 10][2][L1]{};
-    int                     size{};
-    uint16_t                move{};
-    std::vector<nnueChange> nnueChanges;
-
-    NNUEData() {
-        nnueChanges.reserve(N_SQUARES);
-        nnueChanges.clear();
-        size = 0;
-    }
-
-    void addAccumulator() { size++; }
-
-    void clear() {
-        size = 0;
-        move = 0;
-        nnueChanges.clear();
-    }
-
-    void popAccumulator() { size = std::max(0, size - 1); }
+    alignas(64) Accumulator accumulator[MAX_PLY + 10]{};
+    int size{};
 };
 
 struct BoardHistory {

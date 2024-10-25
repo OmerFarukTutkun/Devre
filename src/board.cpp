@@ -129,15 +129,17 @@ Board::Board(const std::string& fen) {
     if (sideToMove == BLACK)
         key ^= Zobrist::Instance()->SideToPlayKey;
 
-    nnueData.clear();
-    NNUE::Instance()->calculateInputLayer(*this, true);
+    nnueData.size = 0;
+    nnueData.accumulator[0].clear();
 }
 
 void Board::addPiece(int piece, int sq) {
     pieceBoard[sq] = piece;
     setBit(bitboards[piece], sq);
     setBit(occupied[pieceColor(piece)], sq);
-    nnueData.nnueChanges.emplace_back(piece, sq, 1);
+
+    nnueData.accumulator[nnueData.size].addChange(piece, sq, 1);
+
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
     auto type = pieceType(piece);
@@ -156,7 +158,9 @@ void Board::removePiece(int piece, int sq) {
     pieceBoard[sq] = EMPTY;
     clearBit(bitboards[piece], sq);
     clearBit(occupied[pieceColor(piece)], sq);
-    nnueData.nnueChanges.emplace_back(piece, sq, -1);
+
+    nnueData.accumulator[nnueData.size].addChange(piece, sq, -1);
+
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
     auto type = pieceType(piece);
@@ -208,9 +212,23 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         capturedPiece = pieceIndex(~sideToMove, PAWN);
     }
 
-    boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
-    nnueData.nnueChanges.clear();
+    //tt prefetch
+    auto keyPrefetch = key;
+    keyPrefetch ^= Zobrist::Instance()->SideToPlayKey;
+    keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][from];
+    keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][to];
+    if(capturedPiece != EMPTY)
+        keyPrefetch ^= Zobrist::Instance()->PieceKeys[capturedPiece][to];
+    TT::Instance()->ttPrefetch(keyPrefetch);
 
+    boardHistory.emplace_back(enPassant, castlings, capturedPiece, halfMove, key);
+
+    if (updateNNUE)
+    {
+        nnueData.size++;
+        nnueData.accumulator[nnueData.size].move = move;
+        nnueData.accumulator[nnueData.size].clear();
+    }
 
     //remove enPassant and Castling keys
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
@@ -282,17 +300,9 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     key ^= Zobrist::Instance()->EnPassantKeys[enPassant];
     key ^= Zobrist::Instance()->CastlingKeys[castlings];
     key ^= Zobrist::Instance()->SideToPlayKey;
-    TT::Instance()->ttPrefetch(key);
     sideToMove = ~sideToMove;
     if (isCapture(move) || pieceType(piece) == PAWN)
         halfMove = 0;
-
-    if (updateNNUE)
-    {
-        nnueData.move = move;
-        NNUE::Instance()->calculateInputLayer(*this);
-        nnueData.nnueChanges.clear();
-    }
 }
 
 void Board::unmakeMove(uint16_t move, bool updateNNUE) {
@@ -312,8 +322,6 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     int capturedPiece = info.capturedPiece;
     int piece         = this->pieceBoard[to];
 
-    if (updateNNUE)
-        nnueData.popAccumulator();
 
     switch (movetype)
     {
@@ -362,6 +370,11 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
         break;
     }
     key = info.key;
+    if (updateNNUE)
+    {
+        nnueData.accumulator[nnueData.size].clear();
+        nnueData.size = std::max(0, nnueData.size -1);
+    }
 }
 
 int Board::eval() { return NNUE::Instance()->evaluate(*this); }

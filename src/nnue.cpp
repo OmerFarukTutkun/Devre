@@ -53,30 +53,30 @@ int NNUE::calculateIndices(Board& board, int (&weightIndices)[N_SQUARES], Color 
     return sz;
 }
 
-void NNUE::incrementalUpdate(Board& board, Color c) {
+void NNUE::incrementalUpdate(Board& board, Color c, int idx) {
     int king = bitScanForward(board.bitboards[pieceIndex(c, KING)]);
 
     vecType* weightAdd[2] = {nullptr};
     vecType* weightSub[2] = {nullptr};
 
     int j = 0, k = 0;
-
-    for (auto& element : board.nnueData.nnueChanges)
+    for (int i=0; i < board.nnueData.accumulator[idx].numberOfChange; i++)
     {
+        const auto & element = board.nnueData.accumulator[idx].nnueChanges[i];
         if (element.sign == 1)
         {
-            auto idx       = nnueIndex(king, element.piece, element.sq, c);
-            weightAdd[j++] = (vecType*) &feature_weights[L1 * idx];
+            auto featureIndex       = nnueIndex(king, element.piece, element.sq, c);
+            weightAdd[j++] = (vecType*) &feature_weights[L1 * featureIndex];
         }
         else
         {
-            auto idx       = nnueIndex(king, element.piece, element.sq, c);
-            weightSub[k++] = (vecType*) &feature_weights[L1 * idx];
+            auto featureIndex       = nnueIndex(king, element.piece, element.sq, c);
+            weightSub[k++] = (vecType*) &feature_weights[L1 * featureIndex];
         }
     }
 
-    auto* acc     = (vecType*) &board.nnueData.accumulator[board.nnueData.size - 1][c];
-    auto* outputs = (vecType*) &board.nnueData.accumulator[board.nnueData.size][c];
+    auto* acc     = (vecType*) &board.nnueData.accumulator[idx - 1].data[c];
+    auto* outputs = (vecType*) &board.nnueData.accumulator[idx].data[c];
 
     for (int i = 0; i < L1 / vecSize; i++)
     {
@@ -120,12 +120,12 @@ NNUE::quanMatrixMultp(int16_t* us, int16_t* them, const int16_t* weights, const 
 }
 
 
-void NNUE::recalculateInputLayer(Board& board, Color c) {
+void NNUE::recalculateInputLayer(Board& board, Color c, int idx) {
     int weightIndices[N_SQUARES];
     int sz = calculateIndices(board, weightIndices, c);
 
     auto* biases  = (vecType*) &feature_biases[0];
-    auto* outputs = (vecType*) &board.nnueData.accumulator[board.nnueData.size][c][0];  //white
+    auto* outputs = (vecType*) &board.nnueData.accumulator[idx].data[c][0];  //white
 
     auto* weights = (vecType*) &feature_weights[weightIndices[0]];
     for (int i = 0; i < L1 / vecSize; i++)
@@ -142,29 +142,42 @@ void NNUE::recalculateInputLayer(Board& board, Color c) {
     }
 }
 
-void NNUE::calculateInputLayer(Board& board, bool fromScratch) {
-    if (board.nnueData.size == 0 || fromScratch)
+void NNUE::calculateInputLayer(Board& board,int idx, bool fromScratch) {
+    if (idx == 0 || fromScratch)
     {
-        recalculateInputLayer(board, WHITE);
-        recalculateInputLayer(board, BLACK);
+        recalculateInputLayer(board, WHITE, idx);
+        recalculateInputLayer(board, BLACK,idx);
     }
     else
     {
-        incrementalUpdate(board, WHITE);
-        incrementalUpdate(board, BLACK);
+        incrementalUpdate(board, WHITE, idx);
+        incrementalUpdate(board, BLACK,idx);
     }
-    board.nnueData.addAccumulator();
+    board.nnueData.accumulator[idx].nonEmpty = true;
 }
 
 int NNUE::evaluate(Board& board) {
-    auto us    = board.nnueData.accumulator[board.nnueData.size - 1][board.sideToMove];
-    auto enemy = board.nnueData.accumulator[board.nnueData.size - 1][1 - board.sideToMove];
 
+    int lastNonEmptyAcc = -1;
+
+    for(int i=board.nnueData.size; i >= 0; i--)
+    {
+        if(board.nnueData.accumulator[i].nonEmpty)
+        {
+            lastNonEmptyAcc = i;
+            break;
+        }
+    }
+    for(int i= lastNonEmptyAcc + 1; i <= board.nnueData.size ; i++)
+    {
+        calculateInputLayer(board,i);
+    }
+
+    auto us    = board.nnueData.accumulator[board.nnueData.size].data[board.sideToMove];
+    auto enemy = board.nnueData.accumulator[board.nnueData.size].data[1 - board.sideToMove];
     const int outputBucket = 0;
 
-
-    int eval =
-      quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
+    int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
     return eval;
 }
 

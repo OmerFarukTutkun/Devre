@@ -21,16 +21,16 @@ class NNUE {
 
     //int32_t quanMatrixMultp(int side, int16_t (&accumulator)[2][L1]);
 
-    void recalculateInputLayer(Board& board, Color c);
+    void recalculateInputLayer(Board& board, Color c,int idx);
 
-    void incrementalUpdate(Board& board, Color c);
+    void incrementalUpdate(Board& board, Color c,int idx);
 
    public:
     static float materialScale(Board& board);
 
     static float halfMoveScale(Board& board);
 
-    void calculateInputLayer(Board& board, bool fromScratch = false);
+    void calculateInputLayer(Board& board, int idx, bool fromScratch = false);
 
     int evaluate(Board& board);
 

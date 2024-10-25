@@ -97,12 +97,13 @@ void Uci::setPosition(std::vector<std::string>& commands) {
                 auto move    = moveFromUci(*board, uciMove);
                 if (move)
                     board->makeMove(move, false);
+
+                board->nnueData.size = 0;
+                board->nnueData.accumulator[0].clear();
             }
             break;
         }
     }
-    board->nnueData.clear();
-    NNUE::Instance()->calculateInputLayer(*board, true);
 }
 
 void Uci::eval() {
@@ -122,11 +123,10 @@ void Uci::eval() {
             int piece = board->pieceBoard[sq];
             if (piece != EMPTY && piece != BLACK_KING && piece != WHITE_KING)
             {
+                board->nnueData.accumulator[0].clear();
                 board->removePiece(piece, sq);
-                NNUE::Instance()->calculateInputLayer(*board, true);
                 printf("%8.2f", (score - board->eval()) / 100.0);
                 board->addPiece(piece, sq);
-                board->nnueData.popAccumulator();
             }
             else
             {
@@ -134,7 +134,7 @@ void Uci::eval() {
             }
         }
     }
-    board->nnueData.nnueChanges.clear();
+    board->nnueData.accumulator[0].clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
     printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n",
@@ -144,6 +144,9 @@ void Uci::eval() {
 void Uci::go(std::vector<std::string>& commands) {
     this->stop();
     timeManager = TimeManager();
+
+    board->nnueData.size = 0;
+    board->nnueData.accumulator[0].clear();
 
     auto cmd     = popFront(commands);
     auto cmdTime = (board->sideToMove == WHITE) ? "wtime" : "btime";
@@ -166,6 +169,7 @@ void Uci::go(std::vector<std::string>& commands) {
         cmd = popFront(commands);
     }
     timeManager.start();
+    NNUE::Instance()->calculateInputLayer(*board, 0, true);
     searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);
 }
 
@@ -211,8 +215,6 @@ void Uci::setoption(std::vector<std::string>& commands) {
 
 Uci::Uci() {
     board = new Board();
-    board->nnueData.clear();
-    NNUE::Instance()->calculateInputLayer(*board, true);
 
     search      = Search();
     auto option = Options.at("Threads");
