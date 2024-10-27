@@ -95,12 +95,10 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     }
     if ((ss - 2)->move)
     {
-
         score += (*(ss - 2)->continuationHistory)[piece][to];
     }
     return score;
 }
-
 
 int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     Board* board = &thread.board;
@@ -115,12 +113,18 @@ int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     }
     if ((ss - 2)->move)
     {
-
         score += (*(ss - 2)->continuationHistory)[piece][to];
     }
     return score;
 }
-
+template<typename T>
+void updateCorrHistEntry(T& entry, int bonus, float scalar)
+{
+    const int newBonus = bonus*scalar;
+    constexpr int D            = 1024;
+    int       clampedBonus = std::clamp(newBonus, -D, D);
+    entry += clampedBonus - entry * std::abs(clampedBonus) / D;
+}
 void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const int diff) {
 
     auto* board = &thread.board;
@@ -132,16 +136,14 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& pawnCorrHistEntry         = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
-    int& majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
     const int bonus        = diff * depth / 8;
-    const int D            = 1024;
-    int       clampedBonus = std::clamp(bonus, -D, D);
 
-    pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
-    nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
-    nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
-    majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
+    updateCorrHistEntry(pawnCorrHistEntry, bonus, 1.0);
+    updateCorrHistEntry(nonPawnCorrHistEntryWhite, bonus, 1.1);
+    updateCorrHistEntry(nonPawnCorrHistEntryBlack, bonus, 1.3);
+    updateCorrHistEntry(majorCorrHistEntry, bonus, 0.9);
 
     if (isMoveOk)
     {
@@ -149,15 +151,13 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
         int to    = moveTo((ss - 1)->move);
         int piece = board->pieceBoard[to];
 
-        auto& contcorrHistEntry     = (*(ss - 2)->contCorrHist)[piece][to];
-        auto& contcorrHistEntryPly3 = (*(ss - 3)->contCorrHist)[piece][to];
-        auto& threatLastMoveCorrHistEntry =
-          thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
+        auto& contcorrHistEntry           = (*(ss - 2)->contCorrHist)[piece][to];
+        auto& contcorrHistEntryPly3       = (*(ss - 3)->contCorrHist)[piece][to];
+        auto& threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
 
-        contcorrHistEntry += clampedBonus - contcorrHistEntry * std::abs(clampedBonus) / D;
-        contcorrHistEntryPly3 += clampedBonus - contcorrHistEntryPly3 * std::abs(clampedBonus) / D;
-
-        threatLastMoveCorrHistEntry += clampedBonus - threatLastMoveCorrHistEntry * std::abs(clampedBonus) / D;
+        updateCorrHistEntry(contcorrHistEntry, bonus, 0.9);
+        updateCorrHistEntry(contcorrHistEntryPly3, bonus, 0.9);
+        updateCorrHistEntry(threatLastMoveCorrHistEntry, bonus, 0.8);
     }
 }
 
@@ -167,7 +167,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     int& pawnCorrHistEntry         = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
-    int majorCorrHistEntry = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int  majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
@@ -182,12 +182,11 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
 
         contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
         contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
-        threatLastMoveCorrHistEntry =
-          thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
+        threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average = (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47
-                         + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry*30)
+    const int average = (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 37
+                         + majorCorrHistEntry * 30)
                       / 512;
 
     auto eval = rawEval + average;
