@@ -23,7 +23,8 @@ std::string moveToUci(uint16_t move, Board& board) {
     if (frc && (type == KING_CASTLE || type == QUEEN_CASTLE))
     {
         int queenSide = type == QUEEN_CASTLE;
-        to            = board.castlingRooks[2 * board.sideToMove + queenSide];
+        Color c = (rankIndex(from) == 0 ) ? WHITE : BLACK;
+        to            = board.castlingRooks[2 * c + queenSide];
     }
 
     ss << SQUARE_IDENTIFIER[from] << SQUARE_IDENTIFIER[to];
