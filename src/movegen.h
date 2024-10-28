@@ -199,20 +199,20 @@ void generateCastlingMoves(const Board& board, int kingSq, uint64_t occ, uint64_
             int rook   = board.castlingRooks[2 * c + i];
 
             //if rook is pinned we cannot castle
-            if(checkBit(pinHv, rook) == 1)
-                continue;
-
-            int kingTo = castlingSquares[c][i][0];
-            int rookTo = castlingSquares[c][i][1];
-
-            //supports frc
-            uint64_t path              = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo] | (ONE << kingTo) | (ONE << rookTo);
-            uint64_t squaresKingPasses = SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
-            occ &= ~((ONE << kingSq) | (ONE << rook));
-
-            if (!((occ & path) | (squaresKingPasses & seen)))
+            if(!checkBit(pinHv, rook))
             {
-                moveList.addMove(createMove(kingSq, kingTo, KING_CASTLE + i));
+                int kingTo = castlingSquares[c][i][0];
+                int rookTo = castlingSquares[c][i][1];
+
+                //supports frc
+                uint64_t path              = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo] | (ONE << kingTo) | (ONE << rookTo);
+                uint64_t squaresKingPasses = SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
+                occ &= ~((ONE << kingSq) | (ONE << rook));
+
+                if (!((occ & path) | (squaresKingPasses & seen)))
+                {
+                    moveList.addMove(createMove(kingSq, kingTo, KING_CASTLE + i));
+                }
             }
         }
         castlings = castlings >> 1;
