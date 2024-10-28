@@ -8,6 +8,14 @@
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
 
+OptionsMap Options({
+  {"Threads", Option(1, 256, "1", "spin")},
+  {"Hash", Option(1, 131072, "16", "spin")},
+  {"UCI_Chess960", Option(0, 1, "false", "check")},
+  {"MoveOverhead", Option(0, 10000, "50", "spin")},
+  {"SyzygyPath", Option("<empty>", "string")},
+
+});
 void Uci::UciLoop() {
 
     std::cout << "Devre  " << VERSION << " by Omer Faruk Tutkun" << std::endl;
