@@ -171,6 +171,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
     auto contcorrHistEntry           = 0;
+    auto contcorrHistEntry2           = 0;
     auto threatLastMoveCorrHistEntry = 0;
 
     if (isMoveOk)
@@ -180,12 +181,12 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
         int piece = board->pieceBoard[to];
 
         contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
-        contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
+        contcorrHistEntry2 = (*(ss - 3)->contCorrHist)[piece][to];
         threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
     const int average =
-      (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry * 30) / 512;
+      (53 * pawnCorrHistEntry + 50 * nonPawnCorrHistEntryWhite + 51 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 43 +  contcorrHistEntry2*48+ threatLastMoveCorrHistEntry * 41 + majorCorrHistEntry * 33) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::Instance()->halfMoveScale(thread.board) * NNUE::Instance()->materialScale(thread.board);
