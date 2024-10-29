@@ -16,13 +16,7 @@ TT::TT() {
 
 TT::~TT() { ttFree(); }
 
-void TT::ttSave(uint64_t key,
-                int      ply,
-                int16_t  score,
-                int16_t  staticEval,
-                char     bound,
-                uint8_t  depth,
-                uint16_t move) {
+void TT::ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move) {
     TTBucket* bucket = &table[key & ttMask];
     auto      key32  = (key >> 32);
 
@@ -51,8 +45,7 @@ void TT::ttSave(uint64_t key,
     if (move != NO_MOVE || key32 != replace->key)
         replace->move = move;
 
-    if (replace->key != key32 || bound == TT_EXACT || depth + 5 > replace->depth
-        || getAge(replace) != age)
+    if (replace->key != key32 || bound == TT_EXACT || depth + 5 > replace->depth || getAge(replace) != age)
     {
 
         if (score > MIN_TB_SCORE)
@@ -68,13 +61,7 @@ void TT::ttSave(uint64_t key,
     }
 }
 
-bool TT::ttProbe(uint64_t  key,
-                 int       ply,
-                 int&      ttDepth,
-                 int&      ttScore,
-                 int&      ttBound,
-                 int&      ttStaticEval,
-                 uint16_t& ttMove) {
+bool TT::ttProbe(uint64_t key, int ply, int& ttDepth, int& ttScore, int& ttBound, int& ttStaticEval, uint16_t& ttMove) {
 
     TTBucket* bucket = &table[key & ttMask];
     auto      key32  = (key >> 32);

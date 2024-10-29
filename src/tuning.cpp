@@ -24,8 +24,7 @@ std::string paramsToUci() {
     {
         EngineParam* p = tuningParams.at(i);
 
-        ss << "option name " << p->name << " type spin default " << p->value
-           << " min -999999999 max 999999999\n";
+        ss << "option name " << p->name << " type spin default " << p->value << " min -999999999 max 999999999\n";
     }
 
     return ss.str();
@@ -40,8 +39,7 @@ std::string paramsToSpsaInput() {
 
         ss << p->name << ", "
            << "int"
-           << ", " << double(p->value) << ", " << double(p->min) << ", " << double(p->max) << ", "
-           << std::max(0.5, double(p->max - p->min) / 20.0) << ", " << 0.002 << "\n";
+           << ", " << double(p->value) << ", " << double(p->min) << ", " << double(p->max) << ", " << std::max(0.5, double(p->max - p->min) / 20.0) << ", " << 0.002 << "\n";
     }
 
     return ss.str();

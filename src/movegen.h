@@ -77,12 +77,8 @@ uint64_t CheckMask(const Board& board, int sq, uint64_t occAll, int& numCheck) {
     uint64_t checks      = 0ULL;
     uint64_t pawn_mask   = board.bitboards[pieceIndex(~c, PAWN)] & PawnAttacks[c][sq];
     uint64_t knight_mask = board.bitboards[pieceIndex(~c, KNIGHT)] & KnightAttacks[sq];
-    uint64_t bishop_mask =
-      (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)])
-      & bishopAttacks(occAll, sq);
-    uint64_t rook_mask =
-      (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)])
-      & rookAttacks(occAll, sq);
+    uint64_t bishop_mask = (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)]) & bishopAttacks(occAll, sq);
+    uint64_t rook_mask   = (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)]) & rookAttacks(occAll, sq);
 
 
     if (pawn_mask)
@@ -120,10 +116,8 @@ uint64_t CheckMask(const Board& board, int sq, uint64_t occAll, int& numCheck) {
 
 template<Color c>
 uint64_t pinMaskRooks(const Board& board, int sq, uint64_t occ_us, uint64_t occ_enemy) {
-    uint64_t rookMask =
-      (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)])
-      & rookAttacks(occ_enemy, sq);
-    uint64_t pin_hv = 0ULL;
+    uint64_t rookMask = (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)]) & rookAttacks(occ_enemy, sq);
+    uint64_t pin_hv   = 0ULL;
     while (rookMask)
     {
         const int index = poplsb(rookMask);
@@ -137,9 +131,7 @@ uint64_t pinMaskRooks(const Board& board, int sq, uint64_t occ_us, uint64_t occ_
 
 template<Color c>
 uint64_t pinMaskBishops(const Board& board, int sq, uint64_t occ_us, uint64_t occ_enemy) {
-    uint64_t bishopMask =
-      (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)])
-      & bishopAttacks(occ_enemy, sq);
+    uint64_t bishopMask = (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)]) & bishopAttacks(occ_enemy, sq);
 
     uint64_t pin_d = 0ULL;
     while (bishopMask)
@@ -154,8 +146,7 @@ uint64_t pinMaskBishops(const Board& board, int sq, uint64_t occ_us, uint64_t oc
 }
 
 template<MoveGenerationTypes type>
-void generateLegalKingMoves(
-  int sq, uint64_t movable, uint64_t occEnemy, uint64_t seen, MoveList& movelist) {
+void generateLegalKingMoves(int sq, uint64_t movable, uint64_t occEnemy, uint64_t seen, MoveList& movelist) {
     uint64_t temp = KingAttacks[sq] & ~seen;
 
     if (type == ALL_MOVES || type == TACTICAL_MOVES)
@@ -171,12 +162,7 @@ void generateLegalKingMoves(
 }
 
 template<int pieceType, MoveGenerationTypes type>
-void generatePieceMoves(uint64_t  pieces,
-                        uint64_t  movable,
-                        uint64_t  occAll,
-                        uint64_t  occEnemy,
-                        uint64_t  pinMask,
-                        MoveList& movelist) {
+void generatePieceMoves(uint64_t pieces, uint64_t movable, uint64_t occAll, uint64_t occEnemy, uint64_t pinMask, MoveList& movelist) {
 
     while (pieces)
     {
@@ -199,8 +185,7 @@ void generatePieceMoves(uint64_t  pieces,
 }
 
 template<Color c>
-void generateCastlingMoves(
-  const Board& board, int kingSq, uint64_t occ, uint64_t seen, MoveList& moveList) {
+void generateCastlingMoves(const Board& board, int kingSq, uint64_t occ, uint64_t seen, uint64_t pinHv, MoveList& moveList) {
     int castlings = board.castlings;
 
     if (c == BLACK)
@@ -211,20 +196,23 @@ void generateCastlingMoves(
         bool canCastle = castlings & 1;
         if (canCastle)
         {
-            int rook   = board.castlingRooks[2 * c + i];
-            int kingTo = castlingSquares[c][i][0];
-            int rookTo = castlingSquares[c][i][1];
+            int rook = board.castlingRooks[2 * c + i];
 
-            //supports frc
-            uint64_t path = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo]
-                          | (ONE << kingTo) | (ONE << rookTo);
-            uint64_t squaresKingPasses =
-              SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
-            occ &= ~((ONE << kingSq) | (ONE << rook));
-
-            if (!((occ & path) | (squaresKingPasses & seen)))
+            //if rook is pinned we cannot castle
+            if (!checkBit(pinHv, rook))
             {
-                moveList.addMove(createMove(kingSq, kingTo, KING_CASTLE + i));
+                int kingTo = castlingSquares[c][i][0];
+                int rookTo = castlingSquares[c][i][1];
+
+                //supports frc
+                uint64_t path              = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo] | (ONE << kingTo) | (ONE << rookTo);
+                uint64_t squaresKingPasses = SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
+                occ &= ~((ONE << kingSq) | (ONE << rook));
+
+                if (!((occ & path) | (squaresKingPasses & seen)))
+                {
+                    moveList.addMove(createMove(kingSq, kingTo, KING_CASTLE + i));
+                }
             }
         }
         castlings = castlings >> 1;
@@ -257,14 +245,7 @@ constexpr uint64_t shift(const uint64_t b) {
 }
 
 template<Color c, MoveGenerationTypes type>
-void generateLegalPawnMoves(const Board& board,
-                            int          kingSq,
-                            uint64_t     occAll,
-                            uint64_t     occEnemy,
-                            uint64_t     check_mask,
-                            uint64_t     pin_hv,
-                            uint64_t     pin_d,
-                            MoveList&    movelist) {
+void generateLegalPawnMoves(const Board& board, int kingSq, uint64_t occAll, uint64_t occEnemy, uint64_t check_mask, uint64_t pin_hv, uint64_t pin_d, MoveList& movelist) {
     const uint64_t pawns_mask = board.bitboards[pieceIndex(c, PAWN)];
 
     constexpr Direction UP                = c == WHITE ? NORTH : SOUTH;
@@ -280,10 +261,8 @@ void generateLegalPawnMoves(const Board& board,
     const uint64_t pinned_pawns_lr   = pawns_lr & pin_d;
 
 
-    uint64_t l_pawns =
-      (pawnLeftAttacks<c>(unpinned_pawns_lr)) | (pawnLeftAttacks<c>(pinned_pawns_lr) & pin_d);
-    uint64_t r_pawns =
-      (pawnRightAttacks<c>(unpinned_pawns_lr)) | (pawnRightAttacks<c>(pinned_pawns_lr) & pin_d);
+    uint64_t l_pawns = (pawnLeftAttacks<c>(unpinned_pawns_lr)) | (pawnLeftAttacks<c>(pinned_pawns_lr) & pin_d);
+    uint64_t r_pawns = (pawnRightAttacks<c>(unpinned_pawns_lr)) | (pawnRightAttacks<c>(pinned_pawns_lr) & pin_d);
 
     l_pawns &= occEnemy & check_mask;
     r_pawns &= occEnemy & check_mask;
@@ -300,9 +279,7 @@ void generateLegalPawnMoves(const Board& board,
     // Prune moves that are not on the check_mask.
     uint64_t single_push = (single_push_unpinned | single_push_pinned) & check_mask;
 
-    uint64_t double_push = ((shift<UP>(single_push_unpinned & DOUBLE_PUSH_RANK) & ~occAll)
-                            | (shift<UP>(single_push_pinned & DOUBLE_PUSH_RANK) & ~occAll))
-                         & check_mask;
+    uint64_t double_push = ((shift<UP>(single_push_unpinned & DOUBLE_PUSH_RANK) & ~occAll) | (shift<UP>(single_push_pinned & DOUBLE_PUSH_RANK) & ~occAll)) & check_mask;
 
     if (pawns_mask & RANK_BEFORE_PROMO)
     {
@@ -330,13 +307,11 @@ void generateLegalPawnMoves(const Board& board,
     {
         if (board.enPassant != NO_SQ)
         {
-            const int ep     = board.enPassant;
-            const int epPawn = ep + DOWN;
-            uint64_t  epBB   = PawnAttacks[~c][ep] & pawns_lr;
-            uint64_t  enemy_queen_rook =
-              (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)]);
-            uint64_t enemy_queen_bishop =
-              (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)]);
+            const int ep                 = board.enPassant;
+            const int epPawn             = ep + DOWN;
+            uint64_t  epBB               = PawnAttacks[~c][ep] & pawns_lr;
+            uint64_t  enemy_queen_rook   = (board.bitboards[pieceIndex(~c, ROOK)] | board.bitboards[pieceIndex(~c, QUEEN)]);
+            uint64_t  enemy_queen_bishop = (board.bitboards[pieceIndex(~c, BISHOP)] | board.bitboards[pieceIndex(~c, QUEEN)]);
             while (epBB)
             {
                 uint64_t temp = occAll;
@@ -382,19 +357,16 @@ void legalmoves(const Board& board, MoveList& movelist) {
         return;
 
     if (type == ALL_MOVES && board.castlings && numCheck == 0)
-        generateCastlingMoves<c>(board, kingSq, occAll, seen, movelist);
+        generateCastlingMoves<c>(board, kingSq, occAll, seen, pin_hv, movelist);
 
 
     movable &= checkMask;
 
     uint64_t knights = board.bitboards[pieceIndex(c, KNIGHT)] & ~(pin_d | pin_hv);
-    uint64_t rooks =
-      (board.bitboards[pieceIndex(c, ROOK)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_d);
-    uint64_t bishops =
-      (board.bitboards[pieceIndex(c, BISHOP)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_hv);
+    uint64_t rooks   = (board.bitboards[pieceIndex(c, ROOK)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_d);
+    uint64_t bishops = (board.bitboards[pieceIndex(c, BISHOP)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_hv);
 
-    generateLegalPawnMoves<c, type>(board, kingSq, occAll, occEnemy, checkMask, pin_hv, pin_d,
-                                    movelist);
+    generateLegalPawnMoves<c, type>(board, kingSq, occAll, occEnemy, checkMask, pin_hv, pin_d, movelist);
     generatePieceMoves<KNIGHT, type>(knights, movable, occAll, occEnemy, 0ULL, movelist);
     generatePieceMoves<BISHOP, type>(bishops, movable, occAll, occEnemy, pin_d, movelist);
     generatePieceMoves<ROOK, type>(rooks, movable, occAll, occEnemy, pin_hv, movelist);

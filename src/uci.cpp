@@ -8,6 +8,15 @@
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
 
+OptionsMap Options({
+  {"Threads", Option(1, 256, "1", "spin")},
+  {"Hash", Option(1, 131072, "16", "spin")},
+  {"UCI_Chess960", Option(0, 1, "false", "check")},
+  {"MoveOverhead", Option(0, 10000, "50", "spin")},
+  {"SyzygyPath", Option("<empty>", "string")},
+
+});
+
 void Uci::UciLoop() {
 
     std::cout << "Devre  " << VERSION << " by Omer Faruk Tutkun" << std::endl;
@@ -137,8 +146,7 @@ void Uci::eval() {
     board->nnueData.accumulator[0].clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
-    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n",
-           score / 100.0);
+    printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);
 }
 
 void Uci::go(std::vector<std::string>& commands) {
@@ -190,8 +198,7 @@ void Uci::setoption(std::vector<std::string>& commands) {
         {
             tb_init(it->second.currentValue.c_str());
             if (TB_LARGEST)
-                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST
-                          << std::endl;
+                std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST << std::endl;
             else
                 std::cout << "info string Syzygy tablebases failed to load" << std::endl;
         }

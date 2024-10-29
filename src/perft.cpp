@@ -38,10 +38,10 @@ void perftTest(Board& board, int depth, bool updateNNUE) {
         board.makeMove(move, updateNNUE);
 
         count = perft(board, depth - 1, updateNNUE);
+        board.unmakeMove(move, updateNNUE);
+
         std::cout << moveToUci(move, board) + ": " << count << std::endl;
         total = total + count;
-
-        board.unmakeMove(move, updateNNUE);
     }
     auto end     = currentTime();
     auto elapsed = (end - start) + 1;

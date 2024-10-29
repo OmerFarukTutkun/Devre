@@ -51,7 +51,8 @@ Board::Board(const std::string& fen) {
             else
             {
                 std::cout << fen << "\n"
-                          << "Error: Fen isn't proper!!! " << "\n";
+                          << "Error: Fen isn't proper!!! "
+                          << "\n";
             }
             k++;
         }
@@ -217,7 +218,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     keyPrefetch ^= Zobrist::Instance()->SideToPlayKey;
     keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][from];
     keyPrefetch ^= Zobrist::Instance()->PieceKeys[piece][to];
-    if(capturedPiece != EMPTY)
+    if (capturedPiece != EMPTY)
         keyPrefetch ^= Zobrist::Instance()->PieceKeys[capturedPiece][to];
     TT::Instance()->ttPrefetch(keyPrefetch);
 
@@ -373,7 +374,7 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     if (updateNNUE)
     {
         nnueData.accumulator[nnueData.size].clear();
-        nnueData.size = std::max(0, nnueData.size -1);
+        nnueData.size = std::max(0, nnueData.size - 1);
     }
 }
 
@@ -450,16 +451,13 @@ void Board::unmakeNullMove() {
 }
 
 bool Board::hasNonPawnPieces() {
-    return (bitboards[WHITE_KNIGHT] || bitboards[WHITE_BISHOP] || bitboards[WHITE_ROOK]
-            || bitboards[WHITE_QUEEN])
-        && (bitboards[BLACK_KNIGHT] || bitboards[BLACK_BISHOP] || bitboards[BLACK_ROOK]
-            || bitboards[BLACK_QUEEN]);
+    return (bitboards[WHITE_KNIGHT] || bitboards[WHITE_BISHOP] || bitboards[WHITE_ROOK] || bitboards[WHITE_QUEEN])
+        && (bitboards[BLACK_KNIGHT] || bitboards[BLACK_BISHOP] || bitboards[BLACK_ROOK] || bitboards[BLACK_QUEEN]);
 }
 
 
 bool Board::isMaterialDraw() {
-    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK]
-        || bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
+    if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] || bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
         return false;
     if (popcount64(occupied[0] | occupied[1]) < 4)
     {
@@ -477,8 +475,7 @@ bool Board::isMaterialDraw() {
 
         if (bitboards[WHITE_BISHOP] && bitboards[BLACK_BISHOP])
         {
-            return !(((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kWhiteSquares)
-                     && ((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kBlackSquares));
+            return !(((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kWhiteSquares) && ((bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP]) & kBlackSquares));
         }
     }
     return false;

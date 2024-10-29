@@ -65,8 +65,7 @@ std::string getPV(Stack* stack, Board& board) {
 }
 
 uint32_t probeTB(Board& pos) {
-    if (pos.halfMove != 0 || pos.castlings != 0
-        || (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST))
+    if (pos.halfMove != 0 || pos.castlings != 0 || (popcount64(pos.occupied[WHITE] | pos.occupied[BLACK]) > TB_LARGEST))
         return TB_RESULT_FAILED;
 
     auto white = pos.occupied[WHITE];
@@ -79,9 +78,7 @@ uint32_t probeTB(Board& pos) {
     auto rooks   = pos.bitboards[WHITE_ROOK] | pos.bitboards[BLACK_ROOK];
     auto pawns   = pos.bitboards[WHITE_PAWN] | pos.bitboards[BLACK_PAWN];
 
-    return tb_probe_wdl(white, black, kings, queens, rooks, bishops, knights, pawns, pos.halfMove,
-                        pos.castlings, pos.enPassant == NO_SQ ? 0 : pos.enPassant,
-                        pos.sideToMove == WHITE);
+    return tb_probe_wdl(white, black, kings, queens, rooks, bishops, knights, pawns, pos.halfMove, pos.castlings, pos.enPassant == NO_SQ ? 0 : pos.enPassant, pos.sideToMove == WHITE);
 }
 
 
@@ -135,19 +132,17 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     //TT Probing
     int      ttDepth = 0, ttScore = SCORE_NONE, ttBound = TT_NONE, ttStaticEval = SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
-    bool     ttHit =
-      TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
+    bool     ttHit  = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
     if (ttHit && !PVNode)
     {
-        if (ttBound == TT_EXACT || (ttBound == TT_UPPERBOUND && alpha >= ttScore)
-            || (ttBound == TT_LOWERBOUND && beta <= ttScore))
+        if (ttBound == TT_EXACT || (ttBound == TT_UPPERBOUND && alpha >= ttScore) || (ttBound == TT_LOWERBOUND && beta <= ttScore))
             return ttScore;
     }
 
     if (board->isDraw())
         return 0;
 
-    if(ss->ply > seldepth)
+    if (ss->ply > seldepth)
     {
         seldepth = ss->ply;
     }
@@ -214,8 +209,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     return bestScore;
 }
 
-int Search::alphaBeta(
-  int alpha, int beta, int depth, const bool cutNode, ThreadData& thread, Stack* ss) {
+int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, ThreadData& thread, Stack* ss) {
     int oldAlpha  = alpha;
     int bestScore = -VALUE_INFINITE;
     int PVNode    = (alpha != beta - 1);
@@ -257,7 +251,7 @@ int Search::alphaBeta(
         return 4 - (thread.nodes & 7);
     }
 
-    if(ss->ply > seldepth)
+    if (ss->ply > seldepth)
     {
         seldepth = ss->ply;
     }
@@ -287,15 +281,13 @@ int Search::alphaBeta(
     uint16_t ttMove = NO_MOVE;
     bool     ttHit  = false;
     if (ss->excludedMove == NO_MOVE)
-        ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound,
-                                        ttStaticEval, ttMove);
+        ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
 
     if (ttHit && !rootNode && !PVNode)
     {
         if (ttDepth >= depth)
         {
-            if (ttBound == TT_EXACT || (ttBound == TT_UPPERBOUND && alpha >= ttScore)
-                || (ttBound == TT_LOWERBOUND && beta <= ttScore))
+            if (ttBound == TT_EXACT || (ttBound == TT_UPPERBOUND && alpha >= ttScore) || (ttBound == TT_LOWERBOUND && beta <= ttScore))
                 return ttScore;
         }
     }
@@ -360,15 +352,13 @@ int Search::alphaBeta(
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture)
-        && eval > beta + depth * 107 && !rootNode)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode)
     {
         return eval;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4
-        && eval + 408 * depth < alpha)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 408 * depth < alpha)
     {
         int score = qsearch(alpha, beta, thread, ss);
         if (score < alpha)
@@ -382,8 +372,7 @@ int Search::alphaBeta(
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck
-        && depth >= 2 && eval > beta && board->hasNonPawnPieces())
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta && board->hasNonPawnPieces())
     {
         int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
 
@@ -438,8 +427,7 @@ int Search::alphaBeta(
             if (depth <= 3 && contHist < -3633)
                 continue;
         }
-        if (ss->played > 3 && !PVNode && depth <= 5
-            && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
@@ -464,19 +452,17 @@ int Search::alphaBeta(
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
         ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
-        ss->contCorrHist = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+        ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if (ss->ply < thread.searchDepth && !rootNode && depth >= 8 && move == ttMove
-            && ss->excludedMove == NO_MOVE && (ttBound & TT_LOWERBOUND) && ttDepth >= depth - 3)
+        if (ss->ply < thread.searchDepth && !rootNode && depth >= 8 && move == ttMove && ss->excludedMove == NO_MOVE && (ttBound & TT_LOWERBOUND) && ttDepth >= depth - 3)
         {
             const int singularBeta  = ttScore - 4 * depth;
             const int singularDepth = (depth - 1) / 2;
 
-            ss->excludedMove = move;
-            int singularScore =
-              alphaBeta(singularBeta - 1, singularBeta, singularDepth, cutNode, thread, ss);
-            ss->excludedMove = NO_MOVE;
+            ss->excludedMove  = move;
+            int singularScore = alphaBeta(singularBeta - 1, singularBeta, singularDepth, cutNode, thread, ss);
+            ss->excludedMove  = NO_MOVE;
 
             if (singularScore < singularBeta)
             {
@@ -504,10 +490,8 @@ int Search::alphaBeta(
             ss->played                    = 0;
             ss->move                      = move;
             ss->playedMoves[ss->played++] = move;
-            ss->continuationHistory =
-              &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
-            ss->contCorrHist =
-              &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->continuationHistory       = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->contCorrHist              = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
         int d        = newDepth - lmr;
@@ -568,12 +552,9 @@ int Search::alphaBeta(
     }
     if (ss->excludedMove == NO_MOVE)
     {
-        TT_BOUND bound =
-          bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
+        TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
 
-        if (!inCheck && (!bestMove || !isTactical(bestMove))
-            && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval)
-            && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval))
+        if (!inCheck && (!bestMove || !isTactical(bestMove)) && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval) && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval))
         {
 
             updateCorrHistScore(thread, ss, depth, bestScore - ss->staticEval);
@@ -590,7 +571,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
 
     if (ThreadID == 0)
     {
-        stopped = false;
+        stopped  = false;
         seldepth = 0;
         std::fill(moveNodes, moveNodes + (1 << 16), 0);
 
@@ -642,8 +623,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         }
         else
         {
-            score =
-              alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
@@ -652,10 +632,10 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         {
             auto elapsed = 1 + currentTime() - this->timeManager->startTime;
 
-            this->m_bestMove = (ss + 6)->pv[0];
-            auto bestMoveNode= moveNodes[m_bestMove];
-            auto nodes       = this->totalNodes();
-            auto nps         = (1000 * nodes) / elapsed;
+            this->m_bestMove  = (ss + 6)->pv[0];
+            auto bestMoveNode = moveNodes[m_bestMove];
+            auto nodes        = this->totalNodes();
+            auto nps          = (1000 * nodes) / elapsed;
 
             std::cout << " info depth " << i;
             std::cout << " seldepth " << seldepth;
@@ -668,14 +648,13 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                 int mate = (MAX_MATE_SCORE - abs(score) + 1) * (2 * (score > 0) - 1) / 2;
                 std::cout << " score mate " << mate;
             }
-            std::cout << " nps " << nps << " nodes " << nodes << " time " << elapsed << " hashfull "
-                      << TT::Instance()->getHashfull() << " tbhits " << totalTbHits() << " pv "
+            std::cout << " nps " << nps << " nodes " << nodes << " time " << elapsed << " hashfull " << TT::Instance()->getHashfull() << " tbhits " << totalTbHits() << " pv "
                       << getPV(ss + 6, threads.at(ThreadID)->board) << std::endl;
 
             float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
             //extra protection
-            std::clamp(bestMoveFraction,0.0f,1.0f);
-            float nodeTm           = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
+            std::clamp(bestMoveFraction, 0.0f, 1.0f);
+            float nodeTm = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
             if (elapsed > timeManager->softTime * nodeTm)
                 break;
         }
