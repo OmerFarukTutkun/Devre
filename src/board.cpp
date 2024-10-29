@@ -51,8 +51,7 @@ Board::Board(const std::string& fen) {
             else
             {
                 std::cout << fen << "\n"
-                          << "Error: Fen isn't proper!!! "
-                          << "\n";
+                          << "Error: Fen isn't proper!!! " << "\n";
             }
             k++;
         }
