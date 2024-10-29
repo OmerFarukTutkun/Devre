@@ -2,8 +2,7 @@
 #include "simd.h"
 
 using namespace SIMD;
-constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4, 5, 0, 0, 6, 7, 8, 9, 10, 11},
-                                         {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4, 5}};
+constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4, 5, 0, 0, 6, 7, 8, 9, 10, 11}, {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4, 5}};
 
 #ifndef NET
     #define NET "devre_06.08.2024.nnue"
@@ -60,18 +59,18 @@ void NNUE::incrementalUpdate(Board& board, Color c, int idx) {
     vecType* weightSub[2] = {nullptr};
 
     int j = 0, k = 0;
-    for (int i=0; i < board.nnueData.accumulator[idx].numberOfChange; i++)
+    for (int i = 0; i < board.nnueData.accumulator[idx].numberOfChange; i++)
     {
-        const auto & element = board.nnueData.accumulator[idx].nnueChanges[i];
+        const auto& element = board.nnueData.accumulator[idx].nnueChanges[i];
         if (element.sign == 1)
         {
-            auto featureIndex       = nnueIndex(king, element.piece, element.sq, c);
-            weightAdd[j++] = (vecType*) &feature_weights[L1 * featureIndex];
+            auto featureIndex = nnueIndex(king, element.piece, element.sq, c);
+            weightAdd[j++]    = (vecType*) &feature_weights[L1 * featureIndex];
         }
         else
         {
-            auto featureIndex       = nnueIndex(king, element.piece, element.sq, c);
-            weightSub[k++] = (vecType*) &feature_weights[L1 * featureIndex];
+            auto featureIndex = nnueIndex(king, element.piece, element.sq, c);
+            weightSub[k++]    = (vecType*) &feature_weights[L1 * featureIndex];
         }
     }
 
@@ -91,8 +90,7 @@ void NNUE::incrementalUpdate(Board& board, Color c, int idx) {
     }
 }
 
-int32_t
-NNUE::quanMatrixMultp(int16_t* us, int16_t* them, const int16_t* weights, const int16_t bias) {
+int32_t NNUE::quanMatrixMultp(int16_t* us, int16_t* them, const int16_t* weights, const int16_t bias) {
     auto zero = vecSetZeroEpi16();
     auto one  = vecSetEpi16(QA);
 
@@ -107,7 +105,7 @@ NNUE::quanMatrixMultp(int16_t* us, int16_t* them, const int16_t* weights, const 
         for (int i = 0; i < L1 / vecSize; i++)
         {
             vecType clipped = vecMinEpi16(one, vecMaxEpi16(zero, acc[i]));
-            out = vecAddEpi32(out, vecMaddEpi16(vecMulloEpi16(clipped, clipped), vepi16Weights[i]));
+            out             = vecAddEpi32(out, vecMaddEpi16(vecMulloEpi16(clipped, clipped), vepi16Weights[i]));
         }
 
         vepi16Weights = (vecType*) &weights[L1];
@@ -142,16 +140,16 @@ void NNUE::recalculateInputLayer(Board& board, Color c, int idx) {
     }
 }
 
-void NNUE::calculateInputLayer(Board& board,int idx, bool fromScratch) {
+void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
     if (idx == 0 || fromScratch)
     {
         recalculateInputLayer(board, WHITE, idx);
-        recalculateInputLayer(board, BLACK,idx);
+        recalculateInputLayer(board, BLACK, idx);
     }
     else
     {
         incrementalUpdate(board, WHITE, idx);
-        incrementalUpdate(board, BLACK,idx);
+        incrementalUpdate(board, BLACK, idx);
     }
     board.nnueData.accumulator[idx].nonEmpty = true;
 }
@@ -160,21 +158,21 @@ int NNUE::evaluate(Board& board) {
 
     int lastNonEmptyAcc = -1;
 
-    for(int i=board.nnueData.size; i >= 0; i--)
+    for (int i = board.nnueData.size; i >= 0; i--)
     {
-        if(board.nnueData.accumulator[i].nonEmpty)
+        if (board.nnueData.accumulator[i].nonEmpty)
         {
             lastNonEmptyAcc = i;
             break;
         }
     }
-    for(int i= lastNonEmptyAcc + 1; i <= board.nnueData.size ; i++)
+    for (int i = lastNonEmptyAcc + 1; i <= board.nnueData.size; i++)
     {
-        calculateInputLayer(board,i);
+        calculateInputLayer(board, i);
     }
 
-    auto us    = board.nnueData.accumulator[board.nnueData.size].data[board.sideToMove];
-    auto enemy = board.nnueData.accumulator[board.nnueData.size].data[1 - board.sideToMove];
+    auto      us           = board.nnueData.accumulator[board.nnueData.size].data[board.sideToMove];
+    auto      enemy        = board.nnueData.accumulator[board.nnueData.size].data[1 - board.sideToMove];
     const int outputBucket = 0;
 
     int eval = quanMatrixMultp(us, enemy, &layer1_weights[2 * L1 * outputBucket], layer1_bias[outputBucket]);
@@ -184,9 +182,7 @@ int NNUE::evaluate(Board& board) {
 float NNUE::halfMoveScale(Board& board) { return (100.0f - board.halfMove) / 100.0f; }
 
 float NNUE::materialScale(Board& board) {
-    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT]
-                                 | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP])
-                    * 3;
+    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT] | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP]) * 3;
     gamePhase += popcount64(board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK]) * 5;
     gamePhase += popcount64(board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]) * 10;
 

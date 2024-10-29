@@ -31,11 +31,11 @@ struct SearchResult {
 
 class Search {
    private:
-    bool      stopped;
-    int       numThread;
-    uint16_t  m_bestMove{};
-    uint64_t* moveNodes;
-    int seldepth{};
+    bool         stopped;
+    int          numThread;
+    uint16_t     m_bestMove{};
+    uint64_t*    moveNodes;
+    int          seldepth{};
     TimeManager* timeManager{};
 
     uint64_t totalNodes();

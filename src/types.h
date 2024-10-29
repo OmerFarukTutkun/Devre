@@ -16,9 +16,7 @@
 #include <algorithm>
 
 #ifndef VERSION
-
-  #define VERSION "6.38"
-
+    #define VERSION "6.39"
 #endif
 
 constexpr auto MAX_PLY   = 100;
@@ -180,12 +178,9 @@ enum RankMask : uint64_t {
 
 constexpr uint64_t DEFAULT_CHECKMASK = 0xFFFFFFFFFFFFFFFFULL;
 
-constexpr char const* SQUARE_IDENTIFIER[]{
-  "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", "a2", "b2", "c2", "d2", "e2", "f2",
-  "g2", "h2", "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3", "a4", "b4", "c4", "d4",
-  "e4", "f4", "g4", "h4", "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5", "a6", "b6",
-  "c6", "d6", "e6", "f6", "g6", "h6", "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
-  "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8", " ",  "-"};
+constexpr char const* SQUARE_IDENTIFIER[]{"a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2", "a3", "b3", "c3", "d3", "e3", "f3",
+                                          "g3", "h3", "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4", "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5", "a6", "b6", "c6", "d6",
+                                          "e6", "f6", "g6", "h6", "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7", "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8", " ",  "-"};
 
 static std::unordered_map<char, uint8_t> CHAR_TO_PIECE({
   {'P', WHITE_PAWN},
@@ -249,7 +244,7 @@ struct nnueChange {
     int sq;
     int sign;
 
-    nnueChange(int piece=0, int sq=0, int sign=0) :
+    nnueChange(int piece = 0, int sq = 0, int sign = 0) :
         piece(piece),
         sq(sq),
         sign(sign) {}
@@ -267,25 +262,22 @@ constexpr int   QA        = 181;
 constexpr int   QB        = 128;
 constexpr float NET_SCALE = 450.0f;
 
-struct Accumulator{
+struct Accumulator {
     alignas(64) int16_t data[2][L1]{};
-    bool nonEmpty{};
-    uint16_t  move{};
+    bool       nonEmpty{};
+    uint16_t   move{};
     nnueChange nnueChanges[4];
-    int numberOfChange{};
-    void clear()
-    {
+    int        numberOfChange{};
+    void       clear() {
         numberOfChange = 0;
-        nonEmpty = false;
+        nonEmpty       = false;
     }
-    void addChange(int piece, int sq, int sign)
-    {
-        if(numberOfChange < 4)
+    void addChange(int piece, int sq, int sign) {
+        if (numberOfChange < 4)
         {
             nnueChanges[numberOfChange++] = {piece, sq, sign};
         }
     }
-
 };
 class NNUEData {
    public:
@@ -301,8 +293,7 @@ struct BoardHistory {
     uint8_t  halfMove;
     uint64_t key;
 
-    BoardHistory(
-      uint8_t enPassant, uint8_t castling, uint8_t capturedPiece, uint8_t halfMove, uint64_t key) :
+    BoardHistory(uint8_t enPassant, uint8_t castling, uint8_t capturedPiece, uint8_t halfMove, uint64_t key) :
         enPassant(enPassant),
         castlings(castling),
         capturedPiece(capturedPiece),

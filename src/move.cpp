@@ -5,8 +5,7 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0,
-                                 100, 300, 300, 500, 1000, 150, 0, 0};
+constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0, 100, 300, 300, 500, 1000, 150, 0, 0};
 
 std::string moveToUci(uint16_t move, Board& board) {
     std::stringstream ss;
@@ -22,9 +21,9 @@ std::string moveToUci(uint16_t move, Board& board) {
     bool frc    = option.currentValue == "true";
     if (frc && (type == KING_CASTLE || type == QUEEN_CASTLE))
     {
-        int queenSide = type == QUEEN_CASTLE;
-        Color c = (rankIndex(from) == 0 ) ? WHITE : BLACK;
-        to            = board.castlingRooks[2 * c + queenSide];
+        int   queenSide = type == QUEEN_CASTLE;
+        Color c         = (rankIndex(from) == 0) ? WHITE : BLACK;
+        to              = board.castlingRooks[2 * c + queenSide];
     }
 
     ss << SQUARE_IDENTIFIER[from] << SQUARE_IDENTIFIER[to];
@@ -118,11 +117,9 @@ bool SEE(Board& board, uint16_t move, int threshold) {
     clearBit(occ, from);
     clearBit(occ, to);
 
-    uint64_t attackers = squareAttackedBy(board, to) & occ;
-    uint64_t diagonalX = board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP]
-                       | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN];
-    uint64_t horizontalX = board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK]
-                         | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN];
+    uint64_t attackers   = squareAttackedBy(board, to) & occ;
+    uint64_t diagonalX   = board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP] | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN];
+    uint64_t horizontalX = board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK] | board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN];
 
 
     side = !side;
@@ -165,9 +162,8 @@ MoveList::MoveList(uint16_t ttMove, bool qsearch) {
 void MoveList::addMove(uint16_t move) { moves[numMove++] = move; }
 
 void MoveList::scoreMoves(ThreadData& thread, Stack* ss) {
-    Board* board = &thread.board;
-    auto   counterMove =
-      thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
+    Board* board       = &thread.board;
+    auto   counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
     for (int i = 0; i < numMove; i++)
     {
         auto move = moves[i];

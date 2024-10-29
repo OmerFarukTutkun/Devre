@@ -196,10 +196,10 @@ void generateCastlingMoves(const Board& board, int kingSq, uint64_t occ, uint64_
         bool canCastle = castlings & 1;
         if (canCastle)
         {
-            int rook   = board.castlingRooks[2 * c + i];
+            int rook = board.castlingRooks[2 * c + i];
 
             //if rook is pinned we cannot castle
-            if(!checkBit(pinHv, rook))
+            if (!checkBit(pinHv, rook))
             {
                 int kingTo = castlingSquares[c][i][0];
                 int rookTo = castlingSquares[c][i][1];
@@ -245,8 +245,7 @@ constexpr uint64_t shift(const uint64_t b) {
 }
 
 template<Color c, MoveGenerationTypes type>
-void generateLegalPawnMoves(
-  const Board& board, int kingSq, uint64_t occAll, uint64_t occEnemy, uint64_t check_mask, uint64_t pin_hv, uint64_t pin_d, MoveList& movelist) {
+void generateLegalPawnMoves(const Board& board, int kingSq, uint64_t occAll, uint64_t occEnemy, uint64_t check_mask, uint64_t pin_hv, uint64_t pin_d, MoveList& movelist) {
     const uint64_t pawns_mask = board.bitboards[pieceIndex(c, PAWN)];
 
     constexpr Direction UP                = c == WHITE ? NORTH : SOUTH;
@@ -280,8 +279,7 @@ void generateLegalPawnMoves(
     // Prune moves that are not on the check_mask.
     uint64_t single_push = (single_push_unpinned | single_push_pinned) & check_mask;
 
-    uint64_t double_push =
-      ((shift<UP>(single_push_unpinned & DOUBLE_PUSH_RANK) & ~occAll) | (shift<UP>(single_push_pinned & DOUBLE_PUSH_RANK) & ~occAll)) & check_mask;
+    uint64_t double_push = ((shift<UP>(single_push_unpinned & DOUBLE_PUSH_RANK) & ~occAll) | (shift<UP>(single_push_pinned & DOUBLE_PUSH_RANK) & ~occAll)) & check_mask;
 
     if (pawns_mask & RANK_BEFORE_PROMO)
     {

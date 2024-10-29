@@ -42,8 +42,6 @@ void perftTest(Board& board, int depth, bool updateNNUE) {
 
         std::cout << moveToUci(move, board) + ": " << count << std::endl;
         total = total + count;
-
-
     }
     auto end     = currentTime();
     auto elapsed = (end - start) + 1;
