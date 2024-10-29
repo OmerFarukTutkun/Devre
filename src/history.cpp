@@ -37,6 +37,12 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
             updateHistory(current, depth, isGood);
 
+            for(const auto& c: {WHITE, BLACK})
+            {
+                current = &thread.nonPawnHist[c][board->nonPawnKey[c] % 512][piece][to];
+                updateHistory(current, depth, isGood);
+            }
+
             if ((ss - 1)->move)
             {
                 current = &(*(ss - 1)->continuationHistory)[piece][to];
@@ -88,6 +94,8 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     int    piece = board->pieceBoard[from];
     int    score = thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
 
+    for(const auto& c: {WHITE, BLACK})
+        score += thread.nonPawnHist[c][board->nonPawnKey[c] % 512][piece][to];
 
     if ((ss - 1)->move)
     {
