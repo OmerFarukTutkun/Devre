@@ -37,6 +37,9 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
             updateHistory(current, depth, isGood);
 
+            current = &thread.majorHist[board->majorKey % 1024][piece][to];
+            updateHistory(current, depth, isGood);
+
             if ((ss - 1)->move)
             {
                 current = &(*(ss - 1)->continuationHistory)[piece][to];
@@ -118,6 +121,8 @@ int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
 
         score += (*(ss - 2)->continuationHistory)[piece][to];
     }
+
+    score += thread.majorHist[board->majorKey % 1024][piece][to];
     return score;
 }
 
