@@ -47,7 +47,7 @@ TimeManager::TimeManager() {
 void TimeManager::start() {
     startTime         = currentTime();
     auto moveOverhead = Options.at("MoveOverhead");
-    hardTime          = remainingTime * hardTimePercentage / 100 + inc - std::stoi(moveOverhead.currentValue);
-    hardTime          = std::min(hardTime, 80 * remainingTime / 100);
+    hardTime          = remainingTime * hardTimePercentage / 100 + inc ;
+    hardTime          = std::clamp(hardTime, 20 * remainingTime / 100, 80 * remainingTime / 100 - std::stoi(moveOverhead.currentValue));
     softTime          = remainingTime * softTimePercentage / 100 + inc;
 }
