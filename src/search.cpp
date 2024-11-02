@@ -280,10 +280,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int      ttDepth = 0, ttScore = SCORE_NONE, ttBound = TT_NONE, ttStaticEval = SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
     bool     ttHit  = false;
-    if (ss->excludedMove == NO_MOVE)
-        ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
+    ttHit = TT::Instance()->ttProbe(board->key, ss->ply, ttDepth, ttScore, ttBound, ttStaticEval, ttMove);
 
-    if (ttHit && !rootNode && !PVNode)
+    if (ttHit && !rootNode && !PVNode && ss->excludedMove == NO_MOVE)
     {
         if (ttDepth >= depth)
         {
