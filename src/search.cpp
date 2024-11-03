@@ -415,7 +415,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (isQuiet(move) && ss->played > 3 && !PVNode)
         {
             // late move pruning
-            if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
+            if (depth <= 6 && ss->played > (6 + depth * depth) / (2 - improving))
                 continue;
 
             // futility pruning
