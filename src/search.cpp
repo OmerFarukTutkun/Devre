@@ -265,7 +265,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     bool inCheck = board->inCheck(ss->threat);
 
     //check Extension
-    if (!rootNode && inCheck)
+    if (!rootNode && inCheck && depth < 2)
     {
         depth = std::max(1, 1 + depth);
     }
