@@ -412,25 +412,31 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->move                      = move;
         ss->playedMoves[ss->played++] = move;
 
-        if (isQuiet(move) && ss->played > 3 && !PVNode)
-        {
-            // late move pruning
-            if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
-                continue;
 
-            // futility pruning
-            if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
-                continue;
-
-            //contHist pruning
-            int contHist = getContHistory(thread, ss, move);
-            if (depth <= 3 && contHist < -3633)
-                continue;
-        }
-        if (ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if(!rootNode && !PVNode && ss->played > 1)
         {
-            continue;
+            if (isQuiet(move))
+            {
+                // late move pruning
+                if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
+                    continue;
+
+                // futility pruning
+                if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
+                    continue;
+
+                //contHist pruning
+                int contHist = getContHistory(thread, ss, move);
+                if (depth <= 3 && contHist < -3633)
+                    continue;
+            }
+
+            if (depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+            {
+                continue;
+            }
         }
+
         int history = 0;
         lmr         = 0;
         if (ss->played > 2 && depth > 2)
