@@ -129,6 +129,9 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
 
     thread.nodes++;
 
+    if (board->isDraw())
+        return 0;
+
     //TT Probing
     int      ttDepth = 0, ttScore = SCORE_NONE, ttBound = TT_NONE, ttStaticEval = SCORE_NONE;
     uint16_t ttMove = NO_MOVE;
@@ -139,8 +142,8 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
             return ttScore;
     }
 
-    if (board->isDraw())
-        return 0;
+    auto rawEval  = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
+    auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     if (ss->ply > seldepth)
     {
@@ -148,11 +151,8 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     }
     if (ss->ply > MAX_PLY)
     {
-        return board->eval();
+        return standPat;
     }
-
-    auto rawEval  = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-    auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
