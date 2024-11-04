@@ -162,6 +162,8 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
 
     if (standPat >= beta)
     {
+        if(!ttHit)
+            TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval,TT_NONE , 0, NO_MOVE);
         return standPat;
     }
     if (alpha < standPat)
