@@ -341,6 +341,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
+    if(!ttHit)
+        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval,TT_NONE , 0, NO_MOVE);
+
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
     //ttValue can be used as a better position evaluation
