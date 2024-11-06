@@ -16,7 +16,7 @@
 #include <algorithm>
 
 #ifndef VERSION
-    #define VERSION "6.39"
+    #define VERSION "6.40"
 #endif
 
 constexpr auto MAX_PLY   = 100;
