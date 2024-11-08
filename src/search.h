@@ -44,6 +44,7 @@ class Search {
 
     int qsearch(int alpha, int beta, ThreadData& thread, Stack* ss);
 
+    template<bool>
     int alphaBeta(int alpha, int beta, int depth, bool cutNode, ThreadData& thread, Stack* ss);
 
    public:
