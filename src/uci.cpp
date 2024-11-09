@@ -14,7 +14,7 @@ OptionsMap Options({
   {"UCI_Chess960", Option(0, 1, "false", "check")},
   {"MoveOverhead", Option(0, 10000, "50", "spin")},
   {"SyzygyPath", Option("<empty>", "string")},
-
+  {"Datagen", Option(0, 1, "false", "check")},
 });
 
 void Uci::UciLoop() {
@@ -178,7 +178,10 @@ void Uci::go(std::vector<std::string>& commands) {
     }
     timeManager.start();
     NNUE::Instance()->calculateInputLayer(*board, 0, true);
-    searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);
+
+    auto option = Options.at("Datagen");
+    bool datagen    = option.currentValue == "true";
+    searchThread = std::thread(&Search::start, &search, board, &timeManager, datagen, 0);
 }
 
 void Uci::setoption(std::vector<std::string>& commands) {

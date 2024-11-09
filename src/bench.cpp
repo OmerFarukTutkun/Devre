@@ -32,7 +32,7 @@ void bench(int argc, char** argv) {
         tm.start();
         std::cout << "fen :" << fen << std::endl;
         auto board = Board(fen);
-        auto res   = search.start(&board, &tm, 0);
+        auto res   = search.start(&board, &tm, false, 0);
 
         //clear for next search
         TT::Instance()->ttClear();

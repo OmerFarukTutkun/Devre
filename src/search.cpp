@@ -570,7 +570,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     return bestScore;
 }
 
-SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
+SearchResult Search::start(Board* board, TimeManager* tm,bool datagen, int ThreadID) {
     SearchResult             res{};
     std::vector<std::thread> runningThreads;
 
@@ -591,7 +591,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         this->timeManager = tm;
         for (int i = 1; i < numThread; i++)
         {
-            runningThreads.emplace_back(&Search::start, this, board, tm, i);
+            runningThreads.emplace_back(&Search::start, this, board, tm, datagen, i);
         }
     }
 
@@ -642,19 +642,22 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             auto nodes        = this->totalNodes();
             auto nps          = (1000 * nodes) / elapsed;
 
-            std::cout << " info depth " << i;
-            std::cout << " seldepth " << seldepth;
-            if (abs(score) < MIN_MATE_SCORE)
+            if(!datagen)
             {
-                std::cout << " score cp " << score / 2;
+                std::cout << " info depth " << i;
+                std::cout << " seldepth " << seldepth;
+                if (abs(score) < MIN_MATE_SCORE)
+                {
+                    std::cout << " score cp " << score / 2;
+                }
+                else
+                {
+                    int mate = (MAX_MATE_SCORE - abs(score) + 1) * (2 * (score > 0) - 1) / 2;
+                    std::cout << " score mate " << mate;
+                }
+                std::cout << " nps " << nps << " nodes " << nodes << " time " << elapsed << " hashfull " << TT::Instance()->getHashfull() << " tbhits " << totalTbHits() << " pv "
+                          << getPV(ss + 6, threads.at(ThreadID)->board) << std::endl;
             }
-            else
-            {
-                int mate = (MAX_MATE_SCORE - abs(score) + 1) * (2 * (score > 0) - 1) / 2;
-                std::cout << " score mate " << mate;
-            }
-            std::cout << " nps " << nps << " nodes " << nodes << " time " << elapsed << " hashfull " << TT::Instance()->getHashfull() << " tbhits " << totalTbHits() << " pv "
-                      << getPV(ss + 6, threads.at(ThreadID)->board) << std::endl;
 
             float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
             //extra protection
@@ -673,7 +676,12 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         {
             th.join();
         }
-        std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
+        if(datagen)
+            std::cout << " info score cp " << score  << " bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
+        else
+            std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
+
+
         runningThreads.clear();
 
         res.cp    = score / 2;

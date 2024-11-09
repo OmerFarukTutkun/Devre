@@ -55,7 +55,7 @@ class Search {
 
     void setThread(int thread);
 
-    SearchResult start(Board* board, TimeManager* timeManager, int ThreadID = 0);
+    SearchResult start(Board* board, TimeManager* timeManager, bool datagen, int ThreadID = 0);
 
     Search();
 
