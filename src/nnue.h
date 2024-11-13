@@ -30,6 +30,8 @@ class NNUE {
 
     static float halfMoveScale(Board& board);
 
+    static float ocbScale(Board& board);
+
     void calculateInputLayer(Board& board, int idx, bool fromScratch = false);
 
     int evaluate(Board& board);

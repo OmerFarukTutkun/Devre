@@ -188,6 +188,6 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
       (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry * 30) / 512;
 
     auto eval = rawEval + average;
-    eval      = eval * NNUE::Instance()->halfMoveScale(thread.board) * NNUE::Instance()->materialScale(thread.board);
+    eval      = eval * NNUE::Instance()->halfMoveScale(thread.board) * NNUE::Instance()->materialScale(thread.board)*NNUE::Instance()->ocbScale(thread.board);
     return std::clamp(eval, -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
 }

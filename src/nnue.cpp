@@ -194,3 +194,19 @@ float NNUE::materialScale(Board& board) {
     //[a,b]
     return a + (b - a) * gamePhase / 64.0f;
 }
+float NNUE::ocbScale(Board& board) {
+    for(auto &p:{WHITE_KNIGHT,WHITE_ROOK,WHITE_QUEEN,BLACK_KNIGHT,BLACK_ROOK,BLACK_QUEEN})
+    {
+        if(board.bitboards[p])
+            return 1.0f;
+    }
+    if( popcount64(board.bitboards[WHITE_BISHOP]) == 1 && popcount64(board.bitboards[BLACK_BISHOP]) == 1)
+    {
+        auto whiteBishop = bitScanForward(board.bitboards[WHITE_BISHOP]);
+        auto blackBishop = bitScanForward(board.bitboards[BLACK_BISHOP]);
+        if( (whiteBishop + blackBishop) % 2 == 1)
+            return 0.4f;
+    }
+
+    return 1.0f;
+}
