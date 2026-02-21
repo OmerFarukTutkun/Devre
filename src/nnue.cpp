@@ -1,5 +1,6 @@
 #include "nnue.h"
 #include "simd.h"
+#include <fstream>
 
 using namespace SIMD;
 constexpr int nnueIndexMapping[2][14] = {{0, 1, 2, 3, 4, 5, 0, 0, 6, 7, 8, 9, 10, 11}, {6, 7, 8, 9, 10, 11, 0, 0, 0, 1, 2, 3, 4, 5}};
@@ -193,4 +194,68 @@ float NNUE::materialScale(Board& board) {
 
     //[a,b]
     return a + (b - a) * gamePhase / 64.0f;
+}
+
+bool NNUE::loadNetwork(const std::string& filePath) {
+    if (filePath.empty() || filePath == "<empty>")
+        return false;
+
+    std::ifstream file(filePath, std::ios::binary);
+    if (!file.is_open())
+    {
+        std::cout << "info string Failed to open network file: " << filePath << std::endl;
+        return false;
+    }
+
+    // Read feature weights
+    for (int i = 0; i < INPUT_SIZE * L1; i++)
+    {
+        int16_t val;
+        if (!file.read(reinterpret_cast<char*>(&val), sizeof(val)))
+        {
+            std::cout << "info string Failed to read feature weights" << std::endl;
+            return false;
+        }
+        feature_weights[i] = val;
+    }
+
+    // Read feature biases
+    for (int i = 0; i < L1; i++)
+    {
+        int16_t val;
+        if (!file.read(reinterpret_cast<char*>(&val), sizeof(val)))
+        {
+            std::cout << "info string Failed to read feature biases" << std::endl;
+            return false;
+        }
+        feature_biases[i] = val;
+    }
+
+    // Read layer1 weights
+    for (int i = 0; i < 2 * L1 * OUTPUT_BUCKETS; i++)
+    {
+        int16_t val;
+        if (!file.read(reinterpret_cast<char*>(&val), sizeof(val)))
+        {
+            std::cout << "info string Failed to read layer1 weights" << std::endl;
+            return false;
+        }
+        layer1_weights[i] = val;
+    }
+
+    // Read layer1 biases
+    for (int i = 0; i < OUTPUT_BUCKETS; i++)
+    {
+        int16_t val;
+        if (!file.read(reinterpret_cast<char*>(&val), sizeof(val)))
+        {
+            std::cout << "info string Failed to read layer1 biases" << std::endl;
+            return false;
+        }
+        layer1_bias[i] = val;
+    }
+
+    file.close();
+    std::cout << "info string Network loaded from: " << filePath << std::endl;
+    return true;
 }

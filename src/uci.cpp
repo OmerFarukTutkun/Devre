@@ -14,6 +14,7 @@ OptionsMap Options({
   {"UCI_Chess960", Option(0, 1, "false", "check")},
   {"MoveOverhead", Option(0, 10000, "50", "spin")},
   {"SyzygyPath", Option("<empty>", "string")},
+  {"EvalFile", Option("<empty>", "string")},
 
 });
 
@@ -201,6 +202,10 @@ void Uci::setoption(std::vector<std::string>& commands) {
                 std::cout << "info string Syzygy tablebases loaded. Pieces: " << TB_LARGEST << std::endl;
             else
                 std::cout << "info string Syzygy tablebases failed to load" << std::endl;
+        }
+        if (name == "EvalFile")
+        {
+            NNUE::Instance()->loadNetwork(it->second.currentValue);
         }
         return;
     }
