@@ -14,6 +14,7 @@
 #include "array"
 #include <cstring>
 #include <algorithm>
+#include <bitset>
 
 #ifndef VERSION
     #define VERSION "6.41"
@@ -253,35 +254,40 @@ struct nnueChange {
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
 //TODO: maybe try reading these values from .nnue file instead of hardcoding
-auto constexpr INPUT_SIZE    = 768;
-auto constexpr L1            = 1536;
-constexpr int OUTPUT_BUCKETS = 1;
+constexpr int RELATION_BASE_FEATURES = 768;
+constexpr int RELATION_FEATURES = RELATION_BASE_FEATURES * (RELATION_BASE_FEATURES + 1) / 2;
+constexpr int RELATION_L1_MAX = 256;
+constexpr int RELATION_L2_MAX = 2 * RELATION_L1_MAX;
 
+struct RelationAccumulator {
+    alignas(64) int16_t data[2][RELATION_L1_MAX]{};
+    std::bitset<RELATION_BASE_FEATURES> baseActive[2]{};
+    uint16_t activeList[2][N_SQUARES]{};
+    uint8_t activeCount[2]{};
+    nnueChange changes[4]{};
+    uint8_t changeCount{};
+    bool nonEmpty{};
 
-constexpr int   QA        = 181;
-constexpr int   QB        = 128;
-constexpr float NET_SCALE = 450.0f;
-
-struct Accumulator {
-    alignas(64) int16_t data[2][L1]{};
-    bool       nonEmpty{};
-    uint16_t   move{};
-    nnueChange nnueChanges[4];
-    int        numberOfChange{};
-    void       clear() {
-        numberOfChange = 0;
-        nonEmpty       = false;
+    void clear() {
+        nonEmpty = false;
+        changeCount = 0;
+        baseActive[WHITE].reset();
+        baseActive[BLACK].reset();
+        activeCount[WHITE] = 0;
+        activeCount[BLACK] = 0;
     }
+
+    void clearChanges() { changeCount = 0; }
+
     void addChange(int piece, int sq, int sign) {
-        if (numberOfChange < 4)
-        {
-            nnueChanges[numberOfChange++] = {piece, sq, sign};
-        }
+        if (changeCount < 4)
+            changes[changeCount++] = {piece, sq, sign};
     }
 };
+
 class NNUEData {
    public:
-    alignas(64) Accumulator accumulator[MAX_PLY + 10]{};
+    alignas(64) RelationAccumulator relationAccumulator[MAX_PLY + 10]{};
     int size{};
 };
 
