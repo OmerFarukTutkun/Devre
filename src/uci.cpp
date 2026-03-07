@@ -109,7 +109,7 @@ void Uci::setPosition(std::vector<std::string>& commands) {
                     board->makeMove(move, false);
 
                 board->nnueData.size = 0;
-                board->nnueData.relationAccumulator[0].clear();
+                board->nnueData.accumulator[0].clear();
             }
             break;
         }
@@ -133,7 +133,7 @@ void Uci::eval() {
             int piece = board->pieceBoard[sq];
             if (piece != EMPTY && piece != BLACK_KING && piece != WHITE_KING)
             {
-                board->nnueData.relationAccumulator[0].clear();
+                board->nnueData.accumulator[0].clear();
                 board->removePiece(piece, sq);
                 printf("%8.2f", (score - board->eval()) / 100.0);
                 board->addPiece(piece, sq);
@@ -144,7 +144,7 @@ void Uci::eval() {
             }
         }
     }
-    board->nnueData.relationAccumulator[0].clear();
+    board->nnueData.accumulator[0].clear();
     printf("\n  |-------|-------|-------|-------|-------|-------|-------|-------|\n");
     printf("\n%8c%8c%8c%8c%8c%8c%8c%8c", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
     printf("\n\nScore: %.2f (this score is multiplied by 0.5 when printing uci info)\n", score / 100.0);
@@ -155,7 +155,7 @@ void Uci::go(std::vector<std::string>& commands) {
     timeManager = TimeManager();
 
     board->nnueData.size = 0;
-    board->nnueData.relationAccumulator[0].clear();
+    board->nnueData.accumulator[0].clear();
 
     auto cmd     = popFront(commands);
     auto cmdTime = (board->sideToMove == WHITE) ? "wtime" : "btime";
@@ -208,7 +208,7 @@ void Uci::setoption(std::vector<std::string>& commands) {
             if (NNUE::Instance()->loadNetwork(it->second.currentValue))
             {
                 board->nnueData.size = 0;
-                board->nnueData.relationAccumulator[0].clear();
+                board->nnueData.accumulator[0].clear();
             }
         }
         return;
@@ -247,4 +247,5 @@ void Uci::stop() {
 }
 
 Uci::~Uci() { delete board; }
+
 

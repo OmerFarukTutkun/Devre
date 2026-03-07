@@ -3,7 +3,6 @@
 
 #include "board.h"
 #include "types.h"
-#include <array>
 #include <cstdlib>
 #include <limits>
 #include <malloc.h>
@@ -66,38 +65,26 @@ class NNUE {
    private:
     NNUE();
 
-    float relationL1Scale = 64.0f;
-    float relationL2Scale = 4096.0f;
-    float relationL3Scale = 1048576.0f;
-    float relationInvL1Squared = 1.0f / (64.0f * 64.0f);
-    float relationInvL2Scale = 1.0f / 4096.0f;
-    uint32_t relationL1Rows = 0;
-    uint32_t relationL1Cols = 0;
-    uint32_t relationL2Rows = 0;
-    int relationL1Clip = 64;
-    std::vector<int8_t, AlignedAllocator<int8_t, 64>> relationL1Weights;
-    alignas(64) int16_t relationL1Biases[RELATION_L1_MAX]{};
-    std::vector<float> relationL1ActivationLut;
-    std::vector<float, AlignedAllocator<float, 64>> relationL2WeightsByInput;
-    const float* relationL2WeightsThem = nullptr;
-    alignas(64) float relationL2Biases[RELATION_L2_MAX]{};
-    alignas(64) float relationL3Weights[RELATION_L2_MAX]{};
-    float relationL3Bias = 0.0f;
-    std::array<uint32_t, RELATION_BASE_FEATURES * RELATION_BASE_FEATURES> relationLut{};
+    int l1Clip = 64;
+    std::vector<int8_t, AlignedAllocator<int8_t, 64>> l1Weights;
+    alignas(64) int16_t l1Biases[NNUE_L1_MAX]{};
+    std::vector<int16_t, AlignedAllocator<int16_t, 64>> l2Weights;
+    alignas(64) int32_t l2Biases[NNUE_L2_MAX]{};
+    alignas(64) uint32_t l2ClipByRow[NNUE_L2_MAX]{};
+    alignas(64) float l3Weights[NNUE_L2_MAX]{};
+    float l3Bias = 0.0f;
 
-    static int relationBaseIndex(int piece, int sq, Color perspective);
-    uint32_t relationFeatureIndex(int i, int j) const;
-    const int8_t* relationRow(uint32_t relationIndex) const;
+    static int baseIndex(int piece, int sq, Color perspective);
+    uint32_t featureIndex(int i, int j) const;
+    const int8_t* rowInt8(uint32_t feature) const;
 
-    int evaluateRelationNet(Board& board);
-    int relationHead(const int16_t* us, const int16_t* them) const;
-    void applyRelationDeltaAdd(int16_t* accumulator, uint32_t relationIndex) const;
-    void applyRelationDeltaBatch(int16_t* accumulator, const int8_t* const* addRows, int addCount, const int8_t* const* subRows, int subCount) const;
+    int evaluateNet(Board& board);
+    int head(const int16_t* us, const int16_t* them) const;
     void updateInputLayer(Board& board, int idx, bool fromScratch = false);
     void recalculateInputLayer(Board& board, Color perspective, int idx);
     void incrementalUpdateInputLayer(Board& board, Color perspective, int idx);
-    bool loadRelationNetworkFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
-    bool loadRelationNetwork(const std::string& filePath);
+    bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
+    bool loadNet(const std::string& filePath);
 
    public:
     static float materialScale(Board& board);
@@ -114,3 +101,4 @@ class NNUE {
 };
 
 #endif  //DEVRE_NNUE_H
+

@@ -131,7 +131,7 @@ Board::Board(const std::string& fen) {
         key ^= Zobrist::Instance()->SideToPlayKey;
 
     nnueData.size = 0;
-    nnueData.relationAccumulator[0].clear();
+    nnueData.accumulator[0].clear();
 }
 
 void Board::addPiece(int piece, int sq) {
@@ -139,7 +139,7 @@ void Board::addPiece(int piece, int sq) {
     setBit(bitboards[piece], sq);
     setBit(occupied[pieceColor(piece)], sq);
 
-    nnueData.relationAccumulator[nnueData.size].addChange(piece, sq, 1);
+    nnueData.accumulator[nnueData.size].addChange(piece, sq, 1);
 
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
@@ -160,7 +160,7 @@ void Board::removePiece(int piece, int sq) {
     clearBit(bitboards[piece], sq);
     clearBit(occupied[pieceColor(piece)], sq);
 
-    nnueData.relationAccumulator[nnueData.size].addChange(piece, sq, -1);
+    nnueData.accumulator[nnueData.size].addChange(piece, sq, -1);
 
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
@@ -227,7 +227,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     if (updateNNUE)
     {
         nnueData.size++;
-        nnueData.relationAccumulator[nnueData.size].clear();
+        nnueData.accumulator[nnueData.size].invalidate();
     }
 
     //remove enPassant and Castling keys
@@ -372,7 +372,7 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     key = info.key;
     if (updateNNUE)
     {
-        nnueData.relationAccumulator[nnueData.size].clear();
+        nnueData.accumulator[nnueData.size].invalidate();
         nnueData.size = std::max(0, nnueData.size - 1);
     }
 }
@@ -515,4 +515,5 @@ bool Board::inCheck(uint64_t threat) {
         return true;
     return false;
 }
+
 
