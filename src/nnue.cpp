@@ -16,7 +16,6 @@ INCBIN(EmbeddedNet, NET);
 
 namespace {
 constexpr char NET_MAGIC[8] = {'D', 'e', 'v', 'r', 'e', 'N', 'e', 't'};
-constexpr uint32_t NET_VERSION = 10;
 constexpr float NET_CP_SCALE = 450.0f;
 constexpr int max_delta_rows = 320;
 constexpr uint32_t l1_cols = 128;
@@ -55,189 +54,6 @@ inline __attribute__((always_inline)) void applyDeltaBatchInt8(int16_t* __restri
     }
 }
 
-template<typename RowT, typename BaseIndexFn, typename FeatureIndexFn, typename RowFn, typename ApplyAddFn>
-inline void recalculateInputLayerImpl(Board& board,
-                                      Color perspective,
-                                      int idx,
-                                      const int16_t* biases,
-                                      BaseIndexFn getBaseIndex,
-                                      FeatureIndexFn getFeatureIndex,
-                                      RowFn getRow,
-                                      ApplyAddFn applyAdd) {
-    auto& acc = board.nnueData.accumulator[idx];
-    auto& active = acc.baseActive[perspective];
-    auto* activeList = acc.activeList[perspective];
-    int activeCount = 0;
-    active.reset();
-
-    std::array<int, N_SQUARES> baseIndices{};
-    int baseCount = 0;
-    for (int sq = 0; sq < N_SQUARES; sq++)
-    {
-        const int piece = board.pieceBoard[sq];
-        if (piece == EMPTY)
-            continue;
-
-        const int feature = getBaseIndex(piece, sq, perspective);
-        active.set(feature);
-        activeList[activeCount++] = static_cast<uint16_t>(feature);
-        baseIndices[baseCount++] = feature;
-    }
-    acc.activeCount[perspective] = static_cast<uint8_t>(activeCount);
-
-    int16_t* out = acc.data[perspective];
-    std::memcpy(out, biases, static_cast<size_t>(l1_cols) * sizeof(int16_t));
-
-    for (int a = 0; a < baseCount; a++)
-    {
-        for (int b = a; b < baseCount; b++)
-            applyAdd(out, getRow(getFeatureIndex(baseIndices[a], baseIndices[b])));
-    }
-}
-
-template<typename RowT, typename BaseIndexFn, typename FeatureIndexFn, typename RowFn, typename ApplyBatchFn>
-inline void incrementalUpdateInputLayerImpl(Board& board,
-                                            Color perspective,
-                                            int idx,
-                                            BaseIndexFn getBaseIndex,
-                                            FeatureIndexFn getFeatureIndex,
-                                            RowFn getRow,
-                                            ApplyBatchFn applyBatch) {
-    auto& prevAcc = board.nnueData.accumulator[idx - 1];
-    auto& curAcc = board.nnueData.accumulator[idx];
-
-    auto& prevActive = prevAcc.baseActive[perspective];
-    auto& curActive = curAcc.baseActive[perspective];
-    curActive = prevActive;
-
-    const int prevCount = prevAcc.activeCount[perspective];
-    int curCount = prevCount;
-    const uint16_t* prevList = prevAcc.activeList[perspective];
-    uint16_t* curList = curAcc.activeList[perspective];
-    std::memcpy(curList, prevList, static_cast<size_t>(prevCount) * sizeof(uint16_t));
-
-    int16_t* out = curAcc.data[perspective];
-    const int16_t* prevOut = prevAcc.data[perspective];
-    std::memcpy(out, prevOut, static_cast<size_t>(l1_cols) * sizeof(int16_t));
-
-    int removed[4];
-    int added[4];
-    int removedCount = 0;
-    int addedCount = 0;
-
-    auto removeFromCurList = [&](int baseIndex) {
-        for (int i = 0; i < curCount; i++)
-        {
-            if (curList[i] == baseIndex)
-            {
-                curList[i] = curList[curCount - 1];
-                curCount--;
-                return;
-            }
-        }
-    };
-
-    const auto& changeAcc = board.nnueData.accumulator[idx];
-    for (int i = 0; i < changeAcc.changeCount; i++)
-    {
-        const auto& change = changeAcc.changes[i];
-        const int feature = getBaseIndex(change.piece, change.sq, perspective);
-
-        if (change.sign > 0)
-        {
-            if (!curActive.test(feature))
-            {
-                curActive.set(feature);
-                added[addedCount++] = feature;
-                curList[curCount++] = static_cast<uint16_t>(feature);
-            }
-        }
-        else
-        {
-            if (curActive.test(feature))
-            {
-                curActive.reset(feature);
-                removed[removedCount++] = feature;
-                removeFromCurList(feature);
-            }
-        }
-    }
-    curAcc.activeCount[perspective] = static_cast<uint8_t>(curCount);
-
-    if (removedCount == 0 && addedCount == 0)
-        return;
-
-    int survivors[N_SQUARES];
-    int survivorCount = 0;
-    for (int i = 0; i < prevCount; i++)
-    {
-        const int idxBase = prevList[i];
-        bool wasRemoved = false;
-        for (int r = 0; r < removedCount; r++)
-        {
-            if (removed[r] == idxBase)
-            {
-                wasRemoved = true;
-                break;
-            }
-        }
-
-        if (!wasRemoved)
-            survivors[survivorCount++] = idxBase;
-    }
-
-    const RowT* addRows[max_delta_rows];
-    const RowT* subRows[max_delta_rows];
-
-    if (removedCount == 1 && addedCount == 1)
-    {
-        const int removedBase = removed[0];
-        const int addedBase = added[0];
-        int addRowCount = 0;
-        int subRowCount = 0;
-
-        addRows[addRowCount++] = getRow(getFeatureIndex(addedBase, addedBase));
-        subRows[subRowCount++] = getRow(getFeatureIndex(removedBase, removedBase));
-        for (int u = 0; u < survivorCount; u++)
-        {
-            addRows[addRowCount++] = getRow(getFeatureIndex(addedBase, survivors[u]));
-            subRows[subRowCount++] = getRow(getFeatureIndex(removedBase, survivors[u]));
-        }
-        applyBatch(out, addRows, addRowCount, subRows, subRowCount);
-        return;
-    }
-
-    int subRowCount = 0;
-    for (int i = 0; i < removedCount; i++)
-    {
-        const int r = removed[i];
-        subRows[subRowCount++] = getRow(getFeatureIndex(r, r));
-        for (int u = 0; u < survivorCount; u++)
-            subRows[subRowCount++] = getRow(getFeatureIndex(r, survivors[u]));
-    }
-
-    for (int i = 0; i < removedCount; i++)
-    {
-        for (int j = i + 1; j < removedCount; j++)
-            subRows[subRowCount++] = getRow(getFeatureIndex(removed[i], removed[j]));
-    }
-
-    int addRowCount = 0;
-    for (int i = 0; i < addedCount; i++)
-    {
-        const int a = added[i];
-        addRows[addRowCount++] = getRow(getFeatureIndex(a, a));
-        for (int u = 0; u < survivorCount; u++)
-            addRows[addRowCount++] = getRow(getFeatureIndex(a, survivors[u]));
-    }
-
-    for (int i = 0; i < addedCount; i++)
-    {
-        for (int j = i + 1; j < addedCount; j++)
-            addRows[addRowCount++] = getRow(getFeatureIndex(added[i], added[j]));
-    }
-    applyBatch(out, addRows, addRowCount, subRows, subRowCount);
-}
 }
 
 NNUE* NNUE::Instance() {
@@ -262,40 +78,146 @@ uint32_t NNUE::featureIndex(int i, int j) const {
     return low * NNUE_BASE_FEATURES - (low * (low + 1)) / 2 + high;
 }
 
-const int8_t* NNUE::rowInt8(uint32_t feature) const {
+const int8_t* NNUE::getPairWeights(uint32_t feature) const {
     return &l1Weights[static_cast<size_t>(feature) * l1_cols];
 }
 
 void NNUE::recalculateInputLayer(Board& board, Color perspective, int idx) {
-    auto getBaseIndex = [](int piece, int sq, Color side) {
-        return NNUE::baseIndex(piece, sq, side);
-    };
-    auto getFeatureIndex = [this](int a, int b) {
-        return featureIndex(a, b);
-    };
-    auto getRow = [this](uint32_t feature) {
-        return rowInt8(feature);
-    };
-    auto applyAdd = [](int16_t* out, const int8_t* row) {
-        applyDeltaAddInt8(out, row);
-    };
-    recalculateInputLayerImpl<int8_t>(board, perspective, idx, l1Biases, getBaseIndex, getFeatureIndex, getRow, applyAdd);
+    auto& acc = board.nnueData.accumulator[idx];
+    auto& active = acc.baseActive[perspective];
+    auto* activeList = acc.activeList[perspective];
+    int baseFeatures[N_SQUARES];
+    int activeCount = 0;
+
+    active.reset();
+
+    for (int sq = 0; sq < N_SQUARES; sq++)
+    {
+        const int piece = board.pieceBoard[sq];
+        if (piece == EMPTY)
+            continue;
+
+        const int baseFeature = baseIndex(piece, sq, perspective);
+        active.set(baseFeature);
+        activeList[activeCount] = static_cast<uint16_t>(baseFeature);
+        baseFeatures[activeCount++] = baseFeature;
+    }
+
+    acc.activeCount[perspective] = static_cast<uint8_t>(activeCount);
+
+    int16_t* out = acc.data[perspective];
+    std::memcpy(out, l1Biases, static_cast<size_t>(l1_cols) * sizeof(int16_t));
+
+    for (int a = 0; a < activeCount; a++)
+    {
+        for (int b = a; b < activeCount; b++)
+        {
+            const uint32_t feature = featureIndex(baseFeatures[a], baseFeatures[b]);
+            applyDeltaAddInt8(out, getPairWeights(feature));
+        }
+    }
 }
 
 void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx) {
-    auto getBaseIndex = [](int piece, int sq, Color side) {
-        return NNUE::baseIndex(piece, sq, side);
-    };
-    auto getFeatureIndex = [this](int a, int b) {
-        return featureIndex(a, b);
-    };
-    auto getRow = [this](uint32_t feature) {
-        return rowInt8(feature);
-    };
-    auto applyBatch = [](int16_t* out, const int8_t* const* addRows, int addCount, const int8_t* const* subRows, int subCount) {
-        applyDeltaBatchInt8(out, addRows, addCount, subRows, subCount);
-    };
-    incrementalUpdateInputLayerImpl<int8_t>(board, perspective, idx, getBaseIndex, getFeatureIndex, getRow, applyBatch);
+    auto& prevAcc = board.nnueData.accumulator[idx - 1];
+    auto& curAcc = board.nnueData.accumulator[idx];
+
+    auto& prevActive = prevAcc.baseActive[perspective];
+    auto& curActive = curAcc.baseActive[perspective];
+    curActive = prevActive;
+
+    const int prevCount = prevAcc.activeCount[perspective];
+    int curCount = prevCount;
+    const uint16_t* prevList = prevAcc.activeList[perspective];
+    uint16_t* curList = curAcc.activeList[perspective];
+    std::memcpy(curList, prevList, static_cast<size_t>(prevCount) * sizeof(uint16_t));
+
+    int16_t* out = curAcc.data[perspective];
+    std::memcpy(out, prevAcc.data[perspective], static_cast<size_t>(l1_cols) * sizeof(int16_t));
+
+    int removedBases[4];
+    int addedBases[4];
+    int removedBaseCount = 0;
+    int addedBaseCount = 0;
+
+    const auto& changeAcc = board.nnueData.accumulator[idx];
+    for (int i = 0; i < changeAcc.changeCount; i++)
+    {
+        const auto& change = changeAcc.changes[i];
+        const int baseFeature = baseIndex(change.piece, change.sq, perspective);
+
+        if (change.sign > 0)
+        {
+            if (!curActive.test(baseFeature))
+            {
+                curActive.set(baseFeature);
+                addedBases[addedBaseCount++] = baseFeature;
+                curList[curCount++] = static_cast<uint16_t>(baseFeature);
+            }
+        }
+        else if (curActive.test(baseFeature))
+        {
+            curActive.reset(baseFeature);
+            removedBases[removedBaseCount++] = baseFeature;
+
+            for (int j = 0; j < curCount; j++)
+            {
+                if (curList[j] == baseFeature)
+                {
+                    curList[j] = curList[curCount - 1];
+                    curCount--;
+                    break;
+                }
+            }
+        }
+    }
+
+    curAcc.activeCount[perspective] = static_cast<uint8_t>(curCount);
+
+    if (removedBaseCount == 0 && addedBaseCount == 0)
+        return;
+
+    int survivors[N_SQUARES];
+    int survivorCount = 0;
+    for (int i = 0; i < prevCount; i++)
+    {
+        const int prevBase = prevList[i];
+        if (curActive.test(prevBase))
+            survivors[survivorCount++] = prevBase;
+    }
+
+    const int8_t* addRows[max_delta_rows];
+    const int8_t* subRows[max_delta_rows];
+
+    int subRowCount = 0;
+    for (int i = 0; i < removedBaseCount; i++)
+    {
+        subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], removedBases[i]));
+        for (int j = 0; j < survivorCount; j++)
+            subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], survivors[j]));
+    }
+
+    for (int i = 0; i < removedBaseCount; i++)
+    {
+        for (int j = i + 1; j < removedBaseCount; j++)
+            subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], removedBases[j]));
+    }
+
+    int addRowCount = 0;
+    for (int i = 0; i < addedBaseCount; i++)
+    {
+        addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], addedBases[i]));
+        for (int j = 0; j < survivorCount; j++)
+            addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], survivors[j]));
+    }
+
+    for (int i = 0; i < addedBaseCount; i++)
+    {
+        for (int j = i + 1; j < addedBaseCount; j++)
+            addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], addedBases[j]));
+    }
+
+    applyDeltaBatchInt8(out, addRows, addRowCount, subRows, subRowCount);
 }
 
 void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
@@ -482,9 +404,6 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
     if (!readValue(version, "version") || !readValue(l1Scale, "l1_scale"))
         return false;
 
-    if (version != NET_VERSION)
-        return fail("unsupported version " + std::to_string(version));
-
     if (!readValue(l1Rows, "l1_rows")
         || !readValue(l1Cols, "l1_cols")
         || !readValue(l1BiasLen, "l1_b_len")
@@ -510,58 +429,51 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
         return fail("unexpected dimensions");
 
     const int newL1Clip = std::max(1, static_cast<int>(std::lround(l1Scale)));
-    if (std::fabs(l1Scale - static_cast<float>(newL1Clip)) > 1e-6f)
-        return fail("l1_scale must be an integer");
 
     const size_t l1WeightCount = static_cast<size_t>(l1Rows) * l1Cols;
     const size_t l1BiasCount = l1BiasLen;
     const size_t l2WeightCount = static_cast<size_t>(l2Rows) * l2Cols;
     const size_t l2BiasCount = l2BiasLen;
     const size_t l3WeightCount = static_cast<size_t>(l3Rows) * l3Cols;
-    const size_t l3BiasCount = l3BiasLen;
 
-    std::vector<uint32_t> rowScales(l2Rows);
-    std::vector<int8_t, AlignedAllocator<int8_t, 64>> fileL1Weights(l1WeightCount);
-    std::vector<int8_t> fileL1Biases(l1BiasCount);
-    std::vector<int16_t, AlignedAllocator<int16_t, 64>> fileL2Weights(l2WeightCount);
-    std::vector<int32_t> fileL2Biases(l2BiasCount);
-    std::vector<float> fileL3Weights(l3WeightCount);
-    std::vector<float> fileL3Biases(l3BiasCount);
+    l1Clip = newL1Clip;
+    l1Weights.resize(l1WeightCount);
+    l2Weights.resize(l2WeightCount);
 
-    if (!readBytes(rowScales.data(), rowScales.size() * sizeof(uint32_t), "l2_row_scales")
-        || !readBytes(fileL1Weights.data(), fileL1Weights.size() * sizeof(int8_t), "l1_w")
-        || !readBytes(fileL1Biases.data(), fileL1Biases.size() * sizeof(int8_t), "l1_b")
-        || !readBytes(fileL2Weights.data(), fileL2Weights.size() * sizeof(int16_t), "l2_w")
-        || !readBytes(fileL2Biases.data(), fileL2Biases.size() * sizeof(int32_t), "l2_b")
-        || !readBytes(fileL3Weights.data(), fileL3Weights.size() * sizeof(float), "l3_w")
-        || !readBytes(fileL3Biases.data(), fileL3Biases.size() * sizeof(float), "l3_b"))
+    if (!readBytes(l2ClipByRow, l2Rows * sizeof(uint32_t), "l2_row_scales")
+        || !readBytes(l1Weights.data(), l1Weights.size() * sizeof(int8_t), "l1_w"))
     {
         return false;
     }
 
-    if (std::any_of(rowScales.begin(), rowScales.end(), [](uint32_t scale) { return scale == 0; }))
-        return fail("l2_row_scales must be positive");
-
-    std::fill(l1Biases, l1Biases + NNUE_L1_MAX, 0);
-    std::fill(l2Biases, l2Biases + NNUE_L2_MAX, 0);
-    std::fill(l2ClipByRow, l2ClipByRow + NNUE_L2_MAX, 0);
-    std::fill(l3Weights, l3Weights + NNUE_L2_MAX, 0.0f);
-    l3Bias = 0.0f;
-
-    l1Clip = newL1Clip;
-    l1Weights = std::move(fileL1Weights);
-    l2Weights = std::move(fileL2Weights);
-
-    for (uint32_t i = 0; i < l1Cols; i++)
-        l1Biases[i] = fileL1Biases[i];
     for (uint32_t i = 0; i < l2Rows; i++)
     {
-        l2Biases[i] = fileL2Biases[i];
-        l2ClipByRow[i] = rowScales[i];
-        const float scale = static_cast<float>(rowScales[i]);
-        l3Weights[i] = fileL3Weights[i] / (scale * scale);
+        if (l2ClipByRow[i] == 0)
+            return fail("l2_row_scales must be positive");
     }
-    l3Bias = fileL3Biases[0];
+
+    for (uint32_t i = 0; i < l1BiasCount; i++)
+    {
+        int8_t bias = 0;
+        if (!readValue(bias, "l1_b"))
+            return false;
+
+        l1Biases[i] = bias;
+    }
+
+    if (!readBytes(l2Weights.data(), l2Weights.size() * sizeof(int16_t), "l2_w")
+        || !readBytes(l2Biases, l2BiasCount * sizeof(int32_t), "l2_b")
+        || !readBytes(l3Weights, l3WeightCount * sizeof(float), "l3_w")
+        || !readValue(l3Bias, "l3_b"))
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < l3WeightCount; i++)
+    {
+        const float scale = static_cast<float>(l2ClipByRow[i]);
+        l3Weights[i] /= scale * scale;
+    }
 
     std::cout << "info string Loaded DevreNet v" << version
               << " from " << sourceLabel

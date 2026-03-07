@@ -76,7 +76,7 @@ class NNUE {
 
     static int baseIndex(int piece, int sq, Color perspective);
     uint32_t featureIndex(int i, int j) const;
-    const int8_t* rowInt8(uint32_t feature) const;
+    const int8_t* getPairWeights(uint32_t feature) const;
 
     int evaluateNet(Board& board);
     int head(const int16_t* us, const int16_t* them) const;
