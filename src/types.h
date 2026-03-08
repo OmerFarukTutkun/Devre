@@ -17,7 +17,7 @@
 #include <bitset>
 
 #ifndef VERSION
-    #define VERSION "6.41"
+    #define VERSION "6.42"
 #endif
 
 constexpr auto MAX_PLY   = 100;
