@@ -205,7 +205,11 @@ void Uci::setoption(std::vector<std::string>& commands) {
         }
         if (name == "EvalFile")
         {
-            NNUE::Instance()->loadNetwork(it->second.currentValue);
+            if (NNUE::Instance()->loadNetwork(it->second.currentValue))
+            {
+                board->nnueData.size = 0;
+                board->nnueData.accumulator[0].clear();
+            }
         }
         return;
     }
@@ -243,3 +247,5 @@ void Uci::stop() {
 }
 
 Uci::~Uci() { delete board; }
+
+

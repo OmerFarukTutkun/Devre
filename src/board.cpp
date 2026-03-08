@@ -227,8 +227,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     if (updateNNUE)
     {
         nnueData.size++;
-        nnueData.accumulator[nnueData.size].move = move;
-        nnueData.accumulator[nnueData.size].clear();
+        nnueData.accumulator[nnueData.size].invalidate();
     }
 
     //remove enPassant and Castling keys
@@ -373,7 +372,7 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     key = info.key;
     if (updateNNUE)
     {
-        nnueData.accumulator[nnueData.size].clear();
+        nnueData.accumulator[nnueData.size].invalidate();
         nnueData.size = std::max(0, nnueData.size - 1);
     }
 }
@@ -516,3 +515,5 @@ bool Board::inCheck(uint64_t threat) {
         return true;
     return false;
 }
+
+

@@ -2,28 +2,89 @@
 #define DEVRE_NNUE_H
 
 #include "board.h"
-#include "incbin/incbin.h"
 #include "types.h"
+#include <cstdlib>
+#include <limits>
+#include <malloc.h>
+#include <new>
+#include <vector>
 
+template<typename T, std::size_t Alignment>
+class AlignedAllocator {
+   public:
+    using value_type = T;
+
+    AlignedAllocator() noexcept = default;
+
+    template<typename U>
+    constexpr AlignedAllocator(const AlignedAllocator<U, Alignment>&) noexcept {}
+
+    [[nodiscard]] T* allocate(std::size_t n) {
+        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
+            throw std::bad_alloc();
+
+        const std::size_t bytes = n * sizeof(T);
+        const std::size_t alignedBytes = ((bytes + Alignment - 1) / Alignment) * Alignment;
+        void* ptr = nullptr;
+#if defined(_WIN32)
+        ptr = _aligned_malloc(std::max(alignedBytes, Alignment), Alignment);
+#else
+        ptr = std::aligned_alloc(Alignment, std::max(alignedBytes, Alignment));
+#endif
+        if (!ptr)
+            throw std::bad_alloc();
+
+        return static_cast<T*>(ptr);
+    }
+
+    void deallocate(T* ptr, std::size_t) noexcept {
+#if defined(_WIN32)
+        _aligned_free(ptr);
+#else
+        std::free(ptr);
+#endif
+    }
+
+    template<typename U>
+    struct rebind {
+        using other = AlignedAllocator<U, Alignment>;
+    };
+};
+
+template<typename T, typename U, std::size_t Alignment>
+constexpr bool operator==(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U, Alignment>&) noexcept {
+    return true;
+}
+
+template<typename T, typename U, std::size_t Alignment>
+constexpr bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U, Alignment>&) noexcept {
+    return false;
+}
 
 class NNUE {
    private:
     NNUE();
 
-    alignas(64) int16_t feature_weights[INPUT_SIZE * L1];
-    alignas(64) int16_t feature_biases[L1];
-    alignas(64) int16_t layer1_weights[2 * L1 * OUTPUT_BUCKETS];
-    alignas(64) int16_t layer1_bias[OUTPUT_BUCKETS];
+    int l1Clip = 64;
+    std::vector<int8_t, AlignedAllocator<int8_t, 64>> l1Weights;
+    alignas(64) int16_t l1Biases[NNUE_L1_MAX]{};
+    std::vector<int16_t, AlignedAllocator<int16_t, 64>> l2Weights;
+    alignas(64) int32_t l2Biases[NNUE_L2_MAX]{};
+    alignas(64) uint32_t l2ClipByRow[NNUE_L2_MAX]{};
+    alignas(64) float l3Weights[NNUE_L2_MAX]{};
+    float l3Bias = 0.0f;
 
-    static int nnueIndex(int king, int piece, int sq, int side);
+    static int baseIndex(int piece, int sq, Color perspective);
+    uint32_t featureIndex(int i, int j) const;
+    const int8_t* getPairWeights(uint32_t feature) const;
 
-    static int calculateIndices(Board& board, int (&weightIndices)[N_SQUARES], Color c);
-
-    //int32_t quanMatrixMultp(int side, int16_t (&accumulator)[2][L1]);
-
-    void recalculateInputLayer(Board& board, Color c, int idx);
-
-    void incrementalUpdate(Board& board, Color c, int idx);
+    int evaluateNet(Board& board);
+    int head(const int16_t* us, const int16_t* them) const;
+    void updateInputLayer(Board& board, int idx, bool fromScratch = false);
+    void recalculateInputLayer(Board& board, Color perspective, int idx);
+    void incrementalUpdateInputLayer(Board& board, Color perspective, int idx);
+    bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
+    bool loadNet(const std::string& filePath);
 
    public:
     static float materialScale(Board& board);
@@ -36,9 +97,8 @@ class NNUE {
 
     static NNUE* Instance();
 
-    static int32_t quanMatrixMultp(int16_t* us, int16_t* them, const int16_t* weights, int16_t bias);
-
     bool loadNetwork(const std::string& filePath);
 };
 
 #endif  //DEVRE_NNUE_H
+

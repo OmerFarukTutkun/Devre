@@ -1,7 +1,7 @@
 #thanks for https://github.com/gab8192/Obsidian for Makefile
 CXX      = g++
 LIBS     = -lm
-NETWORK  = devre_06.08.2024.nnue
+NETWORK  = devre_epoch300.bin
 
 M64     = -m64 -mpopcnt
 MSSE2   = $(M64) -msse -msse2

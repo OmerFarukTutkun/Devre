@@ -4,7 +4,6 @@
 #include "util.h"
 
 void bench(int argc, char** argv) {
-
     //bench file is taken from Ethereal
     std::string Benchmarks[] = {
 #include "bench.csv"
@@ -17,7 +16,6 @@ void bench(int argc, char** argv) {
     int megabytes = argc > 4 ? std::stoi(std::string(argv[4])) : 16;
 
     TT::Instance()->ttAllocate(megabytes);
-
     auto time = currentTime();
 
     auto search = Search();
@@ -45,3 +43,4 @@ void bench(int argc, char** argv) {
 
     std::cout << totalNodes << " nodes " << 1000 * totalNodes / (time + 1) << " nps" << std::endl;
 }
+
