@@ -6,7 +6,7 @@
 
 namespace SIMD {
 
-#if defined(DEVRE_ENABLE_AVX512) && defined(__AVX512F__) && defined(__AVX512BW__)
+#if defined(__AVX512F__) && defined(__AVX512BW__)
 
 using vecType = __m512i;
 constexpr int vecSize = 32;
