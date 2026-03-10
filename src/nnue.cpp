@@ -8,7 +8,7 @@
 #include <fstream>
 
 #ifndef NET
-    #define NET "devre_epoch300.bin"
+    #define NET "devre_mc.bin"
 #endif
 
 INCBIN(EmbeddedNet, NET);
