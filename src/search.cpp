@@ -393,6 +393,47 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
+
+    // Probcut
+    // If eval is far above beta, try captures at reduced depth.
+    // If any capture scores above beta + margin, prune the whole node.
+    const int probCutBeta = beta + 200;
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth >= 5
+        && std::abs(beta) < MIN_MATE_SCORE
+        && (!ttHit || ttDepth < depth - 3 || ttScore >= probCutBeta))
+    {
+        auto probCutMoves = MoveList(isTactical(ttMove) ? ttMove : NO_MOVE, false);
+        legalmoves<TACTICAL_MOVES>(*board, probCutMoves);
+
+        uint16_t probCutMove;
+        while ((probCutMove = probCutMoves.pickMove(thread, ss, MIL)) != NO_MOVE)
+        {
+            if (!SEE(*board, probCutMove, probCutBeta - eval))
+                continue;
+
+            ss->move                = probCutMove;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(probCutMove)]][moveTo(probCutMove)];
+            ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(probCutMove)]][moveTo(probCutMove)];
+            board->makeMove(probCutMove);
+
+            // Verify with qsearch first, then reduced-depth search
+            score = -qsearch(-probCutBeta, -probCutBeta + 1, thread, ss + 1);
+            if (score >= probCutBeta)
+                score = -alphaBeta(-probCutBeta, -probCutBeta + 1, depth - 4, !cutNode, thread, ss + 1);
+
+            board->unmakeMove(probCutMove);
+
+            if (this->stopped)
+                return 0;
+
+            if (score >= probCutBeta)
+            {
+                TT::Instance()->ttSave(board->key, ss->ply, score, rawEval, TT_LOWERBOUND, depth - 3, probCutMove);
+                return score;
+            }
+        }
+    }
+
     auto moveList = MoveList(ttMove);
     legalmoves<ALL_MOVES>(*board, moveList);
 
