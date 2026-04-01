@@ -24,6 +24,7 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
         ss->killers[1] = ss->killers[0];
         ss->killers[0] = bestMove;
     }
+    int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
     for (int i = 0; i < ss->played; i++)
     {
         uint16_t move = ss->playedMoves[i];
@@ -35,6 +36,10 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             bool isGood = (i == ss->played - 1);
 
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
+            updateHistory(current, depth, isGood);
+
+            // pawn history
+            current = &thread.pawnHistory[pawnBucket][piece][to];
             updateHistory(current, depth, isGood);
 
             if ((ss - 1)->move)
@@ -88,6 +93,9 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     int    piece = board->pieceBoard[from];
     int    score = thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
 
+    // pawn history
+    int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
+    score += thread.pawnHistory[pawnBucket][piece][to];
 
     if ((ss - 1)->move)
     {
@@ -95,7 +103,6 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     }
     if ((ss - 2)->move)
     {
-
         score += (*(ss - 2)->continuationHistory)[piece][to];
     }
     return score;
