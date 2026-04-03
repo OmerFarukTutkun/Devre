@@ -20,7 +20,7 @@ int seeThreshold(bool quiet, int depth) {
         return -97 * depth;
     }
     else
-        return -324 * depth;
+        return -350 * depth;
 }
 
 void Search::initSearchParameters() {
@@ -207,7 +207,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         }
     }
 
-    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
+    TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
 }
@@ -268,7 +268,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     bool inCheck = board->inCheck(ss->threat);
 
     //check Extension
-    if (!rootNode && inCheck)
+    if (!rootNode && inCheck && ss->played < 3)
     {
         depth = std::max(1, 1 + depth);
     }
@@ -358,7 +358,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
     //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 9 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode)
     {
         return eval;
     }
@@ -425,7 +425,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
+            if (depth <= 10 && eval + std::max(192, -(ss->played) * 20 + 192 + depth * 109) < alpha)
                 continue;
 
             //contHist pruning
@@ -452,8 +452,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             lmr -= std::clamp(history / 8474, -2, 2);
             lmr += cutNode;
-            lmr += ttMove && ttCapture;
-            lmr -= std::abs(ss->staticEval - rawEval) > 350;
+            lmr -= ttMove && ttCapture;
+            lmr -= std::abs(ss->staticEval - rawEval) > 250;
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
@@ -473,7 +473,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (singularScore < singularBeta)
             {
                 extension  = 1;
-                int margin = 300 * PVNode - 200 * !isTactical(ttMove);
+                int margin = 320 * PVNode - 200 * !isTactical(ttMove);
                 if ((singularScore + margin < singularBeta) && ss->doubleExtension <= 5)
                 {
                     ss->doubleExtension = (ss - 1)->doubleExtension + 1;
