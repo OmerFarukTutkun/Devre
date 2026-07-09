@@ -12,6 +12,12 @@
 DEFINE_PARAM_B(nodeTmBase, 150, 0, 350);
 DEFINE_PARAM_B(nodeTmMultp, -100, -300, 0);
 
+// Best-move stability soft-time scaling (percent). When the best root move keeps
+// changing between iterations we spend more time; when it is stable we stop earlier.
+DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
+DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
+DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -622,7 +628,9 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         (ss + i)->contCorrHist        = &threads.at(ThreadID)->contCorrHist[0][0];
     }
 
-    int score = 0;
+    int      score            = 0;
+    uint16_t previousBestMove = NO_MOVE;
+    int      bmStability      = 0;
     for (int i = 1; i <= timeManager->depthLimit; i++)
     {
         threads.at(ThreadID)->searchDepth = i;
@@ -675,11 +683,22 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             std::cout << " nps " << nps << " nodes " << nodes << " time " << elapsed << " hashfull " << TT::Instance()->getHashfull() << " tbhits " << totalTbHits() << " pv "
                       << getPV(ss + 6, threads.at(ThreadID)->board) << std::endl;
 
+            // Track how long the best root move has been stable across iterations.
+            if (m_bestMove == previousBestMove)
+                bmStability = std::min(bmStability + 1, 8);
+            else
+                bmStability = 0;
+            previousBestMove = m_bestMove;
+
             float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
             //extra protection
-            std::clamp(bestMoveFraction, 0.0f, 1.0f);
+            bestMoveFraction = std::clamp(bestMoveFraction, 0.0f, 1.0f);
             float nodeTm = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
-            if (elapsed > timeManager->softTime * nodeTm)
+
+            int   stabPercent     = std::max<int>(bmStabMin, bmStabBase - bmStabScale * bmStability);
+            float stabilityFactor = stabPercent / 100.0f;
+
+            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor)
                 break;
         }
     }
