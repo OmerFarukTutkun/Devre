@@ -151,37 +151,56 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         return board->eval();
     }
 
-    auto rawEval  = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-    auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
+    bool inCheck = board->inCheck();
 
-    if(!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval,TT_NONE , 0, NO_MOVE);
+    auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
 
-    //ttValue can be used as a better position evaluation
-    if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
-    {
-        standPat = ttScore;
-    }
+    if (!ttHit)
+        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
 
-    if (standPat >= beta)
-    {
-        return standPat;
-    }
-    if (alpha < standPat)
-    {
-        alpha = standPat;
-    }
-
-    int      bestScore = standPat, score;
+    int      bestScore, score;
     uint16_t move, bestMove = NO_MOVE;
 
+    if (inCheck)
+    {
+        // When in check we cannot trust the static eval: search all evasions.
+        bestScore = -VALUE_INFINITE;
+    }
+    else
+    {
+        auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
+
+        //ttValue can be used as a better position evaluation
+        if (ttHit && (ttBound & (ttScore > standPat ? TT_LOWERBOUND : TT_UPPERBOUND)))
+        {
+            standPat = ttScore;
+        }
+
+        if (standPat >= beta)
+        {
+            return standPat;
+        }
+        if (alpha < standPat)
+        {
+            alpha = standPat;
+        }
+        bestScore = standPat;
+    }
+
     auto moveList = MoveList(ttMove, true);
-    legalmoves<TACTICAL_MOVES>(*board, moveList);
+    if (inCheck)
+        legalmoves<ALL_MOVES>(*board, moveList);
+    else
+        legalmoves<TACTICAL_MOVES>(*board, moveList);
+
+    // checkmate
+    if (inCheck && moveList.numMove == 0)
+        return -(MAX_MATE_SCORE - ss->ply);
 
     while ((move = moveList.pickMove(thread, ss)))
     {
 
-        if (move != ttMove && !SEE(*board, move))
+        if (!inCheck && move != ttMove && !SEE(*board, move))
             continue;
         ss->move = move;
         board->makeMove(move);
