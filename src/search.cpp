@@ -18,6 +18,12 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+// Score-trend soft-time scaling (percent): when the root score is falling
+// between iterations, spend more time; when it is steady or rising, neutral.
+DEFINE_PARAM_B(scoreTrendMultp, 75, 0, 300);
+DEFINE_PARAM_B(scoreTrendMin, 90, 50, 120);
+DEFINE_PARAM_B(scoreTrendMax, 150, 100, 250);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -629,6 +635,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
     }
 
     int      score            = 0;
+    int      previousScore    = SCORE_NONE;
     uint16_t previousBestMove = NO_MOVE;
     int      bmStability      = 0;
     for (int i = 1; i <= timeManager->depthLimit; i++)
@@ -698,7 +705,14 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int   stabPercent     = std::max<int>(bmStabMin, bmStabBase - bmStabScale * bmStability);
             float stabilityFactor = stabPercent / 100.0f;
 
-            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor)
+            // Spend more time when the score dropped since the previous iteration.
+            int scoreDrop = (previousScore == SCORE_NONE) ? 0 : previousScore - score;
+            previousScore = score;
+
+            int   trendPercent = std::clamp(100 + scoreDrop * scoreTrendMultp / 100, static_cast<int>(scoreTrendMin), static_cast<int>(scoreTrendMax));
+            float trendFactor  = trendPercent / 100.0f;
+
+            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor * trendFactor)
                 break;
         }
     }
