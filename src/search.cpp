@@ -18,6 +18,10 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+// With a single legal root move there is nothing to decide: use only this
+// percentage of the usual soft time.
+DEFINE_PARAM_B(forcedMoveTmPercent, 4, 0, 100);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -631,6 +635,13 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
     int      score            = 0;
     uint16_t previousBestMove = NO_MOVE;
     int      bmStability      = 0;
+    bool     onlyOneLegalMove = false;
+    if (ThreadID == 0)
+    {
+        auto rootMoves = MoveList();
+        legalmoves<ALL_MOVES>(threads.at(ThreadID)->board, rootMoves);
+        onlyOneLegalMove = (rootMoves.numMove == 1);
+    }
     for (int i = 1; i <= timeManager->depthLimit; i++)
     {
         threads.at(ThreadID)->searchDepth = i;
@@ -698,7 +709,9 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int   stabPercent     = std::max<int>(bmStabMin, bmStabBase - bmStabScale * bmStability);
             float stabilityFactor = stabPercent / 100.0f;
 
-            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor)
+            float forcedFactor = onlyOneLegalMove ? forcedMoveTmPercent / 100.0f : 1.0f;
+
+            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor * forcedFactor)
                 break;
         }
     }
