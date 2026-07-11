@@ -486,7 +486,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
-        if (ss->ply < thread.searchDepth && !rootNode && depth >= 8 && move == ttMove && ss->excludedMove == NO_MOVE && (ttBound & TT_LOWERBOUND) && ttDepth >= depth - 3)
+        if (ss->ply < thread.searchDepth && !rootNode && depth >= 6 && move == ttMove && ss->excludedMove == NO_MOVE && (ttBound & TT_LOWERBOUND) && ttDepth >= depth - 3)
         {
             const int singularBeta  = ttScore - 4 * depth;
             const int singularDepth = (depth - 1) / 2;
