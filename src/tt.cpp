@@ -5,6 +5,8 @@
 
 #if defined(__linux__)
     #include <sys/mman.h>
+#elif defined(_WIN32)
+    #include <malloc.h>
 #endif
 
 TT::TT() {
@@ -99,6 +101,9 @@ void TT::ttAllocate(int megabyte) {
 #if defined(__linux__)
     table = static_cast<TTBucket*>(aligned_alloc(2 * 1024 * 1024, sizeof(TTBucket) * (ttMask + 1)));
     madvise(table, sizeof(TTBucket) * (ttMask + 1), MADV_HUGEPAGE);
+#elif defined(_WIN32)
+    // Align buckets to cache lines so a probe never touches two lines.
+    table = static_cast<TTBucket*>(_aligned_malloc(sizeof(TTBucket) * (ttMask + 1), 64));
 #else
     table = static_cast<TTBucket*>(malloc(sizeof(TTBucket) * (ttMask + 1)));
 #endif
@@ -110,14 +115,17 @@ void TT::ttClear() {
     std::memset(table, 0, sizeof(TTBucket) * (ttMask + 1));
 }
 
-void TT::ttFree() { free(table); }
+void TT::ttFree() {
+#if defined(_WIN32)
+    _aligned_free(table);
+#else
+    free(table);
+#endif
+}
 
 void TT::ttPrefetch(uint64_t hash) { __builtin_prefetch(&table[hash & ttMask]); }
 
-TT* TT::Instance() {
-    static TT instance = TT();
-    return &instance;
-}
+TT TT::instance;
 
 void TT::updateAge() {
     //6 bit for age

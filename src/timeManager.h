@@ -21,6 +21,15 @@ class TimeManager {
     int calls;
     int period;
 
+    // Cheap per-node countdown; callers run the expensive limit check (and
+    // compute the node total it needs) only when this fires.
+    bool shouldCheck() {
+        if (--calls > 0)
+            return false;
+        calls = period;
+        return true;
+    }
+
     bool checkLimits(uint64_t totalNodes);
 
     //set start time and calculate optimal time to start

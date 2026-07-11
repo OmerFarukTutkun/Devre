@@ -65,6 +65,10 @@ class NNUE {
    private:
     NNUE();
 
+    // Eagerly constructed instance: evaluate calls skip the thread-safe
+    // local-static initialization guard.
+    static NNUE instance;
+
     int l1Clip = 64;
     std::vector<int8_t, AlignedAllocator<int8_t, 64>> l1Weights;
     alignas(64) int16_t l1Biases[NNUE_L1_MAX]{};
@@ -95,7 +99,7 @@ class NNUE {
 
     int evaluate(Board& board);
 
-    static NNUE* Instance();
+    static NNUE* Instance() { return &instance; }
 
     bool loadNetwork(const std::string& filePath);
 };

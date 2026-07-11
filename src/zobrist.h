@@ -8,8 +8,12 @@ class Zobrist {
    private:
     Zobrist();
 
+    // Eagerly constructed instance: key lookups in makeMove/unmakeMove skip
+    // the thread-safe local-static initialization guard.
+    static Zobrist instance;
+
    public:
-    static Zobrist* Instance();
+    static Zobrist* Instance() { return &instance; }
 
     uint64_t PieceKeys[N_PIECES][64];
     uint64_t SideToPlayKey;

@@ -9,6 +9,10 @@ class TT {
 
     ~TT();
 
+    // Eagerly constructed instance: probe/save/prefetch calls skip the
+    // thread-safe local-static initialization guard.
+    static TT instance;
+
     int       age;
     uint64_t  ttMask;
     TTBucket* table;
@@ -32,7 +36,7 @@ class TT {
 
     static uint8_t getAge(TTentry* entry);
 
-    static TT* Instance();
+    static TT* Instance() { return &instance; }
 };
 
 #endif  //DEVRE_TT_H

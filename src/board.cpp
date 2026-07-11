@@ -482,11 +482,12 @@ bool Board::isMaterialDraw() {
 
 bool Board::isRepetition() {
 
-    for (int i = boardHistory.size() - 1; i >= 0; i--)
+    const int historySize = static_cast<int>(boardHistory.size());
+    for (int i = historySize - 1; i >= 0; i--)
     {
-        if (key == boardHistory.at(i).key)
+        if (key == boardHistory[i].key)
             return true;
-        if ((boardHistory.size() - i) > halfMove)
+        if ((historySize - i) > halfMove)
             return false;
     }
     return false;

@@ -241,14 +241,14 @@ struct __attribute__((__packed__)) TTBucket {
 
 
 struct nnueChange {
-    int piece;
-    int sq;
-    int sign;
+    int8_t piece;
+    int8_t sq;
+    int8_t sign;
 
     nnueChange(int piece = 0, int sq = 0, int sign = 0) :
-        piece(piece),
-        sq(sq),
-        sign(sign) {}
+        piece(static_cast<int8_t>(piece)),
+        sq(static_cast<int8_t>(sq)),
+        sign(static_cast<int8_t>(sign)) {}
 };
 
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
@@ -256,7 +256,9 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 //TODO: maybe try reading these values from .nnue file instead of hardcoding
 constexpr int NNUE_BASE_FEATURES = 768;
 constexpr int NNUE_FEATURES = NNUE_BASE_FEATURES * (NNUE_BASE_FEATURES + 1) / 2;
-constexpr int NNUE_L1_MAX = 256;
+// Matches the l1 width the loader accepts; keeping it tight halves the size of
+// every accumulator, which matters for cache footprint during search.
+constexpr int NNUE_L1_MAX = 128;
 constexpr int NNUE_L2_MAX = 2 * NNUE_L1_MAX;
 
 struct NNUEAccumulator {

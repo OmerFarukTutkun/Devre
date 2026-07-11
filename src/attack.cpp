@@ -1,19 +1,5 @@
 #include "attack.h"
 
-#ifdef USE_PEXT
-
-    #include <immintrin.h>
-
-#endif
-
-int slider_index(uint64_t occ, FancyMagic* table) {
-#ifdef USE_PEXT
-    return _pext_u64(occ, table->mask);
-#else
-    return (occ & table->mask) * table->magic >> table->shift;
-#endif
-}
-
 template<typename T>
 T pdep(T val, T mask) {
     T res = 0;
@@ -80,22 +66,9 @@ AttackTables::AttackTables() {
     }
 }
 
-AttackTables* AttackTables::Instance() {
-    static auto mInstance = AttackTables();
-    return &mInstance;
-}
+AttackTables AttackTables::instance;
 
 AttackTables::~AttackTables() = default;
-
-uint64_t rookAttacks(uint64_t occ, int sq) {
-    auto table = &AttackTables::Instance()->RookTable[sq];
-    return table->offset[slider_index(occ, table)];
-}
-
-uint64_t bishopAttacks(uint64_t occ, int sq) {
-    auto table = &AttackTables::Instance()->BishopTable[sq];
-    return table->offset[slider_index(occ, table)];
-}
 
 bool isSquareAttacked(Board& board, int sq, int side) {
     uint64_t occ = board.occupied[WHITE] | board.occupied[BLACK];
