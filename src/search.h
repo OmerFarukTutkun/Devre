@@ -19,6 +19,7 @@ struct Stack {
     int      staticEval;
     uint64_t threat;
     uint16_t excludedMove;
+    uint16_t cutoffCount;
 
     Stack();
 };

@@ -98,6 +98,7 @@ Stack::Stack() {
     pv[0]           = NO_MOVE;
     played          = 0;
     doubleExtension = 0;
+    cutoffCount     = 0;
 }
 
 Search::Search() {
@@ -398,6 +399,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     (ss + 1)->excludedMove = NO_MOVE;
     (ss + 1)->killers[0]   = NO_MOVE;
     (ss + 1)->killers[1]   = NO_MOVE;
+    (ss + 1)->cutoffCount  = 0;
     ss->doubleExtension    = (ss - 1)->doubleExtension;
 
     int score;
@@ -479,6 +481,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             lmr += cutNode;
             lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 350;
+            // this node's children keep failing high: its moves are likely weak, reduce more
+            lmr += (ss + 1)->cutoffCount > 3;
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
@@ -576,6 +580,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             if (bestScore >= beta)
             {
+                ss->cutoffCount++;
                 updateHistories(thread, ss, depth, bestMove);
                 break;
             }
