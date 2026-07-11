@@ -3,9 +3,12 @@
 #include "history.h"
 #include "movegen.h"
 #include "uciOptions.h"
+#include "tuning.h"
 #include <sstream>
 
 constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0, 100, 300, 300, 500, 1000, 150, 0, 0};
+
+DEFINE_PARAM_B(mvvMultp, 16, 0, 64);
 
 std::string moveToUci(uint16_t move, Board& board) {
     std::stringstream ss;
@@ -193,16 +196,19 @@ void MoveList::scoreMoves(ThreadData& thread, Stack* ss) {
             }
             else if (type == CAPTURE)
             {
+                // order captures by most-valuable-victim in addition to capture history,
+                // so that fresh positions with empty history still try big captures first
+                int mvv = mvvMultp * SEE_VALUE[board->pieceBoard[moveTo(move)]];
                 if (qsearch)
                 {
-                    scores[i] += getCaptureHistory(thread, ss, move);
+                    scores[i] += mvv + getCaptureHistory(thread, ss, move);
                 }
                 else
                 {
                     if (SEE(*board, move))
-                        scores[i] += getCaptureHistory(thread, ss, move);
+                        scores[i] += mvv + getCaptureHistory(thread, ss, move);
                     else
-                        scores[i] = MIL + getCaptureHistory(thread, ss, move);
+                        scores[i] = MIL + mvv + getCaptureHistory(thread, ss, move);
                 }
             }
         }
