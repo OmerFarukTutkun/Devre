@@ -58,12 +58,8 @@ inline __attribute__((always_inline)) void applyDeltaAddInt8(int16_t* __restrict
 // block: the per-block add chains stay independent, so the CPU is not stuck on
 // a serial dependency chain over all delta rows. int16 wrap-around addition is
 // order-independent, so the result is bit-identical to any other ordering.
-inline __attribute__((always_inline)) void applyDeltaBatchInt8(int16_t* __restrict__ out,
-                                                               const int16_t* __restrict__ prev,
-                                                               const int8_t* const* __restrict__ addRows,
-                                                               int addCount,
-                                                               const int8_t* const* __restrict__ subRows,
-                                                               int subCount) {
+inline __attribute__((always_inline)) void
+applyDeltaBatchInt8(int16_t* __restrict__ out, const int16_t* __restrict__ prev, const int8_t* const* __restrict__ addRows, int addCount, const int8_t* const* __restrict__ subRows, int subCount) {
     constexpr uint32_t numBlocks = l1_cols / accum_simd_width;
     // Cap the live accumulator registers so narrow SIMD builds do not spill.
     constexpr uint32_t chunkBlocks = numBlocks <= 8 ? numBlocks : 8;
@@ -95,7 +91,17 @@ inline __attribute__((always_inline)) void applyDeltaBatchInt8(int16_t* __restri
     }
 }
 
-}
+} 
+
+struct NNUEDeltaBatch {
+    const int8_t*  addRows[max_delta_rows];
+    const int8_t*  subRows[max_delta_rows];
+    int16_t*       out;
+    const int16_t* prev;
+    int            addCount = 0;
+    int            subCount = 0;
+    bool           pending  = false;
+};
 
 NNUE NNUE::instance;
 
@@ -154,7 +160,7 @@ void NNUE::recalculateInputLayer(Board& board, Color perspective, int idx) {
     }
 }
 
-void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx) {
+void NNUE::prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch) {
     auto& prevAcc = board.nnueData.accumulator[idx - 1];
     auto& curAcc  = board.nnueData.accumulator[idx];
 
@@ -170,6 +176,8 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
 
     int16_t*       out  = curAcc.data[perspective];
     const int16_t* prev = prevAcc.data[perspective];
+    batch.out           = out;
+    batch.prev          = prev;
 
     int removedBases[4];
     int addedBases[4];
@@ -225,8 +233,8 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
             survivors[survivorCount++] = prevBase;
     }
 
-    const int8_t* addRows[max_delta_rows];
-    const int8_t* subRows[max_delta_rows];
+    const int8_t** addRows = batch.addRows;
+    const int8_t** subRows = batch.subRows;
 
     int subRowCount = 0;
     for (int i = 0; i < removedBaseCount; i++)
@@ -270,7 +278,9 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
         }
     }
 
-    applyDeltaBatchInt8(out, prev, addRows, addRowCount, subRows, subRowCount);
+    batch.addCount = addRowCount;
+    batch.subCount = subRowCount;
+    batch.pending  = true;
 }
 
 void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
@@ -281,8 +291,18 @@ void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
     }
     else
     {
-        incrementalUpdateInputLayer(board, WHITE, idx);
-        incrementalUpdateInputLayer(board, BLACK, idx);
+        // Prepare both perspectives before applying either, so the prefetches
+        // issued while gathering one perspective's rows overlap with the
+        // other's delta pass as well.
+        NNUEDeltaBatch batches[N_COLORS];
+        prepareIncrementalUpdate(board, WHITE, idx, batches[WHITE]);
+        prepareIncrementalUpdate(board, BLACK, idx, batches[BLACK]);
+
+        for (const auto& batch : batches)
+        {
+            if (batch.pending)
+                applyDeltaBatchInt8(batch.out, batch.prev, batch.addRows, batch.addCount, batch.subRows, batch.subCount);
+        }
     }
     board.nnueData.accumulator[idx].nonEmpty = true;
 }
@@ -300,8 +320,8 @@ int NNUE::head(const int16_t* us, const int16_t* them) const {
     alignas(64) int16_t act[totalCols];
     for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
     {
-        const SIMD::vecType usRaw       = SIMD::vecLoad(us + k);
-        const SIMD::vecType usClipped   = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, usRaw));
+        const SIMD::vecType usRaw     = SIMD::vecLoad(us + k);
+        const SIMD::vecType usClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, usRaw));
         SIMD::vecStore(act + k, SIMD::vecMulloEpi16(usClipped, usClipped));
         const SIMD::vecType themRaw     = SIMD::vecLoad(them + k);
         const SIMD::vecType themClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, themRaw));
@@ -309,8 +329,8 @@ int NNUE::head(const int16_t* us, const int16_t* them) const {
     }
 
     float logit         = l3Bias;
-    auto  accumulateRow = [this, &logit](uint32_t row, SIMD::vecType acc) {
-        const int32_t raw = l2Biases[row] + SIMD::vecReduceEpi32(acc);
+    auto  accumulateRow = [this, &logit](uint32_t row, int32_t sum) {
+        const int32_t raw = l2Biases[row] + sum;
         if (raw <= 0)
             return;
 
@@ -355,14 +375,11 @@ int NNUE::head(const int16_t* us, const int16_t* them) const {
             acc7 = SIMD::vecAddEpi32(acc7, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights7 + k)));
         }
 
-        accumulateRow(row + 0, acc0);
-        accumulateRow(row + 1, acc1);
-        accumulateRow(row + 2, acc2);
-        accumulateRow(row + 3, acc3);
-        accumulateRow(row + 4, acc4);
-        accumulateRow(row + 5, acc5);
-        accumulateRow(row + 6, acc6);
-        accumulateRow(row + 7, acc7);
+        alignas(32) int32_t sums[rowsPerTile];
+        SIMD::vecReduceEpi32x8(acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7, sums);
+
+        for (uint32_t i = 0; i < rowsPerTile; i++)
+            accumulateRow(row + i, sums[i]);
     }
 
     float cp = logit * NET_CP_SCALE;
@@ -509,7 +526,7 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
 
 bool NNUE::loadNetwork(const std::string& filePath) {
     if (filePath.empty() || filePath == "<empty>")
-    return false;
+        return false;
 
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open())

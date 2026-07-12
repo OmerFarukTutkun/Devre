@@ -1,8 +1,8 @@
 #ifndef DEVRE_UCIOPTIONS_H
 #define DEVRE_UCIOPTIONS_H
 
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include "types.h"
 

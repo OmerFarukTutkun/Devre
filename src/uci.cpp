@@ -52,7 +52,7 @@ void Uci::UciLoop() {
             eval();
         else if (cmd == "ucinewgame")
         {
-
+            this->stop();
             TT::Instance()->ttClear();
 
             auto option = Options.at("Threads");
@@ -86,6 +86,8 @@ void Uci::perft(std::vector<std::string>& commands) {
 }
 
 void Uci::setPosition(std::vector<std::string>& commands) {
+    this->stop();
+
     auto        cmd = popFront(commands);
     std::string fen = START_FEN;
     if (cmd == "fen")
@@ -124,7 +126,7 @@ void Uci::eval() {
         for (int j = 0; j < 8; j++)
         {
             int piece = board->pieceBoard[8 * i + j];
-            std::cout << "       " << PIECE_TO_CHAR.at(piece);
+            std::cout << "       " << pieceToChar(piece);
         }
         std::cout << "\n" << i + 1;
         for (int j = 0; j < 8; j++)
@@ -183,6 +185,7 @@ void Uci::go(std::vector<std::string>& commands) {
 }
 
 void Uci::setoption(std::vector<std::string>& commands) {
+    this->stop();
     popFront(commands);
     auto name = popFront(commands);
     auto it   = Options.find(name);
@@ -232,7 +235,6 @@ void Uci::setoption(std::vector<std::string>& commands) {
 Uci::Uci() {
     board = new Board();
 
-    search      = Search();
     auto option = Options.at("Threads");
     search.setThread(stoi(option.defaultValue));
     timeManager = TimeManager();

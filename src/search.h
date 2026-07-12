@@ -59,6 +59,10 @@ class Search {
 
     Search();
 
+    // Search owns raw thread/node buffers; copying would double-free them.
+    Search(const Search&)            = delete;
+    Search& operator=(const Search&) = delete;
+
     virtual ~Search();
 };
 

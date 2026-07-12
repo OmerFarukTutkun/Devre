@@ -61,6 +61,8 @@ constexpr bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAl
     return false;
 }
 
+struct NNUEDeltaBatch;
+
 class NNUE {
    private:
     NNUE();
@@ -84,7 +86,7 @@ class NNUE {
     int head(const int16_t* us, const int16_t* them) const;
     void updateInputLayer(Board& board, int idx, bool fromScratch = false);
     void recalculateInputLayer(Board& board, Color perspective, int idx);
-    void incrementalUpdateInputLayer(Board& board, Color perspective, int idx);
+    void prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch);
     bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
 
    public:

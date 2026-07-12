@@ -27,6 +27,26 @@ inline vecType vecLoadI8ToI16(const int8_t* p) {
 }
 inline int vecReduceEpi32(vecType a) { return _mm512_reduce_add_epi32(a); }
 
+// Horizontal sums of eight vectors at once via a hadd tree; out[i] receives the
+// lane sum of vector i. Wrap-around int32 addition makes the result identical
+// to eight separate vecReduceEpi32 calls.
+inline void vecReduceEpi32x8(vecType a0, vecType a1, vecType a2, vecType a3, vecType a4, vecType a5, vecType a6, vecType a7, int32_t* out) {
+    const __m256i h0 = _mm256_add_epi32(_mm512_castsi512_si256(a0), _mm512_extracti64x4_epi64(a0, 1));
+    const __m256i h1 = _mm256_add_epi32(_mm512_castsi512_si256(a1), _mm512_extracti64x4_epi64(a1, 1));
+    const __m256i h2 = _mm256_add_epi32(_mm512_castsi512_si256(a2), _mm512_extracti64x4_epi64(a2, 1));
+    const __m256i h3 = _mm256_add_epi32(_mm512_castsi512_si256(a3), _mm512_extracti64x4_epi64(a3, 1));
+    const __m256i h4 = _mm256_add_epi32(_mm512_castsi512_si256(a4), _mm512_extracti64x4_epi64(a4, 1));
+    const __m256i h5 = _mm256_add_epi32(_mm512_castsi512_si256(a5), _mm512_extracti64x4_epi64(a5, 1));
+    const __m256i h6 = _mm256_add_epi32(_mm512_castsi512_si256(a6), _mm512_extracti64x4_epi64(a6, 1));
+    const __m256i h7 = _mm256_add_epi32(_mm512_castsi512_si256(a7), _mm512_extracti64x4_epi64(a7, 1));
+
+    const __m256i u0 = _mm256_hadd_epi32(_mm256_hadd_epi32(h0, h1), _mm256_hadd_epi32(h2, h3));
+    const __m256i u1 = _mm256_hadd_epi32(_mm256_hadd_epi32(h4, h5), _mm256_hadd_epi32(h6, h7));
+
+    const __m256i sums = _mm256_add_epi32(_mm256_permute2x128_si256(u0, u1, 0x20), _mm256_permute2x128_si256(u0, u1, 0x31));
+    _mm256_storeu_si256(reinterpret_cast<__m256i*>(out), sums);
+}
+
 #elif defined(__AVX2__)
 
 using vecType = __m256i;
@@ -51,6 +71,17 @@ inline int vecReduceEpi32(vecType sum) {
     sum128 = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_BADC));
     sum128 = _mm_add_epi32(sum128, _mm_shuffle_epi32(sum128, _MM_PERM_CDAB));
     return _mm_cvtsi128_si32(sum128);
+}
+
+// Horizontal sums of eight vectors at once via a hadd tree; out[i] receives the
+// lane sum of vector i. Wrap-around int32 addition makes the result identical
+// to eight separate vecReduceEpi32 calls.
+inline void vecReduceEpi32x8(vecType a0, vecType a1, vecType a2, vecType a3, vecType a4, vecType a5, vecType a6, vecType a7, int32_t* out) {
+    const __m256i u0 = _mm256_hadd_epi32(_mm256_hadd_epi32(a0, a1), _mm256_hadd_epi32(a2, a3));
+    const __m256i u1 = _mm256_hadd_epi32(_mm256_hadd_epi32(a4, a5), _mm256_hadd_epi32(a6, a7));
+
+    const __m256i sums = _mm256_add_epi32(_mm256_permute2x128_si256(u0, u1, 0x20), _mm256_permute2x128_si256(u0, u1, 0x31));
+    _mm256_storeu_si256(reinterpret_cast<__m256i*>(out), sums);
 }
 
 #else
@@ -78,6 +109,18 @@ inline int vecReduceEpi32(vecType sum) {
     sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, 0x4E));
     sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, 0xB1));
     return _mm_cvtsi128_si32(sum);
+}
+
+// SSE2 has no hadd; plain per-vector reductions keep this path simple.
+inline void vecReduceEpi32x8(vecType a0, vecType a1, vecType a2, vecType a3, vecType a4, vecType a5, vecType a6, vecType a7, int32_t* out) {
+    out[0] = vecReduceEpi32(a0);
+    out[1] = vecReduceEpi32(a1);
+    out[2] = vecReduceEpi32(a2);
+    out[3] = vecReduceEpi32(a3);
+    out[4] = vecReduceEpi32(a4);
+    out[5] = vecReduceEpi32(a5);
+    out[6] = vecReduceEpi32(a6);
+    out[7] = vecReduceEpi32(a7);
 }
 
 #endif

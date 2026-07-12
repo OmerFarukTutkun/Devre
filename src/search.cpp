@@ -124,7 +124,14 @@ void Search::setThread(int thread) {
     }
 }
 
-Search::~Search() = default;
+Search::~Search() {
+    for (auto th : threads)
+    {
+        delete th;
+    }
+    threads.clear();
+    delete[] moveNodes;
+}
 
 void Search::stop() { stopped = true; }
 
