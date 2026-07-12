@@ -23,7 +23,4 @@ Zobrist::Zobrist() {
         EnPassantKey = rand_u64();
 }
 
-Zobrist* Zobrist::Instance() {
-    static auto instance = Zobrist();
-    return &instance;
-}
+Zobrist Zobrist::instance;

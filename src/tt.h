@@ -9,6 +9,8 @@ class TT {
 
     ~TT();
 
+    static TT instance;
+
     int       age;
     uint64_t  ttMask;
     TTBucket* table;
@@ -32,7 +34,7 @@ class TT {
 
     static uint8_t getAge(TTentry* entry);
 
-    static TT* Instance();
+    static TT* Instance() { return &instance; }
 };
 
 #endif  //DEVRE_TT_H

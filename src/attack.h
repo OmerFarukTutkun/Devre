@@ -94,11 +94,25 @@ struct FancyMagic {
     int       shift;
 };
 
+#ifdef USE_PEXT
+    #include <immintrin.h>
+#endif
+
+inline int slider_index(uint64_t occ, const FancyMagic* table) {
+#ifdef USE_PEXT
+    return _pext_u64(occ, table->mask);
+#else
+    return (occ & table->mask) * table->magic >> table->shift;
+#endif
+}
+
 class AttackTables {
    private:
     AttackTables();
 
     ~AttackTables();
+
+    static AttackTables instance;
 
    public:
     uint64_t   RookAttacks[102400];
@@ -106,12 +120,18 @@ class AttackTables {
     FancyMagic RookTable[64];
     FancyMagic BishopTable[64];
 
-    static AttackTables* Instance();
+    static AttackTables* Instance() { return &instance; }
 };
 
-uint64_t rookAttacks(uint64_t occ, int sq);
+inline uint64_t rookAttacks(uint64_t occ, int sq) {
+    auto table = &AttackTables::Instance()->RookTable[sq];
+    return table->offset[slider_index(occ, table)];
+}
 
-uint64_t bishopAttacks(uint64_t occ, int sq);
+inline uint64_t bishopAttacks(uint64_t occ, int sq) {
+    auto table = &AttackTables::Instance()->BishopTable[sq];
+    return table->offset[slider_index(occ, table)];
+}
 
 template<Color c>
 uint64_t pawnLeftAttacks(const uint64_t pawns) {

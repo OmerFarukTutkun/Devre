@@ -7,23 +7,31 @@
 #include "move.h"
 #include "array"
 
-//some things taken from SmallBrain
-static uint64_t betweenSquares(int from, int to) {
+constexpr uint64_t betweenSquares(int from, int to) {
     if (from == to)
         return 0ULL;
-    auto occ = (ONE << from) | (ONE << to);
-    if ((fileIndex(from) == fileIndex(to)) || (rankIndex(from) == rankIndex(to)))
-        return (rookAttacks(occ, from) & rookAttacks(occ, to));
 
-    int rankDiff = rankIndex(to) - rankIndex(from);
-    int fileDiff = fileIndex(to) - fileIndex(from);
-    if ((rankDiff == fileDiff) || (rankDiff == -fileDiff))
-        return (bishopAttacks(occ, from) & bishopAttacks(occ, to));
+    const int rankDiff = rankIndex(to) - rankIndex(from);
+    const int fileDiff = fileIndex(to) - fileIndex(from);
+    if (rankDiff != 0 && fileDiff != 0 && rankDiff != fileDiff && rankDiff != -fileDiff)
+        return 0ULL;
 
-    return 0ULL;
+    const int dr = (rankDiff > 0) - (rankDiff < 0);
+    const int df = (fileDiff > 0) - (fileDiff < 0);
+
+    uint64_t between = 0ULL;
+    int      rank    = rankIndex(from) + dr;
+    int      file    = fileIndex(from) + df;
+    while (rank != rankIndex(to) || file != fileIndex(to))
+    {
+        between |= ONE << squareIndex(rank, file);
+        rank += dr;
+        file += df;
+    }
+    return between;
 }
 
-static auto genSquaresBetween() {
+constexpr auto genSquaresBetween() {
     std::array<std::array<uint64_t, 64>, 64> res{};
     for (int i = 0; i < 64; ++i)
     {
@@ -35,7 +43,7 @@ static auto genSquaresBetween() {
     return res;
 }
 
-static auto SQUARES_BETWEEN = genSquaresBetween();
+inline constexpr auto SQUARES_BETWEEN = genSquaresBetween();
 
 inline void buildMoves(uint64_t moves, int from, int moveType, MoveList& movelist) {
     while (moves)

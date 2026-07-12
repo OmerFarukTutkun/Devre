@@ -124,7 +124,14 @@ void Search::setThread(int thread) {
     }
 }
 
-Search::~Search() = default;
+Search::~Search() {
+    for (auto th : threads)
+    {
+        delete th;
+    }
+    threads.clear();
+    delete[] moveNodes;
+}
 
 void Search::stop() { stopped = true; }
 
@@ -252,7 +259,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return 0;
     }
-    if (thread.ThreadID == 0 && timeManager->checkLimits(totalNodes()))
+    if (thread.ThreadID == 0 && timeManager->shouldCheck() && timeManager->checkLimits(totalNodes()))
     {
         stopped = true;
         return 0;

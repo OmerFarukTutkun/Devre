@@ -3,6 +3,7 @@
 #include "incbin/incbin.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -22,7 +23,27 @@ constexpr uint32_t l2_rows          = 32;
 constexpr uint32_t accum_simd_width = SIMD::vecSize;
 static_assert(64 % accum_simd_width == 0);
 static_assert(l1_cols % 64 == 0);
+static_assert(l1_cols <= NNUE_L1_MAX);
+static_assert(l2_rows <= NNUE_L2_MAX);
 static_assert(l2_rows % accum_simd_width == 0);
+
+// First row index of each 'low' base feature in the triangular pair-feature
+// matrix, so featureIndex needs no multiplications in the hot gather loops.
+constexpr auto genPairRowOffsets() {
+    std::array<uint32_t, NNUE_BASE_FEATURES> offsets{};
+    for (uint32_t low = 0; low < NNUE_BASE_FEATURES; low++)
+        offsets[low] = low * NNUE_BASE_FEATURES - (low * (low + 1)) / 2;
+    return offsets;
+}
+constexpr auto PAIR_ROW_OFFSETS = genPairRowOffsets();
+
+// Pair-weight rows live in a ~38MB table, so most gathered rows are cache
+// misses; prefetching them while the row list is still being built lets the
+// misses overlap instead of stalling the delta pass below.
+inline __attribute__((always_inline)) void prefetchRow(const int8_t* row) {
+    for (uint32_t k = 0; k < l1_cols; k += 64)
+        __builtin_prefetch(row + k, 0, 3);
+}
 
 inline __attribute__((always_inline)) void applyDeltaAddInt8(int16_t* __restrict__ accumulator, const int8_t* __restrict__ row) {
     for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
@@ -33,28 +54,56 @@ inline __attribute__((always_inline)) void applyDeltaAddInt8(int16_t* __restrict
     }
 }
 
+// Rows are walked in the outer loop with one accumulator register per column
+// block: the per-block add chains stay independent, so the CPU is not stuck on
+// a serial dependency chain over all delta rows. int16 wrap-around addition is
+// order-independent, so the result is bit-identical to any other ordering.
 inline __attribute__((always_inline)) void
-applyDeltaBatchInt8(int16_t* __restrict__ accumulator, const int8_t* const* __restrict__ addRows, int addCount, const int8_t* const* __restrict__ subRows, int subCount) {
-    for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
+applyDeltaBatchInt8(int16_t* __restrict__ out, const int16_t* __restrict__ prev, const int8_t* const* __restrict__ addRows, int addCount, const int8_t* const* __restrict__ subRows, int subCount) {
+    constexpr uint32_t numBlocks = l1_cols / accum_simd_width;
+    // Cap the live accumulator registers so narrow SIMD builds do not spill.
+    constexpr uint32_t chunkBlocks = numBlocks <= 8 ? numBlocks : 8;
+
+    for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks)
     {
-        SIMD::vecType acc = SIMD::vecLoad(accumulator + k);
+        const uint32_t base = chunk * accum_simd_width;
+
+        SIMD::vecType acc[chunkBlocks];
+        for (uint32_t b = 0; b < chunkBlocks; b++)
+            acc[b] = SIMD::vecLoad(prev + base + b * accum_simd_width);
 
         for (int a = 0; a < addCount; a++)
-            acc = SIMD::vecAddEpi16(acc, SIMD::vecLoadI8ToI16(addRows[a] + k));
+        {
+            const int8_t* row = addRows[a] + base;
+            for (uint32_t b = 0; b < chunkBlocks; b++)
+                acc[b] = SIMD::vecAddEpi16(acc[b], SIMD::vecLoadI8ToI16(row + b * accum_simd_width));
+        }
 
         for (int s = 0; s < subCount; s++)
-            acc = SIMD::vecSubEpi16(acc, SIMD::vecLoadI8ToI16(subRows[s] + k));
+        {
+            const int8_t* row = subRows[s] + base;
+            for (uint32_t b = 0; b < chunkBlocks; b++)
+                acc[b] = SIMD::vecSubEpi16(acc[b], SIMD::vecLoadI8ToI16(row + b * accum_simd_width));
+        }
 
-        SIMD::vecStore(accumulator + k, acc);
+        for (uint32_t b = 0; b < chunkBlocks; b++)
+            SIMD::vecStore(out + base + b * accum_simd_width, acc[b]);
     }
 }
 
-}
+} 
 
-NNUE* NNUE::Instance() {
-    static NNUE instance = NNUE();
-    return &instance;
-}
+struct NNUEDeltaBatch {
+    const int8_t*  addRows[max_delta_rows];
+    const int8_t*  subRows[max_delta_rows];
+    int16_t*       out;
+    const int16_t* prev;
+    int            addCount = 0;
+    int            subCount = 0;
+    bool           pending  = false;
+};
+
+NNUE NNUE::instance;
 
 NNUE::NNUE() {
     if (!loadNetFromBuffer(gEmbeddedNetData, gEmbeddedNetSize, "<embedded>"))
@@ -70,7 +119,7 @@ int NNUE::baseIndex(int piece, int sq, Color perspective) {
 uint32_t NNUE::featureIndex(int i, int j) const {
     const uint32_t low  = static_cast<uint32_t>(std::min(i, j));
     const uint32_t high = static_cast<uint32_t>(std::max(i, j));
-    return low * NNUE_BASE_FEATURES - (low * (low + 1)) / 2 + high;
+    return PAIR_ROW_OFFSETS[low] + high;
 }
 
 const int8_t* NNUE::getPairWeights(uint32_t feature) const { return &l1Weights[static_cast<size_t>(feature) * l1_cols]; }
@@ -111,7 +160,7 @@ void NNUE::recalculateInputLayer(Board& board, Color perspective, int idx) {
     }
 }
 
-void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx) {
+void NNUE::prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch) {
     auto& prevAcc = board.nnueData.accumulator[idx - 1];
     auto& curAcc  = board.nnueData.accumulator[idx];
 
@@ -125,8 +174,10 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
     uint16_t*       curList   = curAcc.activeList[perspective];
     std::memcpy(curList, prevList, static_cast<size_t>(prevCount) * sizeof(uint16_t));
 
-    int16_t* out = curAcc.data[perspective];
-    std::memcpy(out, prevAcc.data[perspective], static_cast<size_t>(l1_cols) * sizeof(int16_t));
+    int16_t*       out  = curAcc.data[perspective];
+    const int16_t* prev = prevAcc.data[perspective];
+    batch.out           = out;
+    batch.prev          = prev;
 
     int removedBases[4];
     int addedBases[4];
@@ -168,7 +219,10 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
     curAcc.activeCount[perspective] = static_cast<uint8_t>(curCount);
 
     if (removedBaseCount == 0 && addedBaseCount == 0)
+    {
+        std::memcpy(out, prev, static_cast<size_t>(l1_cols) * sizeof(int16_t));
         return;
+    }
 
     int survivors[N_SQUARES];
     int survivorCount = 0;
@@ -179,38 +233,54 @@ void NNUE::incrementalUpdateInputLayer(Board& board, Color perspective, int idx)
             survivors[survivorCount++] = prevBase;
     }
 
-    const int8_t* addRows[max_delta_rows];
-    const int8_t* subRows[max_delta_rows];
+    const int8_t** addRows = batch.addRows;
+    const int8_t** subRows = batch.subRows;
 
     int subRowCount = 0;
     for (int i = 0; i < removedBaseCount; i++)
     {
-        subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], removedBases[i]));
+        subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], removedBases[i]));
+        prefetchRow(subRows[subRowCount++]);
         for (int j = 0; j < survivorCount; j++)
-            subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], survivors[j]));
+        {
+            subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], survivors[j]));
+            prefetchRow(subRows[subRowCount++]);
+        }
     }
 
     for (int i = 0; i < removedBaseCount; i++)
     {
         for (int j = i + 1; j < removedBaseCount; j++)
-            subRows[subRowCount++] = getPairWeights(featureIndex(removedBases[i], removedBases[j]));
+        {
+            subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], removedBases[j]));
+            prefetchRow(subRows[subRowCount++]);
+        }
     }
 
     int addRowCount = 0;
     for (int i = 0; i < addedBaseCount; i++)
     {
-        addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], addedBases[i]));
+        addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], addedBases[i]));
+        prefetchRow(addRows[addRowCount++]);
         for (int j = 0; j < survivorCount; j++)
-            addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], survivors[j]));
+        {
+            addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], survivors[j]));
+            prefetchRow(addRows[addRowCount++]);
+        }
     }
 
     for (int i = 0; i < addedBaseCount; i++)
     {
         for (int j = i + 1; j < addedBaseCount; j++)
-            addRows[addRowCount++] = getPairWeights(featureIndex(addedBases[i], addedBases[j]));
+        {
+            addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], addedBases[j]));
+            prefetchRow(addRows[addRowCount++]);
+        }
     }
 
-    applyDeltaBatchInt8(out, addRows, addRowCount, subRows, subRowCount);
+    batch.addCount = addRowCount;
+    batch.subCount = subRowCount;
+    batch.pending  = true;
 }
 
 void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
@@ -221,8 +291,18 @@ void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
     }
     else
     {
-        incrementalUpdateInputLayer(board, WHITE, idx);
-        incrementalUpdateInputLayer(board, BLACK, idx);
+        // Prepare both perspectives before applying either, so the prefetches
+        // issued while gathering one perspective's rows overlap with the
+        // other's delta pass as well.
+        NNUEDeltaBatch batches[N_COLORS];
+        prepareIncrementalUpdate(board, WHITE, idx, batches[WHITE]);
+        prepareIncrementalUpdate(board, BLACK, idx, batches[BLACK]);
+
+        for (const auto& batch : batches)
+        {
+            if (batch.pending)
+                applyDeltaBatchInt8(batch.out, batch.prev, batch.addRows, batch.addCount, batch.subRows, batch.subCount);
+        }
     }
     board.nnueData.accumulator[idx].nonEmpty = true;
 }
@@ -230,14 +310,27 @@ void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
 void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) { updateInputLayer(board, idx, fromScratch); }
 
 int NNUE::head(const int16_t* us, const int16_t* them) const {
-    const int           clip          = l1Clip;
-    const SIMD::vecType zero          = SIMD::vecZero();
-    const SIMD::vecType clipVec       = SIMD::vecSet1Epi16(static_cast<int16_t>(clip));
-    constexpr uint32_t  blocksPerSide = l1_cols / accum_simd_width;
+    const int           clip      = l1Clip;
+    const SIMD::vecType zero      = SIMD::vecZero();
+    const SIMD::vecType clipVec   = SIMD::vecSet1Epi16(static_cast<int16_t>(clip));
+    constexpr uint32_t  totalCols = 2 * l1_cols;
+
+    // Clipped-square activations for both perspectives, computed once and laid
+    // out as [us | them] to match the column order of every l2 weight row.
+    alignas(64) int16_t act[totalCols];
+    for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
+    {
+        const SIMD::vecType usRaw     = SIMD::vecLoad(us + k);
+        const SIMD::vecType usClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, usRaw));
+        SIMD::vecStore(act + k, SIMD::vecMulloEpi16(usClipped, usClipped));
+        const SIMD::vecType themRaw     = SIMD::vecLoad(them + k);
+        const SIMD::vecType themClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, themRaw));
+        SIMD::vecStore(act + l1_cols + k, SIMD::vecMulloEpi16(themClipped, themClipped));
+    }
 
     float logit         = l3Bias;
-    auto  accumulateRow = [this, &logit](uint32_t row, SIMD::vecType acc) {
-        const int32_t raw = l2Biases[row] + SIMD::vecReduceEpi32(acc);
+    auto  accumulateRow = [this, &logit](uint32_t row, int32_t sum) {
+        const int32_t raw = l2Biases[row] + sum;
         if (raw <= 0)
             return;
 
@@ -268,42 +361,25 @@ int NNUE::head(const int16_t* us, const int16_t* them) const {
         SIMD::vecType acc6 = SIMD::vecZero();
         SIMD::vecType acc7 = SIMD::vecZero();
 
-        for (uint32_t block = 0; block < blocksPerSide; block++)
+        for (uint32_t k = 0; k < totalCols; k += accum_simd_width)
         {
-            const uint32_t      offset      = block * accum_simd_width;
-            const SIMD::vecType usRaw       = SIMD::vecLoad(us + offset);
-            const SIMD::vecType usClipped   = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, usRaw));
-            const SIMD::vecType usAct       = SIMD::vecMulloEpi16(usClipped, usClipped);
-            const SIMD::vecType themRaw     = SIMD::vecLoad(them + offset);
-            const SIMD::vecType themClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, themRaw));
-            const SIMD::vecType themAct     = SIMD::vecMulloEpi16(themClipped, themClipped);
+            const SIMD::vecType a = SIMD::vecLoad(act + k);
 
-            acc0 = SIMD::vecAddEpi32(acc0, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights0 + offset)));
-            acc0 = SIMD::vecAddEpi32(acc0, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights0 + l1_cols + offset)));
-            acc1 = SIMD::vecAddEpi32(acc1, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights1 + offset)));
-            acc1 = SIMD::vecAddEpi32(acc1, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights1 + l1_cols + offset)));
-            acc2 = SIMD::vecAddEpi32(acc2, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights2 + offset)));
-            acc2 = SIMD::vecAddEpi32(acc2, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights2 + l1_cols + offset)));
-            acc3 = SIMD::vecAddEpi32(acc3, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights3 + offset)));
-            acc3 = SIMD::vecAddEpi32(acc3, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights3 + l1_cols + offset)));
-            acc4 = SIMD::vecAddEpi32(acc4, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights4 + offset)));
-            acc4 = SIMD::vecAddEpi32(acc4, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights4 + l1_cols + offset)));
-            acc5 = SIMD::vecAddEpi32(acc5, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights5 + offset)));
-            acc5 = SIMD::vecAddEpi32(acc5, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights5 + l1_cols + offset)));
-            acc6 = SIMD::vecAddEpi32(acc6, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights6 + offset)));
-            acc6 = SIMD::vecAddEpi32(acc6, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights6 + l1_cols + offset)));
-            acc7 = SIMD::vecAddEpi32(acc7, SIMD::vecMaddEpi16(usAct, SIMD::vecLoad(weights7 + offset)));
-            acc7 = SIMD::vecAddEpi32(acc7, SIMD::vecMaddEpi16(themAct, SIMD::vecLoad(weights7 + l1_cols + offset)));
+            acc0 = SIMD::vecAddEpi32(acc0, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights0 + k)));
+            acc1 = SIMD::vecAddEpi32(acc1, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights1 + k)));
+            acc2 = SIMD::vecAddEpi32(acc2, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights2 + k)));
+            acc3 = SIMD::vecAddEpi32(acc3, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights3 + k)));
+            acc4 = SIMD::vecAddEpi32(acc4, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights4 + k)));
+            acc5 = SIMD::vecAddEpi32(acc5, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights5 + k)));
+            acc6 = SIMD::vecAddEpi32(acc6, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights6 + k)));
+            acc7 = SIMD::vecAddEpi32(acc7, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights7 + k)));
         }
 
-        accumulateRow(row + 0, acc0);
-        accumulateRow(row + 1, acc1);
-        accumulateRow(row + 2, acc2);
-        accumulateRow(row + 3, acc3);
-        accumulateRow(row + 4, acc4);
-        accumulateRow(row + 5, acc5);
-        accumulateRow(row + 6, acc6);
-        accumulateRow(row + 7, acc7);
+        alignas(32) int32_t sums[rowsPerTile];
+        SIMD::vecReduceEpi32x8(acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7, sums);
+
+        for (uint32_t i = 0; i < rowsPerTile; i++)
+            accumulateRow(row + i, sums[i]);
     }
 
     float cp = logit * NET_CP_SCALE;
@@ -448,7 +524,7 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
     return true;
 }
 
-bool NNUE::loadNet(const std::string& filePath) {
+bool NNUE::loadNetwork(const std::string& filePath) {
     if (filePath.empty() || filePath == "<empty>")
         return false;
 
@@ -476,5 +552,3 @@ bool NNUE::loadNet(const std::string& filePath) {
 
     return loadNetFromBuffer(bytes.data(), bytes.size(), filePath);
 }
-
-bool NNUE::loadNetwork(const std::string& filePath) { return loadNet(filePath); }

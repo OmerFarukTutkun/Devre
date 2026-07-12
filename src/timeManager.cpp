@@ -8,11 +8,6 @@ DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
-    if (--calls > 0)
-        return false;
-
-    calls = period;
-
     auto elapsed = currentTime() - startTime;
     if (elapsed >= hardTime)
         return true;

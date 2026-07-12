@@ -36,10 +36,10 @@ Board::Board(const std::string& fen) {
     {
         for (int j = 0; j < 8; j++)
         {
-            char c = split[0][k];
-            if (CHAR_TO_PIECE.find(c) != CHAR_TO_PIECE.end())
+            char c     = split[0][k];
+            int  piece = charToPiece(c);
+            if (piece != EMPTY)
             {
-                int piece = CHAR_TO_PIECE[c];
                 addPiece(piece, squareIndex(i, j));
             }
             else if (c == '/')
@@ -192,7 +192,7 @@ void Board::print() {
         for (int j = 0; j < 8; j++)
         {
             if (pieceBoard[squareIndex(i, j)] != EMPTY)
-                printf("%5c", PIECE_TO_CHAR[pieceBoard[squareIndex(i, j)]]);
+                printf("%5c", pieceToChar(pieceBoard[squareIndex(i, j)]));
             else
                 printf("%5c", ' ');
         }
@@ -393,7 +393,7 @@ std::string Board::getFen() {
             {
                 if (empty)
                     ss << empty;
-                ss << PIECE_TO_CHAR[pieceBoard[sq]];
+                ss << pieceToChar(pieceBoard[sq]);
                 empty = 0;
             }
             else
@@ -482,11 +482,12 @@ bool Board::isMaterialDraw() {
 
 bool Board::isRepetition() {
 
-    for (int i = boardHistory.size() - 1; i >= 0; i--)
+    const int historySize = static_cast<int>(boardHistory.size());
+    for (int i = historySize - 1; i >= 0; i--)
     {
-        if (key == boardHistory.at(i).key)
+        if (key == boardHistory[i].key)
             return true;
-        if ((boardHistory.size() - i) > halfMove)
+        if ((historySize - i) > halfMove)
             return false;
     }
     return false;

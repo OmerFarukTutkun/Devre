@@ -1,23 +1,19 @@
 #ifndef DEVRE_TYPES_H
 #define DEVRE_TYPES_H
 
+#include <algorithm>
+#include <array>
+#include <bitset>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <ctime>
 #include <iostream>
 #include <string>
-#include <iostream>
-#include <map>
-#include <unordered_map>
-#include <cstring>
-#include "vector"
-#include "array"
-#include <cstring>
-#include <algorithm>
-#include <bitset>
+#include <vector>
 
 #ifndef VERSION
-    #define VERSION "6.46"
+    #define VERSION "6.47"
 #endif
 
 constexpr auto MAX_PLY   = 100;
@@ -183,37 +179,43 @@ constexpr char const* SQUARE_IDENTIFIER[]{"a1", "b1", "c1", "d1", "e1", "f1", "g
                                           "g3", "h3", "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4", "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5", "a6", "b6", "c6", "d6",
                                           "e6", "f6", "g6", "h6", "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7", "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8", " ",  "-"};
 
-static std::unordered_map<char, uint8_t> CHAR_TO_PIECE({
-  {'P', WHITE_PAWN},
-  {'N', WHITE_KNIGHT},
-  {'B', WHITE_BISHOP},
-  {'R', WHITE_ROOK},
-  {'Q', WHITE_QUEEN},
-  {'K', WHITE_KING},
-  {'p', BLACK_PAWN},
-  {'n', BLACK_KNIGHT},
-  {'b', BLACK_BISHOP},
-  {'r', BLACK_ROOK},
-  {'q', BLACK_QUEEN},
-  {'k', BLACK_KING},
-  {' ', EMPTY},
-});
+// Piece values index this table directly (unused slots and EMPTY are spaces).
+constexpr char pieceToChar(int piece) {
+    constexpr char table[N_PIECES + 3] = {'P', 'N', 'B', 'R', 'Q', 'K', ' ', ' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' '};
+    return table[piece];
+}
 
-static std::unordered_map<uint8_t, char> PIECE_TO_CHAR({
-  {WHITE_PAWN, 'P'},
-  {WHITE_KNIGHT, 'N'},
-  {WHITE_BISHOP, 'B'},
-  {WHITE_ROOK, 'R'},
-  {WHITE_QUEEN, 'Q'},
-  {WHITE_KING, 'K'},
-  {BLACK_PAWN, 'p'},
-  {BLACK_KNIGHT, 'n'},
-  {BLACK_BISHOP, 'b'},
-  {BLACK_ROOK, 'r'},
-  {BLACK_QUEEN, 'q'},
-  {BLACK_KING, 'k'},
-  {EMPTY, ' '},
-});
+constexpr uint8_t charToPiece(char c) {
+    switch (c)
+    {
+    case 'P' :
+        return WHITE_PAWN;
+    case 'N' :
+        return WHITE_KNIGHT;
+    case 'B' :
+        return WHITE_BISHOP;
+    case 'R' :
+        return WHITE_ROOK;
+    case 'Q' :
+        return WHITE_QUEEN;
+    case 'K' :
+        return WHITE_KING;
+    case 'p' :
+        return BLACK_PAWN;
+    case 'n' :
+        return BLACK_KNIGHT;
+    case 'b' :
+        return BLACK_BISHOP;
+    case 'r' :
+        return BLACK_ROOK;
+    case 'q' :
+        return BLACK_QUEEN;
+    case 'k' :
+        return BLACK_KING;
+    default :
+        return EMPTY;
+    }
+}
 
 constexpr uint64_t ONE = 1ULL;
 
@@ -241,14 +243,14 @@ struct __attribute__((__packed__)) TTBucket {
 
 
 struct nnueChange {
-    int piece;
-    int sq;
-    int sign;
+    int8_t piece;
+    int8_t sq;
+    int8_t sign;
 
     nnueChange(int piece = 0, int sq = 0, int sign = 0) :
-        piece(piece),
-        sq(sq),
-        sign(sign) {}
+        piece(static_cast<int8_t>(piece)),
+        sq(static_cast<int8_t>(sq)),
+        sign(static_cast<int8_t>(sign)) {}
 };
 
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
@@ -256,7 +258,9 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 //TODO: maybe try reading these values from .nnue file instead of hardcoding
 constexpr int NNUE_BASE_FEATURES = 768;
 constexpr int NNUE_FEATURES = NNUE_BASE_FEATURES * (NNUE_BASE_FEATURES + 1) / 2;
-constexpr int NNUE_L1_MAX = 256;
+// Matches the l1 width the loader accepts; keeping it tight halves the size of
+// every accumulator, which matters for cache footprint during search.
+constexpr int NNUE_L1_MAX = 128;
 constexpr int NNUE_L2_MAX = 2 * NNUE_L1_MAX;
 
 struct NNUEAccumulator {

@@ -61,9 +61,13 @@ constexpr bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAl
     return false;
 }
 
+struct NNUEDeltaBatch;
+
 class NNUE {
    private:
     NNUE();
+
+    static NNUE instance;
 
     int l1Clip = 64;
     std::vector<int8_t, AlignedAllocator<int8_t, 64>> l1Weights;
@@ -82,9 +86,8 @@ class NNUE {
     int head(const int16_t* us, const int16_t* them) const;
     void updateInputLayer(Board& board, int idx, bool fromScratch = false);
     void recalculateInputLayer(Board& board, Color perspective, int idx);
-    void incrementalUpdateInputLayer(Board& board, Color perspective, int idx);
+    void prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch);
     bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
-    bool loadNet(const std::string& filePath);
 
    public:
     static float materialScale(Board& board);
@@ -95,7 +98,7 @@ class NNUE {
 
     int evaluate(Board& board);
 
-    static NNUE* Instance();
+    static NNUE* Instance() { return &instance; }
 
     bool loadNetwork(const std::string& filePath);
 };

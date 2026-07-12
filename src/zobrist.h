@@ -8,8 +8,10 @@ class Zobrist {
    private:
     Zobrist();
 
+    static Zobrist instance;
+
    public:
-    static Zobrist* Instance();
+    static Zobrist* Instance() { return &instance; }
 
     uint64_t PieceKeys[N_PIECES][64];
     uint64_t SideToPlayKey;
