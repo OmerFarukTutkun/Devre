@@ -507,9 +507,9 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
     return true;
 }
 
-bool NNUE::loadNet(const std::string& filePath) {
+bool NNUE::loadNetwork(const std::string& filePath) {
     if (filePath.empty() || filePath == "<empty>")
-        return false;
+    return false;
 
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open())
@@ -535,5 +535,3 @@ bool NNUE::loadNet(const std::string& filePath) {
 
     return loadNetFromBuffer(bytes.data(), bytes.size(), filePath);
 }
-
-bool NNUE::loadNetwork(const std::string& filePath) { return loadNet(filePath); }

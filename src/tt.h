@@ -9,8 +9,6 @@ class TT {
 
     ~TT();
 
-    // Eagerly constructed instance: probe/save/prefetch calls skip the
-    // thread-safe local-static initialization guard.
     static TT instance;
 
     int       age;

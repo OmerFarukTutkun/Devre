@@ -65,8 +65,6 @@ class NNUE {
    private:
     NNUE();
 
-    // Eagerly constructed instance: evaluate calls skip the thread-safe
-    // local-static initialization guard.
     static NNUE instance;
 
     int l1Clip = 64;
@@ -88,7 +86,6 @@ class NNUE {
     void recalculateInputLayer(Board& board, Color perspective, int idx);
     void incrementalUpdateInputLayer(Board& board, Color perspective, int idx);
     bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
-    bool loadNet(const std::string& filePath);
 
    public:
     static float materialScale(Board& board);
