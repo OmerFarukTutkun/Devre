@@ -592,6 +592,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
 
+        // this node failed low, so the opponent's previous quiet move was good
+        if (bound == TT_UPPERBOUND && !rootNode)
+            updatePrevMoveFailLowBonus(thread, ss, depth);
+
         if (!inCheck && (!bestMove || !isTactical(bestMove)) && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval) && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval))
         {
             updateCorrHistScore(thread, ss, depth, bestScore - ss->staticEval);

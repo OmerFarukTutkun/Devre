@@ -11,6 +11,21 @@ void updateHistory(int16_t* current, int depth, bool good) {
     const int delta = good ? statBonus(depth) : -statBonus(depth);
     *current += delta - *current * std::abs(delta) / HistoryDivisor;
 }
+// When a node fails low, the opponent's previous quiet move "worked":
+// give it a continuation-history bonus.
+void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
+    Board*   board = &thread.board;
+    uint16_t prev  = (ss - 1)->move;
+
+    if (prev == NO_MOVE || prev == NULL_MOVE || !isQuiet(prev))
+        return;
+
+    int to    = moveTo(prev);
+    int piece = board->pieceBoard[to];
+
+    if ((ss - 2)->move)
+        updateHistory(&(*(ss - 2)->continuationHistory)[piece][to], depth, true);
+}
 
 void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bestMove) {
     if ((ss->played == 1 && depth <= 3))
