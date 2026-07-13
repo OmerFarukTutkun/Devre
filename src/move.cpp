@@ -3,9 +3,21 @@
 #include "history.h"
 #include "movegen.h"
 #include "uciOptions.h"
+#include <climits>
 #include <sstream>
 
 constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0, 100, 300, 300, 500, 1000, 150, 0, 0};
+
+// Sentinel for a not-yet-scored move slot.
+constexpr int SCORE_UNKNOWN = INT_MIN;
+// Captures are scored optimistically as good (10M + capthist); a losing-SEE capture
+// is demoted by this amount to the bad-capture band (1M + capthist), interleaving it
+// with the quiets exactly as the old eager scorer did.
+constexpr int BAD_CAPTURE_PENALTY = 9 * MIL;
+// A tactical move at or above this score is "good" (queen promotions 20M/25M, en
+// passant 11M, winning captures 10M ± capthist). It sits below the good-capture band
+// minimum (~9.98M) and above killer0 (9M), so the split is exact.
+constexpr int GOOD_TACTICAL_THRESHOLD = 9 * MIL + MIL / 2;
 
 std::string moveToUci(uint16_t move, Board& board) {
     std::stringstream ss;
@@ -153,91 +165,172 @@ bool SEE(Board& board, uint16_t move, int threshold) {
 }
 
 MoveList::MoveList(uint16_t ttMove, bool qsearch) {
-    this->qsearch = qsearch;
-    this->ttMove  = ttMove;
-    numMove       = 0;
-    isSorted      = false;
+    this->qsearch   = qsearch;
+    this->ttMove    = ttMove;
+    counterMove     = NO_MOVE;
+    killer0         = NO_MOVE;
+    killer1         = NO_MOVE;
+    numMove         = 0;
+    stage           = STAGE_TT;
+    initialized     = false;
+    tacticalScored  = false;
+    remainderScored = false;
 }
 
-void MoveList::addMove(uint16_t move) { moves[numMove++] = move; }
+void MoveList::addMove(uint16_t move) {
+    scores[numMove] = SCORE_UNKNOWN;
+    moves[numMove]  = move;
+    numMove++;
+}
 
-void MoveList::scoreMoves(ThreadData& thread, Stack* ss) {
-    Board* board       = &thread.board;
-    auto   counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
+// Linear identity search; scoring plays no part, so a stage that resolves by identity
+// (ttMove, killers, countermove) touches no history tables.
+int MoveList::findMove(uint16_t move) const {
+    if (move == NO_MOVE)
+        return -1;
+    for (int i = 0; i < numMove; i++)
+        if (moves[i] == move)
+            return i;
+    return -1;
+}
+
+// Remove by swapping in the last entry (order among the survivors is irrelevant since
+// each pick rescans for the max).
+uint16_t MoveList::takeMove(int index) {
+    uint16_t move = moves[index];
+    numMove--;
+    moves[index]  = moves[numMove];
+    scores[index] = scores[numMove];
+    return move;
+}
+
+// Captures get 10M + capthist optimistically (SEE is deferred to pick time); en passant
+// and promotions keep their flat type score. Matches the old eager scorer for tacticals.
+void MoveList::scoreTacticals(ThreadData& thread, Stack* ss) {
     for (int i = 0; i < numMove; i++)
     {
-        auto move = moves[i];
-        if (move == ttMove)
-        {
-            scores[i] = 30 * MIL;
-        }
-        else
-        {
-            auto type = moveType(move);
-            scores[i] = moveTypeScores[type];
-            if (ss->killers[0] == move)
-            {
-                scores[i] = 9 * MIL;
-            }
-            else if (ss->killers[1] == move)
-            {
-                scores[i] = 8.5 * MIL;
-            }
-            else if (counterMove == move)
-            {
-                scores[i] = 8 * MIL;
-            }
-            else if (type < 2)  //history heuristic
-            {
-                scores[i] += getQuietHistory(thread, ss, move);
-            }
-            else if (type == CAPTURE)
-            {
-                if (qsearch)
-                {
-                    scores[i] += getCaptureHistory(thread, ss, move);
-                }
-                else
-                {
-                    if (SEE(*board, move))
-                        scores[i] += getCaptureHistory(thread, ss, move);
-                    else
-                        scores[i] = MIL + getCaptureHistory(thread, ss, move);
-                }
-            }
-        }
+        uint16_t move = moves[i];
+        if (!isTactical(move))
+            continue;
+        int type  = moveType(move);
+        int score = moveTypeScores[type];
+        if (type == CAPTURE)
+            score += getCaptureHistory(thread, ss, move);
+        scores[i] = score;
+    }
+}
+
+// Everything still unscored at the remainder stage: quiets/double-pushes take history,
+// castles and under-promotions take their flat type score. Demoted bad captures are
+// already scored and are left untouched.
+void MoveList::scoreRemainder(ThreadData& thread, Stack* ss) {
+    for (int i = 0; i < numMove; i++)
+    {
+        if (scores[i] != SCORE_UNKNOWN)
+            continue;
+        uint16_t move  = moves[i];
+        int      type  = moveType(move);
+        int      score = moveTypeScores[type];
+        if (type < KING_CASTLE)  // QUIET or DOUBLE_PAWN_PUSH
+            score += getQuietHistory(thread, ss, move);
+        scores[i] = score;
     }
 }
 
 uint16_t MoveList::pickMove(ThreadData& thread, Stack* ss, int skipThreshold) {
-    if (!isSorted)
+    Board* board = &thread.board;
+    if (!initialized)
     {
-        scoreMoves(thread, ss);
-        isSorted = true;
+        initialized = true;
+        killer0     = ss->killers[0];
+        killer1     = ss->killers[1];
+        counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
     }
-    if (numMove <= 0)
+
+    while (true)
     {
-        return NO_MOVE;
-    }
-    int maxScoreIndex = 0;
-    for (int i = 1; i < numMove; i++)
-    {
-        if (scores[i] > scores[maxScoreIndex])
+        switch (stage)
         {
-            maxScoreIndex = i;
+        case STAGE_TT : {
+            stage     = STAGE_GOOD_TACTICAL;
+            int index = findMove(ttMove);
+            if (index != -1)
+                return takeMove(index);
+            break;
+        }
+        case STAGE_GOOD_TACTICAL : {
+            if (!tacticalScored)
+            {
+                scoreTacticals(thread, ss);
+                tacticalScored = true;
+            }
+            // Pick the best tactical still above the good threshold. A capture whose SEE
+            // loses is demoted in place and re-picked, so good captures still come out in
+            // descending capthist order (exactly the old eager order).
+            while (true)
+            {
+                int best = -1;
+                for (int i = 0; i < numMove; i++)
+                {
+                    if (!isTactical(moves[i]))
+                        continue;
+                    if (best == -1 || scores[i] > scores[best])
+                        best = i;
+                }
+                if (best == -1 || scores[best] < GOOD_TACTICAL_THRESHOLD)
+                {
+                    stage = STAGE_KILLER_1;
+                    break;
+                }
+                uint16_t move = moves[best];
+                if (!qsearch && moveType(move) == CAPTURE && !SEE(*board, move))
+                {
+                    scores[best] -= BAD_CAPTURE_PENALTY;
+                    continue;
+                }
+                return takeMove(best);
+            }
+            break;
+        }
+        case STAGE_KILLER_1 : {
+            stage     = STAGE_KILLER_2;
+            int index = findMove(killer0);
+            if (index != -1 && isQuiet(moves[index]))
+                return takeMove(index);
+            break;
+        }
+        case STAGE_KILLER_2 : {
+            stage     = STAGE_COUNTER;
+            int index = findMove(killer1);
+            if (index != -1 && isQuiet(moves[index]))
+                return takeMove(index);
+            break;
+        }
+        case STAGE_COUNTER : {
+            stage     = STAGE_REMAINDER;
+            int index = findMove(counterMove);
+            if (index != -1 && isQuiet(moves[index]))
+                return takeMove(index);
+            break;
+        }
+        case STAGE_REMAINDER : {
+            if (!remainderScored)
+            {
+                scoreRemainder(thread, ss);
+                remainderScored = true;
+            }
+            if (numMove == 0)
+                return NO_MOVE;
+            int best = 0;
+            for (int i = 1; i < numMove; i++)
+                if (scores[i] > scores[best])
+                    best = i;
+            if (scores[best] < skipThreshold)
+                return NO_MOVE;
+            return takeMove(best);
+        }
+        default :
+            return NO_MOVE;
         }
     }
-
-    //skip remaining moves
-    if (scores[maxScoreIndex] < skipThreshold)
-    {
-        return NO_MOVE;
-    }
-
-    uint16_t move         = moves[maxScoreIndex];
-    scores[maxScoreIndex] = scores[numMove - 1];
-    moves[maxScoreIndex]  = moves[numMove - 1];
-    numMove--;
-
-    return move;
 }

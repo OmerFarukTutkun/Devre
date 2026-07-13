@@ -33,6 +33,17 @@ enum MoveGenerationTypes {
     QUIET_MOVES    = 1,  //not exactly quiets move as it also contains under promotions
     ALL_MOVES      = 2,
 };
+
+// Lazy staged move picking: cheap stages (ttMove, killers, countermove) resolve
+// by identity without scoring; scoring is deferred so a cutoff pays for nothing extra.
+enum MovePickStage : uint8_t {
+    STAGE_TT,
+    STAGE_GOOD_TACTICAL,
+    STAGE_KILLER_1,
+    STAGE_KILLER_2,
+    STAGE_COUNTER,
+    STAGE_REMAINDER,
+};
 constexpr int castlingSquares[N_COLORS][2][2] = {{{G1, F1}, {C1, D1}}, {{G8, F8}, {C8, D8}}};
 
 // 16-bit move
@@ -60,18 +71,29 @@ class MoveList {
     uint16_t moves[256];
     int      scores[256];
     uint16_t ttMove;
+    uint16_t counterMove;
+    uint16_t killer0;
+    uint16_t killer1;
 
     int  numMove;
-    bool isSorted;
     bool qsearch;
+
+    uint8_t stage;
+    bool    initialized;      // killers/countermove snapshotted on first pick
+    bool    tacticalScored;   // tactical moves scored on entry to STAGE_GOOD_TACTICAL
+    bool    remainderScored;  // quiets/castles/underpromos scored on entry to STAGE_REMAINDER
 
     MoveList(uint16_t ttMove = NO_MOVE, bool qsearch = false);
 
     void addMove(uint16_t move);
 
-    void scoreMoves(ThreadData& thread, Stack* ss);
-
     uint16_t pickMove(ThreadData& thread, Stack* ss, int skipThreshold = -50 * MIL);
+
+   private:
+    void     scoreTacticals(ThreadData& thread, Stack* ss);
+    void     scoreRemainder(ThreadData& thread, Stack* ss);
+    int      findMove(uint16_t move) const;
+    uint16_t takeMove(int index);
 };
 
 std::string moveToUci(uint16_t move, Board& board);
