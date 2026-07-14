@@ -5,22 +5,30 @@
 Build the engine, then run the built-in generator (it bypasses UCI entirely):
 
 ```
-Devre datagen [threads] [outDir] [targetPositions] [softNodes]
+Devre datagen [threads] [outDir] [targetPositions] [softNodes] [temperaturePct]
 ```
 
-| arg               | default              | meaning                                        |
-|-------------------|----------------------|------------------------------------------------|
-| `threads`         | hardware concurrency | one independent self-play worker per thread    |
-| `outDir`          | `./data`             | one `devre_<runstamp>_<worker>.bin` per worker |
-| `targetPositions` | `0` (until Ctrl-C)   | stop after ~this many scored positions         |
-| `softNodes`       | `5000`               | soft node budget per move                      |
+| arg               | default              | meaning                                                         |
+|-------------------|----------------------|-----------------------------------------------------------------|
+| `threads`         | hardware concurrency | one independent self-play worker per thread                     |
+| `outDir`          | `./data`             | one `devre_<runstamp>_<worker>.bin` per worker                  |
+| `targetPositions` | `0` (until Ctrl-C)   | stop after ~this many scored positions                          |
+| `softNodes`       | `5000`               | soft node budget per move                                       |
+| `temperaturePct`  | `0`                  | move-selection noise % (0–100); 3–5% recommended when enabled   |
 
 Each worker:
 
 1. plays 8–9 random plies from the start position (alternating, for color balance);
 2. runs a short verification search and discards openings with `|eval| > 300cp`;
-3. plays out the game at the soft node budget, always choosing the best move
-   (diversity comes from the random openings, not from move randomization);
+3. plays out the game at the soft node budget:
+   - by default it always chooses the best move (diversity comes from the random
+     openings, not from move randomization);
+   - if `temperaturePct > 0`, with that probability the best move is excluded and
+     a second search discovers the second-best move, which is played instead.
+     This makes games branch differently without playing outright blunders — the
+     search guarantees the alternative is the next-best move by its own metric.
+     The second search reuses the transposition table from the first, so it is
+     significantly cheaper than a fresh search.
 4. adjudicates: win at `|eval| ≥ 1000cp` for 4 consecutive plies (or a mate
    score), draw at `|eval| ≤ 8cp` for 10 plies after ply 40, plus natural
    terminals (mate, stalemate, 50-move, repetition, insufficient material).

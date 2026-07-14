@@ -61,7 +61,7 @@ class Search {
     // iterative deepening on threads[0]->board with a soft node budget (checked
     // at each iteration boundary) and a hard node cap, printing nothing. The
     // caller owns and reuses `ss` across searches to avoid per-move allocation.
-    SearchResult datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes);
+    SearchResult datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes, uint16_t rootExclude = 0);
 
     Search();
 

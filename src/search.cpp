@@ -734,7 +734,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
     return res;
 }
 
-SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes) {
+SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes, uint16_t rootExclude) {
     ThreadData* td = threads.at(0);
 
     stopped  = false;
@@ -763,6 +763,12 @@ SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNod
         ss[i].continuationHistory = &td->contHist[0][0];
         ss[i].contCorrHist        = &td->contCorrHist[0][0];
     }
+
+    // If the caller wants to exclude a particular root move (e.g. the best move
+    // from a previous search, to discover the second-best), tell the root node
+    // to skip it. alphaBeta checks ss->excludedMove in its move loop (line 447).
+    if (rootExclude != NO_MOVE)
+        ss[6].excludedMove = rootExclude;
 
     int      score = 0;
     uint16_t best  = NO_MOVE;

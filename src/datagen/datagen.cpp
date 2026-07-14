@@ -186,7 +186,7 @@ inline void prepareEval(Board& board) {
 }
 
 // One worker: plays independent games on its own Search/Board and streams them.
-void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed) {
+void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed, int temperaturePct) {
     Search search;
     search.setThread(1);
     Board& board = search.threads[0]->board;
@@ -288,13 +288,29 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
             prepareEval(board);
             SearchResult r  = search.datagenSearch(ss, softNodes, hardNodes);
             uint16_t     bm = r.move;
+            int          wcp = whiteRelative(r.cp, board.sideToMove);
+
+            // Move selection noise: with TEMPERATURE_PCT probability, re-search
+            // with the best move excluded to find a reasonable second-best move
+            // and play that instead. This makes games branch differently without
+            // playing outright blunders — the search guarantees the alternative
+            // is the next-best move by its own metric.
+            if (!g_stop && r.move != NO_MOVE && temperaturePct > 0 && rng.nextInt(100) < temperaturePct)
+            {
+                SearchResult r2 = search.datagenSearch(ss, softNodes, hardNodes, r.move);
+                if (r2.move != NO_MOVE && r2.move != r.move)
+                {
+                    bm  = r2.move;
+                    wcp = whiteRelative(r2.cp, board.sideToMove);
+                }
+            }
+
             if (bm == NO_MOVE)
             {
                 MoveList ml;
                 legalmoves<ALL_MOVES>(board, ml);
                 bm = ml.moves[0];
             }
-            int wcp = whiteRelative(r.cp, board.sideToMove);
 
             ScoredMove sm{bm, clampEval(wcp)};
             appendBytes(rec, &sm, sizeof(sm));
@@ -387,10 +403,11 @@ void printStats(uint64_t elapsedMs) {
 }  // namespace
 
 void runDatagen(int argc, char** argv) {
-    int         threads   = (argc > 2) ? std::stoi(argv[2]) : static_cast<int>(std::thread::hardware_concurrency());
-    std::string outDir    = (argc > 3) ? std::string(argv[3]) : "./data";
-    uint64_t    target    = (argc > 4) ? std::stoull(argv[4]) : 0ull;
-    int64_t     softNodes = (argc > 5) ? std::stoll(argv[5]) : 5000;
+    int         threads        = (argc > 2) ? std::stoi(argv[2]) : static_cast<int>(std::thread::hardware_concurrency());
+    std::string outDir         = (argc > 3) ? std::string(argv[3]) : "./data";
+    uint64_t    target         = (argc > 4) ? std::stoull(argv[4]) : 0ull;
+    int64_t     softNodes      = (argc > 5) ? std::stoll(argv[5]) : 5000;
+    int         temperaturePct = (argc > 6) ? std::stoi(argv[6]) : 0;
     int64_t     hardNodes = std::max<int64_t>(softNodes * 40, 200000);
 
     if (threads < 1)
@@ -409,7 +426,8 @@ void runDatagen(int argc, char** argv) {
 
     std::cout << "Devre " << VERSION << " datagen" << std::endl;
     std::cout << "threads=" << threads << " outDir=" << outDir << " softNodes=" << softNodes << " hardNodes=" << hardNodes
-              << " target=" << (target ? std::to_string(target) : std::string("infinite")) << std::endl;
+              << " target=" << (target ? std::to_string(target) : std::string("infinite"))
+              << " temperature=" << temperaturePct << "%" << std::endl;
     std::cout << "press Ctrl-C to stop" << std::endl;
 
     uint64_t                 runStamp = currentTime();
@@ -417,8 +435,8 @@ void runDatagen(int argc, char** argv) {
     pool.reserve(threads);
     for (int i = 0; i < threads; i++)
     {
-        uint64_t seed = runStamp * 0x9E3779B97F4A7C15ull + static_cast<uint64_t>(i) * 0x632BE59BD9B4E019ull + 1;
-        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed);
+        uint64_t seed = runStamp * 0x9E3779B97F4A7C15ull + static_cast<uint64_t>(i) * 0x632BE59BD9B4E019ULL + 1;
+        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed, temperaturePct);
     }
 
     uint64_t t0        = currentTime();
