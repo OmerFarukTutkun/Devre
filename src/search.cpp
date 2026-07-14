@@ -6,6 +6,7 @@
 #include "history.h"
 #include "util.h"
 #include <sstream>
+#include <limits>
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
 
@@ -730,6 +731,83 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         res.nodes = totalNodes();
         TT::Instance()->updateAge();
     }
+    return res;
+}
+
+SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes) {
+    ThreadData* td = threads.at(0);
+
+    stopped  = false;
+    seldepth = 0;
+    td->nodes       = 0ull;
+    td->tbHits      = 0ull;
+    td->searchDepth = 0;
+
+    // Only node limits gate this search; time/movetime are disabled.
+    TimeManager tm;
+    tm.depthLimit    = MAX_PLY;
+    tm.nodeLimit     = hardNodes;
+    tm.fixedMoveTime = -1;
+    tm.startTime     = currentTime();
+    tm.hardTime      = std::numeric_limits<int64_t>::max();
+    tm.softTime      = std::numeric_limits<int64_t>::max();
+    tm.period        = 1024;
+    tm.calls         = tm.period;
+    this->timeManager = &tm;
+
+    // Full reset of the reused stack, matching a freshly constructed one.
+    for (int i = 0; i < MAX_PLY + 10; i++)
+    {
+        ss[i]                     = Stack();
+        ss[i].ply                 = i - 6;
+        ss[i].continuationHistory = &td->contHist[0][0];
+        ss[i].contCorrHist        = &td->contCorrHist[0][0];
+    }
+
+    int      score = 0;
+    uint16_t best  = NO_MOVE;
+    for (int depth = 1; depth <= MAX_PLY; depth++)
+    {
+        td->searchDepth = depth;
+        if (depth > 4)
+        {
+            int windowSize = 20;
+            int alpha      = score - windowSize;
+            int beta       = score + windowSize;
+            while (true)
+            {
+                score = alphaBeta(alpha, beta, depth, false, *td, ss + 6);
+                if (stopped || (score > alpha && score < beta))
+                    break;
+                if (score <= alpha)
+                    alpha = std::max(-VALUE_INFINITE, alpha - windowSize);
+                else if (score >= beta)
+                    beta = std::min(+VALUE_INFINITE, beta + windowSize);
+                windowSize += windowSize / 3;
+            }
+        }
+        else
+        {
+            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, depth, false, *td, ss + 6);
+        }
+
+        if (stopped)
+            break;
+
+        best = (ss + 6)->pv[0];
+
+        if (static_cast<int64_t>(td->nodes) >= softNodes)
+            break;
+    }
+
+    SearchResult res{};
+    res.cp    = score / 2;
+    res.move  = best;
+    res.nodes = td->nodes;
+
+    // `tm` is about to go out of scope; drop the member pointer so it can never
+    // be dereferenced after this call.
+    this->timeManager = nullptr;
     return res;
 }
 

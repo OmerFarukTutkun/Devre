@@ -1,7 +1,13 @@
 #include "uci.h"
 #include "bench.h"
+#include "datagen.h"
 
 int main(int argc, char** argv) {
+    if (argc > 1 && std::string(argv[1]) == "datagen")
+    {
+        runDatagen(argc, argv);
+        return 0;
+    }
     if (argc > 1)
         std::cout << std::string(argv[1]);
     if (argc > 1 && std::string(argv[1]) == "bench")

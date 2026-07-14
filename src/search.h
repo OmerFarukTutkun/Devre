@@ -57,6 +57,12 @@ class Search {
 
     SearchResult start(Board* board, TimeManager* timeManager, int ThreadID = 0);
 
+    // Lean single-threaded search entry for self-play data generation: runs
+    // iterative deepening on threads[0]->board with a soft node budget (checked
+    // at each iteration boundary) and a hard node cap, printing nothing. The
+    // caller owns and reuses `ss` across searches to avoid per-move allocation.
+    SearchResult datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes);
+
     Search();
 
     // Search owns raw thread/node buffers; copying would double-free them.
