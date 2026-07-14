@@ -4,3 +4,6 @@ devre*
 /cmake-build-debug/
 /data/
 __pycache__/
+
+# datagen analyzer default output
+datagen_report.html

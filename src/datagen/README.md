@@ -50,27 +50,28 @@ is thrown away at generation time except already-decided openings.
 ## Analyzing data
 
 ```
-python src/datagen/analyze_data.py DATA --plots        # gallery -> analysis/index.html
-python src/datagen/analyze_data.py DATA --plots out    # gallery -> out/index.html
-python src/datagen/analyze_data.py DATA                # text summary only
-python src/datagen/analyze_data.py DATA --max 2000000  # sample first N positions (faster)
+python src/datagen/analyze_data.py DATA                 # -> datagen_report.html + text
+python src/datagen/analyze_data.py DATA --html out.html # choose the output path
+python src/datagen/analyze_data.py DATA --no-html       # text summary only
+python src/datagen/analyze_data.py DATA --max 2000000   # sample first N positions (faster)
 ```
 
 `DATA` is a `.bin` file or a directory of them. Every distribution is reported
-as a **percentage**.
+as a **percentage**. Pure stdlib — no matplotlib or other dependencies.
 
-The easiest way to read the results is `--plots`: it writes a self-contained
-gallery — `index.html` plus PNGs — into one directory. Open `index.html` to see
-a summary table and every chart on one page:
+By default it writes a single self-contained **interactive HTML dashboard**
+(`datagen_report.html`). Open it in a browser and hover any bar or heatmap
+square to read exact percentages and counts. It contains:
 
-- game result (WDL) balance
-- white-relative score distribution
-- score→WDL calibration with the fitted sigmoid scale `K`
-- game-length, position-ply and halfmove-clock distributions
-- piece-count distribution and best-move type mix
-- a 12-panel per-piece square-occupancy heatmap
+- a summary card row (games, positions, WDL, in-check %, capture-best-move %, K)
+- an interactive per-piece **square-occupancy heatmap**: pick a piece (or click a
+  mini-board) and every square shows that square's share of the piece's
+  occurrences, with the number printed in the cell and an exact `square: % (count)`
+  tooltip on hover
+- game result, white-relative score distribution, score→WDL calibration (with the
+  fitted sigmoid scale `K`), piece count, game length, best-move type, position
+  ply and halfmove-clock charts — all hoverable
 
-Without `--plots` you still get the full percentage-based text summary (pure
-stdlib). Plots need `matplotlib` (`pip install matplotlib`). `--piece wp` adds a
-text heatmap for one piece; `--max N` samples the first N positions; `--no-check`
-skips the slower in-check detection.
+A percentage-based text summary is always printed too. `--no-html` skips the
+file; `--max N` samples the first N positions; `--no-check` skips the slower
+in-check detection.
