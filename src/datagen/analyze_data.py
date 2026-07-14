@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
-"""Analyze Devre self-play training data (see src/datagen.cpp for the format).
+"""Analyze Devre self-play training data (see datagen.cpp for the format).
 
 Reconstructs every scored position by replaying the stored moves, then reports
-distributions useful for judging data quality:
+data-quality distributions. The easiest way to read the results is the plot
+gallery: pass --plots and open the generated index.html.
 
-  * record integrity / corruption check
-  * game-result (WDL) balance and game-length distribution
-  * white-relative score histogram and score -> WDL calibration (fitted sigmoid)
-  * piece-count and per-position ply distributions
-  * best-move type mix (quiet / capture / promotion) and in-check fraction
-  * per-piece square-occupancy heatmap (--piece)
+  python analyze_data.py DATA                 # text summary (percentages)
+  python analyze_data.py DATA --plots         # + gallery in ./analysis/index.html
+  python analyze_data.py DATA --plots out      # + gallery in ./out/index.html
+  python analyze_data.py DATA --max 2000000    # sample the first N positions (faster)
 
-Pure stdlib; if matplotlib is installed, also writes PNG plots via --plots DIR.
-
-Usage:
-  python analyze_data.py DATA            # a .bin file or a directory of them
-  python analyze_data.py DATA --piece wp # square heatmap for white pawns
-  python analyze_data.py DATA --plots out --max 2000000
+DATA is a .bin file or a directory of them. Plots need matplotlib
+(pip install matplotlib); the text summary is pure stdlib.
 """
 
 import argparse
@@ -31,7 +26,13 @@ from collections import Counter
 # 0..5 white PNBRQK, 8..13 black pnbrqk, -1 empty
 PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING = range(6)
 PIECE_LETTER = "PNBRQK??pnbrqk"
-WDL_NAME = {0: "black-win", 1: "draw", 2: "white-win"}
+PIECE_CODES = [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13]
+PIECE_NAMES = {
+    0: "White pawn", 1: "White knight", 2: "White bishop", 3: "White rook",
+    4: "White queen", 5: "White king", 8: "Black pawn", 9: "Black knight",
+    10: "Black bishop", 11: "Black rook", 12: "Black queen", 13: "Black king",
+}
+WDL_NAME = {0: "black win", 1: "draw", 2: "white win"}
 
 # move type enum (move.h)
 QUIET, DOUBLE_PUSH, KING_CASTLE, QUEEN_CASTLE, CAPTURE, EN_PASSANT = range(6)
@@ -43,10 +44,6 @@ SM = struct.Struct("<Hh")           # move (u16), eval (i16)
 
 def piece_type(p):
     return p & 7
-
-
-def piece_color(p):
-    return 1 if (p & 8) else 0
 
 
 def sq_file(sq):
@@ -95,8 +92,8 @@ ROOK_DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 def king_in_check(board, stm):
     """True if the side-to-move (stm: 0 white / 1 black) king is attacked."""
-    ksq = -1
     king = KING | (8 if stm else 0)
+    ksq = -1
     for s in range(64):
         if board[s] == king:
             ksq = s
@@ -106,8 +103,7 @@ def king_in_check(board, stm):
     enemy = 1 - stm
     kr, kf = ksq >> 3, ksq & 7
 
-    # pawns: an enemy pawn attacks the king square from the forward diagonals
-    pdr = 1 if enemy == 0 else -1  # white pawns attack upward (toward higher ranks)
+    pdr = 1 if enemy == 0 else -1
     for df in (-1, 1):
         rr, ff = kr - pdr, kf + df
         if 0 <= rr < 8 and 0 <= ff < 8:
@@ -115,8 +111,7 @@ def king_in_check(board, stm):
                 return True
 
     ep_knight = KNIGHT | (8 if enemy else 0)
-    kn = KNIGHT_ATT[ksq]
-    b = kn
+    b = KNIGHT_ATT[ksq]
     while b:
         s = (b & -b).bit_length() - 1
         b &= b - 1
@@ -178,13 +173,8 @@ def unpack_header(buf):
     stm = 1 if (stm_ep & 0x80) else 0
     ep = stm_ep & 0x7F
     return {
-        "board": board,
-        "stm": stm,
-        "ep": None if ep == 64 else ep,
-        "halfmove": halfmove,
-        "fullmove": fullmove,
-        "eval": ev,
-        "wdl": wdl,
+        "board": board, "stm": stm, "ep": None if ep == 64 else ep,
+        "halfmove": halfmove, "fullmove": fullmove, "eval": ev, "wdl": wdl,
     }
 
 
@@ -202,29 +192,30 @@ def apply_move(board, stm, move):
         board[to] = piece
         board[frm] = -1
         rook = ROOK | (8 if stm else 0)
-        rfrom = (7 if stm == 0 else 63)      # h1 / h8
-        board[rfrom] = -1
+        board[7 if stm == 0 else 63] = -1
         board[to - 1] = rook
     elif typ == QUEEN_CASTLE:
         board[to] = piece
         board[frm] = -1
         rook = ROOK | (8 if stm else 0)
-        rfrom = (0 if stm == 0 else 56)      # a1 / a8
-        board[rfrom] = -1
+        board[0 if stm == 0 else 56] = -1
         board[to + 1] = rook
     elif typ == EN_PASSANT:
         board[to] = piece
         board[frm] = -1
-        cap_sq = sq_rank(frm) * 8 + sq_file(to)
-        board[cap_sq] = -1
+        board[sq_rank(frm) * 8 + sq_file(to)] = -1
     elif typ >= KNIGHT_PROMO_BASE:
-        promoted = (KNIGHT + (typ & 3)) | (8 if stm else 0)
         board[frm] = -1
-        board[to] = promoted
+        board[to] = (KNIGHT + (typ & 3)) | (8 if stm else 0)
     else:  # QUIET, DOUBLE_PUSH, CAPTURE
         board[to] = piece
         board[frm] = -1
     return 1 - stm
+
+
+def move_is_capture(move):
+    typ = move & 15
+    return typ in (CAPTURE, EN_PASSANT) or typ >= 12  # 12..15 are capture-promotions
 
 
 def iter_games(paths):
@@ -247,7 +238,7 @@ def iter_games(paths):
                 if mv == 0:  # terminator
                     break
                 moves.append((mv, ev))
-            yield path, header, moves, ok
+            yield header, moves, ok
 
 
 # ---- sigmoid fit ---------------------------------------------------------
@@ -260,9 +251,7 @@ def sigmoid(x):
 
 
 def fit_scale(evals, results):
-    """Golden-section fit of K minimizing MSE of sigmoid(eval/K) vs result.
-
-    results are in {0.0, 0.5, 1.0} (white POV). Returns (K, mse)."""
+    """Golden-section fit of K minimizing MSE of sigmoid(eval/K) vs result."""
     if not evals:
         return None, None
 
@@ -290,43 +279,38 @@ def fit_scale(evals, results):
     return k, mse(k)
 
 
-# ---- main analysis -------------------------------------------------------
 def parse_piece_arg(s):
-    """'wp'/'bq'/'P'/'n' -> piece code, or None."""
     if not s:
         return None
     s = s.strip()
     if len(s) == 2 and s[0] in "wb":
-        color = 0 if s[0] == "w" else 8
-        t = "pnbrqk".index(s[1].lower())
-        return color | t
-    if len(s) == 1:
-        return PIECE_LETTER.index(s) if s in PIECE_LETTER else None
+        return (0 if s[0] == "w" else 8) | "pnbrqk".index(s[1].lower())
+    if len(s) == 1 and s in PIECE_LETTER:
+        return PIECE_LETTER.index(s)
     return None
 
 
-def histogram(counter, width=48, lo=None, hi=None, step=1):
-    if not counter:
-        return []
-    keys = sorted(counter)
-    lo = keys[0] if lo is None else lo
-    hi = keys[-1] if hi is None else hi
-    mx = max(counter.values())
+# ---- text helpers (percentages) ------------------------------------------
+def bar_pct(counter, total, keys, width=40):
+    """ASCII bars scaled to the largest percentage in the range."""
+    maxp = max((100.0 * counter.get(k, 0) / total for k in keys), default=0.0) if total else 0.0
     lines = []
-    for k in range(lo, hi + 1, step):
-        v = counter.get(k, 0)
-        bar = "#" * int(width * v / mx) if mx else ""
-        lines.append(f"{k:6d} | {bar} {v}")
+    for k in keys:
+        p = 100.0 * counter.get(k, 0) / total if total else 0.0
+        n = int(width * p / maxp) if maxp > 0 else 0
+        lines.append(f"{k:6d} | {'#' * n} {p:5.1f}%")
     return lines
 
 
+# ---- main analysis -------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("data", help="a .bin file or directory of .bin files")
+    ap.add_argument("--plots", nargs="?", const="analysis", default=None,
+                    help="write a plot gallery + index.html to this dir (default: ./analysis)")
     ap.add_argument("--max", type=int, default=0, help="stop after N scored positions (0 = all)")
-    ap.add_argument("--piece", default="", help="square-heatmap piece, e.g. wp bn wq")
+    ap.add_argument("--piece", default="", help="text square-heatmap piece, e.g. wp bn wq")
     ap.add_argument("--no-check", action="store_true", help="skip (slower) in-check detection")
-    ap.add_argument("--plots", default="", help="directory to write PNG plots (needs matplotlib)")
     ap.add_argument("--score-bin", type=int, default=50, help="score histogram bin size (cp)")
     args = ap.parse_args()
 
@@ -339,68 +323,55 @@ def main():
         return 1
 
     piece_code = parse_piece_arg(args.piece)
-
+    bin_cp = max(1, args.score_bin)
     total_bytes = sum(os.path.getsize(p) for p in paths)
 
     # accumulators
-    n_games = 0
-    n_positions = 0
-    n_corrupt = 0
+    n_games = n_positions = n_corrupt = 0
     wdl_counter = Counter()
     game_len = Counter()
     score_hist = Counter()
     piececount_hist = Counter()
-    ply_positions = 0
     stm_counter = Counter()
     halfmove_hist = Counter()
-    movetype_counter = Counter()  # quiet / capture / promo
-    in_check = 0
-    checked_positions = 0
-    piece_squares = [0] * 64
+    ply_hist = Counter()
+    movetype_counter = Counter()
+    in_check = checked_positions = 0
+    piece_squares = {p: [0] * 64 for p in PIECE_CODES}
     eval_samples = []
     result_samples = []
-    calib_bins = {}  # bin -> [count, win_sum]
-
-    bin_cp = max(1, args.score_bin)
+    calib = {}  # bin -> [count, white_result_sum]
 
     stop = False
-    for path, header, moves, ok in iter_games(paths):
-        if not ok:
+    for header, moves, ok in iter_games(paths):
+        if not ok or header["wdl"] not in (0, 1, 2):
             n_corrupt += 1
             continue
         wdl = header["wdl"]
-        if wdl not in (0, 1, 2):
-            n_corrupt += 1
-            continue
         n_games += 1
         wdl_counter[wdl] += 1
         game_len[len(moves)] += 1
-        # white-POV result for calibration
         white_result = {0: 0.0, 1: 0.5, 2: 1.0}[wdl]
 
         board = list(header["board"])
         stm = header["stm"]
+        half = header["halfmove"]
         for ply, (mv, ev) in enumerate(moves):
             n_positions += 1
-            ply_positions += ply
             stm_counter[stm] += 1
+            ply_hist[5 * (ply // 5)] += 1
+            halfmove_hist[half] += 1
 
-            # score histogram (white-relative cp)
-            score_hist[bin_cp * round(ev / bin_cp)] += 1
-
-            # calibration: white-relative eval -> white game result
+            b = bin_cp * round(ev / bin_cp)
+            score_hist[b] += 1
             eval_samples.append(ev)
             result_samples.append(white_result)
-            b = bin_cp * round(ev / bin_cp)
-            slot = calib_bins.setdefault(b, [0, 0.0])
+            slot = calib.setdefault(b, [0, 0.0])
             slot[0] += 1
             slot[1] += white_result
 
-            # piece count
-            pc = sum(1 for x in board if x != -1)
-            piececount_hist[pc] += 1
+            piececount_hist[sum(1 for x in board if x != -1)] += 1
 
-            # best-move type
             typ = mv & 15
             if typ >= KNIGHT_PROMO_BASE:
                 movetype_counter["promotion"] += 1
@@ -409,193 +380,302 @@ def main():
             else:
                 movetype_counter["quiet"] += 1
 
-            # in-check
             if not args.no_check:
                 checked_positions += 1
                 if king_in_check(board, stm):
                     in_check += 1
 
-            # piece square occupancy
-            if piece_code is not None:
-                for s in range(64):
-                    if board[s] == piece_code:
-                        piece_squares[s] += 1
+            for s in range(64):
+                p = board[s]
+                if p != -1:
+                    piece_squares[p][s] += 1
+
+            # halfmove clock for the next position
+            reset = (piece_type(board[frm_of(mv)]) == PAWN) or move_is_capture(mv)
+            half = 0 if reset else half + 1
 
             stm = apply_move(board, stm, mv)
-
             if args.max and n_positions >= args.max:
                 stop = True
                 break
         if stop:
             break
 
-    # ---- report ----
-    def pct(x, total):
-        return f"{100.0 * x / total:.1f}%" if total else "n/a"
-
-    print("=" * 64)
-    print("Devre self-play data report")
-    print("=" * 64)
-    print(f"files            : {len(paths)}  ({total_bytes/1e6:.2f} MB)")
-    print(f"games            : {n_games}")
-    print(f"scored positions : {n_positions}")
-    if n_games:
-        print(f"bytes / position : {total_bytes / max(1,n_positions):.2f}")
-        print(f"avg game length  : {n_positions / n_games:.1f} plies")
-    print(f"corrupt records  : {n_corrupt}")
-
-    print("\n-- game result (white POV) --")
-    for k in (2, 1, 0):
-        print(f"  {WDL_NAME[k]:10s}: {wdl_counter[k]:8d}  {pct(wdl_counter[k], n_games)}")
-
-    print("\n-- side to move at scored positions --")
-    print(f"  white: {stm_counter[0]}  {pct(stm_counter[0], n_positions)}")
-    print(f"  black: {stm_counter[1]}  {pct(stm_counter[1], n_positions)}")
-
-    print("\n-- best-move type --")
-    tot_mt = sum(movetype_counter.values())
-    for k in ("quiet", "capture", "promotion"):
-        print(f"  {k:10s}: {movetype_counter[k]:8d}  {pct(movetype_counter[k], tot_mt)}")
-
-    if not args.no_check:
-        print("\n-- in-check positions --")
-        print(f"  in check : {in_check}  {pct(in_check, checked_positions)}")
-
-    print("\n-- piece count (total pieces on board) --")
-    for line in histogram(piececount_hist, lo=2, hi=32):
-        print("  " + line)
-
-    print("\n-- game length (plies) histogram (bucketed by 10) --")
-    len_buckets = Counter()
-    for length, c in game_len.items():
-        len_buckets[10 * (length // 10)] += c
-    for line in histogram(len_buckets, step=10):
-        print("  " + line)
-
-    print("\n-- white-relative score distribution (cp) --")
-    lo = min(score_hist) if score_hist else 0
-    hi = max(score_hist) if score_hist else 0
-    lo = max(lo, -1000)
-    hi = min(hi, 1000)
-    keys = sorted(k for k in score_hist if lo <= k <= hi)
-    if keys:
-        mx = max(score_hist[k] for k in keys)
-        for k in range(lo, hi + 1, bin_cp):
-            v = score_hist.get(k, 0)
-            bar = "#" * int(48 * v / mx) if mx else ""
-            print(f"  {k:6d} | {bar} {v}")
-        clipped = n_positions - sum(score_hist[k] for k in keys)
-        if clipped:
-            print(f"  (|score| > 1000cp not shown: {clipped}  {pct(clipped, n_positions)})")
-
-    # ---- score -> WDL calibration ----
-    print("\n-- score -> WDL calibration (white POV) --")
     k, mse = fit_scale(eval_samples, result_samples)
-    if k:
-        print(f"  fitted sigmoid scale K = {k:.1f} cp   (P(win) = 1/(1+exp(-eval/K)))")
-        print(f"  fit MSE                = {mse:.4f}")
-        print(f"  {'eval(cp)':>10} {'n':>8} {'empirical':>10} {'sigmoid':>9}")
-        for b in sorted(calib_bins):
-            if b < -800 or b > 800:
-                continue
-            cnt, wsum = calib_bins[b]
-            if cnt < 20:
-                continue
-            emp = wsum / cnt
-            pred = sigmoid(b / k)
-            print(f"  {b:10d} {cnt:8d} {emp:10.3f} {pred:9.3f}")
 
-    # ---- piece square heatmap ----
-    if piece_code is not None:
-        total = sum(piece_squares)
-        print(f"\n-- square occupancy heatmap for '{args.piece}' (total {total}) --")
-        if total:
-            mx = max(piece_squares)
-            for r in range(7, -1, -1):
-                row = []
-                for f in range(8):
-                    v = piece_squares[r * 8 + f]
-                    shade = " .:-=+*#@"[min(8, int(8 * v / mx))] if mx else " "
-                    row.append(shade)
-                pctrow = 100.0 * sum(piece_squares[r * 8:r * 8 + 8]) / total
-                print(f"  {r+1} {''.join(row)}   {pctrow:4.1f}%")
-            print("    abcdefgh")
+    stats = {
+        "paths": paths, "total_bytes": total_bytes, "n_games": n_games,
+        "n_positions": n_positions, "n_corrupt": n_corrupt, "wdl": wdl_counter,
+        "game_len": game_len, "score_hist": score_hist, "piececount": piececount_hist,
+        "stm": stm_counter, "halfmove": halfmove_hist, "ply": ply_hist,
+        "movetype": movetype_counter, "in_check": in_check,
+        "checked": checked_positions, "piece_squares": piece_squares,
+        "calib": calib, "k": k, "mse": mse, "bin_cp": bin_cp,
+    }
 
-    # ---- optional plots ----
-    if args.plots:
+    print_text_report(stats, piece_code, args.piece)
+
+    if args.plots is not None:
         try:
-            _write_plots(args, calib_bins, k, score_hist, piececount_hist,
-                         len_buckets, piece_squares, wdl_counter, bin_cp)
-            print(f"\nplots written to {args.plots}/")
+            write_gallery(stats, args.plots)
+            print(f"\nplot gallery written — open {os.path.join(args.plots, 'index.html')}")
         except ImportError:
-            print("\n--plots requested but matplotlib is not installed; skipping", file=sys.stderr)
-
+            print("\n--plots needs matplotlib: pip install matplotlib", file=sys.stderr)
+            return 2
+    else:
+        print("\ntip: re-run with --plots for readable charts (open analysis/index.html)")
     return 0
 
 
-def _write_plots(args, calib_bins, k, score_hist, piececount_hist, len_buckets,
-                 piece_squares, wdl_counter, bin_cp):
+def frm_of(move):
+    return (move >> 10) & 63
+
+
+# ---- text report ---------------------------------------------------------
+def print_text_report(s, piece_code, piece_arg):
+    ng = s["n_games"]
+    npos = s["n_positions"]
+
+    def pct(x, tot):
+        return f"{100.0 * x / tot:.1f}%" if tot else "n/a"
+
+    print("=" * 60)
+    print("Devre self-play data report")
+    print("=" * 60)
+    print(f"files            : {len(s['paths'])}  ({s['total_bytes']/1e6:.2f} MB)")
+    print(f"games            : {ng}")
+    print(f"scored positions : {npos}")
+    if npos:
+        print(f"bytes / position : {s['total_bytes'] / npos:.2f}")
+    if ng:
+        print(f"avg game length  : {npos / ng:.1f} plies")
+    print(f"corrupt records  : {s['n_corrupt']}")
+
+    print("\n-- game result (white POV, % of games) --")
+    for kk in (2, 1, 0):
+        print(f"  {WDL_NAME[kk]:10s}: {pct(s['wdl'][kk], ng)}")
+
+    print("\n-- side to move (% of positions) --")
+    print(f"  white: {pct(s['stm'][0], npos)}   black: {pct(s['stm'][1], npos)}")
+
+    print("\n-- best-move type (% of positions) --")
+    tot_mt = sum(s["movetype"].values())
+    for kk in ("quiet", "capture", "promotion"):
+        print(f"  {kk:10s}: {pct(s['movetype'][kk], tot_mt)}")
+
+    if s["checked"]:
+        print("\n-- in-check positions --")
+        print(f"  {pct(s['in_check'], s['checked'])}")
+
+    if s["k"]:
+        print("\n-- score -> WDL calibration --")
+        print(f"  fitted sigmoid scale K = {s['k']:.1f} cp   (P(win) = 1/(1+exp(-eval/K)))")
+        print(f"  fit MSE                = {s['mse']:.4f}")
+
+    print("\n-- piece count on board (% of positions) --")
+    for line in bar_pct(s["piececount"], npos, range(2, 33)):
+        print("  " + line)
+
+    print(f"\n-- white-relative score distribution (% of positions, bin {s['bin_cp']}cp) --")
+    keys = list(range(-1000, 1001, s["bin_cp"]))
+    for line in bar_pct(s["score_hist"], npos, keys):
+        print("  " + line)
+    shown = sum(s["score_hist"].get(k, 0) for k in keys)
+    if npos - shown:
+        print(f"  (|score| > 1000cp: {pct(npos - shown, npos)})")
+
+    if piece_code is not None:
+        squares = s["piece_squares"][piece_code]
+        tot = sum(squares)
+        print(f"\n-- square occupancy for '{piece_arg}' ({PIECE_NAMES.get(piece_code,'?')}), % of its occurrences --")
+        if tot:
+            mx = max(squares)
+            for r in range(7, -1, -1):
+                row = "".join(" .:-=+*#@"[min(8, int(8 * squares[r * 8 + f] / mx))] if mx else " " for f in range(8))
+                rowpct = 100.0 * sum(squares[r * 8:r * 8 + 8]) / tot
+                print(f"  {r+1} {row}   {rowpct:4.1f}%")
+            print("    abcdefgh")
+
+
+# ---- plot gallery --------------------------------------------------------
+def write_gallery(s, out_dir):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    os.makedirs(args.plots, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
+    npos = s["n_positions"]
+    ng = s["n_games"]
+    plots = []  # (filename, caption)
 
-    # score histogram
-    keys = sorted(x for x in score_hist if -1000 <= x <= 1000)
-    if keys:
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(keys, [score_hist[x] for x in keys], width=bin_cp * 0.9)
-        ax.set_title("white-relative score distribution")
-        ax.set_xlabel("cp")
-        ax.set_ylabel("positions")
+    def save(fig, name, caption):
         fig.tight_layout()
-        fig.savefig(os.path.join(args.plots, "score_hist.png"), dpi=110)
+        fig.savefig(os.path.join(out_dir, name), dpi=110)
         plt.close(fig)
+        plots.append((name, caption))
+
+    def pct_of(counter, total, keys):
+        return [100.0 * counter.get(k, 0) / total if total else 0.0 for k in keys]
+
+    # WDL
+    fig, ax = plt.subplots(figsize=(5, 4))
+    labels = [WDL_NAME[2], WDL_NAME[1], WDL_NAME[0]]
+    vals = [100.0 * s["wdl"][k] / ng if ng else 0 for k in (2, 1, 0)]
+    bars = ax.bar(labels, vals, color=["#4c9f70", "#9aa0a6", "#c0504d"])
+    for b, v in zip(bars, vals):
+        ax.text(b.get_x() + b.get_width() / 2, v, f"{v:.1f}%", ha="center", va="bottom")
+    ax.set_ylabel("% of games")
+    ax.set_title("Game result (white POV)")
+    save(fig, "wdl.png", "Result balance. Very high draw rates or a large white/black skew suggest adjudication or opening bias.")
+
+    # score distribution
+    keys = list(range(-1000, 1001, s["bin_cp"]))
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(keys, pct_of(s["score_hist"], npos, keys), width=s["bin_cp"] * 0.9, color="#4472c4")
+    ax.set_xlabel("white-relative eval (cp)")
+    ax.set_ylabel("% of positions")
+    ax.set_title("Score distribution")
+    save(fig, "score_hist.png", "Should peak near 0 and taper smoothly. Spikes at the adjudication edges (±1000cp) mean many games ended there.")
 
     # calibration
-    if k:
-        bs = sorted(b for b in calib_bins if -800 <= b <= 800 and calib_bins[b][0] >= 20)
-        emp = [calib_bins[b][1] / calib_bins[b][0] for b in bs]
-        pred = [sigmoid(b / k) for b in bs]
-        fig, ax = plt.subplots(figsize=(6, 5))
-        ax.plot(bs, emp, "o", label="empirical")
-        ax.plot(bs, pred, "-", label=f"sigmoid(eval/{k:.0f})")
-        ax.set_title("score -> WDL calibration")
-        ax.set_xlabel("white-relative eval (cp)")
-        ax.set_ylabel("P(white win)")
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-        fig.savefig(os.path.join(args.plots, "calibration.png"), dpi=110)
-        plt.close(fig)
+    if s["k"]:
+        bs = sorted(b for b in s["calib"] if -800 <= b <= 800 and s["calib"][b][0] >= 20)
+        if bs:
+            emp = [s["calib"][b][1] / s["calib"][b][0] for b in bs]
+            pred = [sigmoid(b / s["k"]) for b in bs]
+            fig, ax = plt.subplots(figsize=(6, 5))
+            ax.plot(bs, emp, "o", label="empirical", color="#4472c4")
+            ax.plot(bs, pred, "-", label=f"sigmoid(eval/{s['k']:.0f})", color="#c0504d")
+            ax.set_xlabel("white-relative eval (cp)")
+            ax.set_ylabel("P(white win)")
+            ax.set_title(f"Score to WDL calibration (K={s['k']:.0f}cp, MSE={s['mse']:.4f})")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            save(fig, "calibration.png", "Empirical win rate vs the fitted sigmoid. Close agreement means evals and results are consistent; K is the cp-per-winrate scale.")
+
+    # game length
+    lb = Counter()
+    for length, c in s["game_len"].items():
+        lb[10 * (length // 10)] += c
+    if lb:
+        keys = list(range(0, max(lb) + 10, 10))
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.bar(keys, pct_of(lb, ng, keys), width=9, color="#70ad47")
+        ax.set_xlabel("game length (plies, bucketed by 10)")
+        ax.set_ylabel("% of games")
+        ax.set_title("Game length")
+        save(fig, "game_length.png", "How long games run. A wall at the 400-ply cap or a big spike at short lengths is worth a look.")
 
     # piece count
-    if piececount_hist:
-        pcs = sorted(piececount_hist)
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(pcs, [piececount_hist[x] for x in pcs])
-        ax.set_title("piece count distribution")
-        ax.set_xlabel("pieces on board")
-        ax.set_ylabel("positions")
-        fig.tight_layout()
-        fig.savefig(os.path.join(args.plots, "piece_count.png"), dpi=110)
-        plt.close(fig)
+    keys = list(range(2, 33))
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(keys, pct_of(s["piececount"], npos, keys), color="#8064a2")
+    ax.set_xlabel("pieces on board")
+    ax.set_ylabel("% of positions")
+    ax.set_title("Piece count distribution")
+    save(fig, "piece_count.png", "Material coverage from openings (32) to endgames. A pipeline heavy on either extreme trains a lopsided net.")
 
-    # heatmap
-    if sum(piece_squares):
-        grid = [[piece_squares[r * 8 + f] for f in range(8)] for r in range(7, -1, -1)]
-        fig, ax = plt.subplots(figsize=(5, 5))
-        im = ax.imshow(grid, cmap="viridis")
-        ax.set_title(f"square occupancy: {args.piece}")
-        ax.set_xticks(range(8))
-        ax.set_xticklabels(list("abcdefgh"))
-        ax.set_yticks(range(8))
-        ax.set_yticklabels(list("87654321"))
-        fig.colorbar(im, ax=ax)
-        fig.tight_layout()
-        fig.savefig(os.path.join(args.plots, "piece_heatmap.png"), dpi=110)
-        plt.close(fig)
+    # ply distribution
+    if s["ply"]:
+        keys = list(range(0, max(s["ply"]) + 5, 5))
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.bar(keys, pct_of(s["ply"], npos, keys), width=4.5, color="#4472c4")
+        ax.set_xlabel("ply within game (bucketed by 5)")
+        ax.set_ylabel("% of positions")
+        ax.set_title("Position ply distribution")
+        save(fig, "ply.png", "Where in the game scored positions come from; skew toward early plies means short games dominate.")
+
+    # halfmove clock
+    if s["halfmove"]:
+        keys = list(range(0, 101, 2))
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.bar(keys, pct_of(s["halfmove"], npos, keys), width=1.8, color="#9aa0a6")
+        ax.set_xlabel("halfmove clock")
+        ax.set_ylabel("% of positions")
+        ax.set_title("Halfmove-clock distribution")
+        save(fig, "halfmove.png", "50-move-rule counter. A long tail toward 100 indicates many shuffly, drawish endgames.")
+
+    # best-move type
+    fig, ax = plt.subplots(figsize=(5, 4))
+    tot_mt = sum(s["movetype"].values())
+    order = ["quiet", "capture", "promotion"]
+    vals = [100.0 * s["movetype"][k] / tot_mt if tot_mt else 0 for k in order]
+    bars = ax.bar(order, vals, color=["#4472c4", "#ed7d31", "#70ad47"])
+    for b, v in zip(bars, vals):
+        ax.text(b.get_x() + b.get_width() / 2, v, f"{v:.1f}%", ha="center", va="bottom")
+    ax.set_ylabel("% of positions")
+    ax.set_title("Best-move type")
+    save(fig, "move_type.png", "Share of positions whose best move is a capture/promotion. Filtering tactical best moves is a common training step.")
+
+    # per-piece heatmaps (within-piece %)
+    fig, axes = plt.subplots(2, 6, figsize=(15, 5.5))
+    for ax, code in zip(axes.flat, PIECE_CODES):
+        squares = s["piece_squares"][code]
+        tot = sum(squares)
+        grid = [[(100.0 * squares[r * 8 + f] / tot if tot else 0.0) for f in range(8)] for r in range(7, -1, -1)]
+        ax.imshow(grid, cmap="viridis", vmin=0)
+        ax.set_title(f"{PIECE_LETTER[code]}  {tot}", fontsize=9)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.suptitle("Square occupancy per piece (brighter = larger share of that piece's occurrences)")
+    save(fig, "piece_heatmaps.png", "Where each piece spends its time (a1 bottom-left). Pawns should never sit on ranks 1/8; kings should cluster on the back ranks / castled squares.")
+
+    _write_index_html(s, out_dir, plots)
+
+
+def _write_index_html(s, out_dir, plots):
+    ng = s["n_games"]
+    npos = s["n_positions"]
+    tot_mt = sum(s["movetype"].values()) or 1
+
+    def p(x, tot):
+        return f"{100.0 * x / tot:.1f}%" if tot else "n/a"
+
+    rows = [
+        ("Files", f"{len(s['paths'])} ({s['total_bytes']/1e6:.2f} MB)"),
+        ("Games", f"{ng:,}"),
+        ("Scored positions", f"{npos:,}"),
+        ("Bytes / position", f"{s['total_bytes']/npos:.2f}" if npos else "n/a"),
+        ("Avg game length", f"{npos/ng:.1f} plies" if ng else "n/a"),
+        ("Corrupt records", str(s["n_corrupt"])),
+        ("White win / draw / black win",
+         f"{p(s['wdl'][2], ng)} / {p(s['wdl'][1], ng)} / {p(s['wdl'][0], ng)}"),
+        ("Side to move (w/b)", f"{p(s['stm'][0], npos)} / {p(s['stm'][1], npos)}"),
+        ("Best move quiet/capture/promo",
+         f"{p(s['movetype']['quiet'], tot_mt)} / {p(s['movetype']['capture'], tot_mt)} / {p(s['movetype']['promotion'], tot_mt)}"),
+        ("In-check positions", p(s["in_check"], s["checked"]) if s["checked"] else "skipped"),
+        ("Fitted sigmoid K", f"{s['k']:.0f} cp (MSE {s['mse']:.4f})" if s["k"] else "n/a"),
+    ]
+    stat_rows = "\n".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
+    cards = "\n".join(
+        f'<figure><img src="{name}" alt="{name}"><figcaption>{cap}</figcaption></figure>'
+        for name, cap in plots
+    )
+
+    html = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Devre datagen report</title>
+<style>
+ :root {{ color-scheme: light dark; }}
+ body {{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1100px; padding: 24px; line-height: 1.5; }}
+ h1 {{ margin: 0 0 4px; }}
+ .sub {{ color: #888; margin-bottom: 20px; }}
+ table {{ border-collapse: collapse; margin-bottom: 28px; }}
+ th, td {{ text-align: left; padding: 4px 14px 4px 0; border-bottom: 1px solid #8883; }}
+ th {{ font-weight: 600; white-space: nowrap; }}
+ .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; }}
+ figure {{ margin: 0; border: 1px solid #8884; border-radius: 8px; padding: 12px; }}
+ img {{ width: 100%; height: auto; display: block; }}
+ figcaption {{ font-size: 0.86rem; color: #999; margin-top: 8px; }}
+</style></head><body>
+<h1>Devre self-play data report</h1>
+<div class="sub">{ng:,} games &middot; {npos:,} scored positions</div>
+<table>{stat_rows}</table>
+<div class="grid">{cards}</div>
+</body></html>"""
+    with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as fh:
+        fh.write(html)
 
 
 if __name__ == "__main__":

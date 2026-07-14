@@ -50,15 +50,27 @@ is thrown away at generation time except already-decided openings.
 ## Analyzing data
 
 ```
-python src/datagen/analyze_data.py DATA [--piece wp] [--plots OUT] [--max N] [--no-check]
+python src/datagen/analyze_data.py DATA --plots        # gallery -> analysis/index.html
+python src/datagen/analyze_data.py DATA --plots out    # gallery -> out/index.html
+python src/datagen/analyze_data.py DATA                # text summary only
+python src/datagen/analyze_data.py DATA --max 2000000  # sample first N positions (faster)
 ```
 
-`DATA` is a `.bin` file or a directory of them. The report covers record
-integrity, WDL balance, game length, white-relative score distribution, the
-score→WDL sigmoid calibration (with a fitted scale `K`), piece-count and
-side-to-move distributions, best-move type mix, in-check fraction, and a
-per-piece square-occupancy heatmap (`--piece`, e.g. `wp bn wq`).
+`DATA` is a `.bin` file or a directory of them. Every distribution is reported
+as a **percentage**.
 
-`--plots OUT` additionally writes PNGs (score histogram, calibration curve,
-piece-count histogram, piece heatmap) if `matplotlib` is installed. Pure stdlib
-otherwise.
+The easiest way to read the results is `--plots`: it writes a self-contained
+gallery — `index.html` plus PNGs — into one directory. Open `index.html` to see
+a summary table and every chart on one page:
+
+- game result (WDL) balance
+- white-relative score distribution
+- score→WDL calibration with the fitted sigmoid scale `K`
+- game-length, position-ply and halfmove-clock distributions
+- piece-count distribution and best-move type mix
+- a 12-panel per-piece square-occupancy heatmap
+
+Without `--plots` you still get the full percentage-based text summary (pure
+stdlib). Plots need `matplotlib` (`pip install matplotlib`). `--piece wp` adds a
+text heatmap for one piece; `--max N` samples the first N positions; `--no-check`
+skips the slower in-check detection.
