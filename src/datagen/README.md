@@ -39,7 +39,8 @@ start position (with the white-POV game result in its `wdl` byte) followed by
 one 4-byte `(move, eval)` pair per scored position and a `0,0` terminator.
 
 - `move` is Devre's native 16-bit encoding (`from<<10 | to<<4 | type`).
-- `eval` is the **white-relative** search score in centipawns.
+- `eval` is the **white-relative** search score in Devre's raw internal units
+  (= 2 × centipawns; UCI cp = `eval / 2`).
 - `wdl` is the **white-relative** game result: `0` loss, `1` draw, `2` win.
 
 Storing the played best move plus the full move list means every derived signal

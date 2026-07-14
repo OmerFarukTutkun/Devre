@@ -801,7 +801,7 @@ SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNod
     }
 
     SearchResult res{};
-    res.cp    = score / 2;
+    res.cp    = score;
     res.move  = best;
     res.nodes = td->nodes;
 

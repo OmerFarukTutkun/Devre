@@ -40,7 +40,7 @@
 //                         bits0..6 = en-passant square, or 64 if none.
 //   u8  halfmoveClock     50-move counter at the first scored position.
 //   u16 fullmoveNumber
-//   i16 eval              white-relative cp of the first scored position.
+//   i16 eval              white-relative raw eval of the first scored position.
 //   u8  wdl               GAME RESULT, white POV: 0 = white loss (black win),
 //                         1 = draw, 2 = white win.
 //   u8  extra             reserved, 0.
@@ -50,8 +50,9 @@
 //                         native encoding: from<<10 | to<<4 | type (see move.h).
 //                         Castling is king-to-king-destination; promotions and
 //                         en-passant are distinguished by `type`.
-//   i16 eval              WHITE-RELATIVE search score in centipawns
-//                         (engine internal score / 2, negated when black moves).
+//   i16 eval              WHITE-RELATIVE search score in Devre's RAW internal
+//                         units (= 2 x centipawns; UCI cp = eval / 2), negated
+//                         when black moves.
 //
 // Perspective summary: every eval and the wdl live in white's frame, so the
 // score->WDL sigmoid fit is P(white win) = sigmoid(eval / scale). A trainer that
@@ -85,16 +86,18 @@ static_assert(sizeof(MarlinPackedBoard) == 32, "packed board must be 32 bytes");
 static_assert(sizeof(ScoredMove) == 4, "scored move must be 4 bytes");
 
 // ---- generation parameters ----
+// Score thresholds are in Devre's RAW internal eval units (= 2 x centipawns),
+// matching what datagenSearch returns; the UCI-cp equivalent is half the value.
 constexpr int     RANDOM_PLIES_MIN = 8;
 constexpr int64_t VERIFY_NODES     = 5000;
-constexpr int     OPENING_MAX_CP   = 300;    // discard openings more lopsided than this (white-rel cp)
-constexpr int     WIN_ADJ_CP       = 1000;
+constexpr int     OPENING_MAX_CP   = 600;    // discard openings past ~300 UCI cp (white-rel)
+constexpr int     WIN_ADJ_CP       = 2000;   // win-adjudicate at ~1000 UCI cp
 constexpr int     WIN_ADJ_PLIES    = 4;
-constexpr int     DRAW_ADJ_CP      = 8;
+constexpr int     DRAW_ADJ_CP      = 16;     // draw-adjudicate at ~8 UCI cp
 constexpr int     DRAW_ADJ_PLIES   = 10;
 constexpr int     DRAW_ADJ_MIN_PLY = 40;
 constexpr int     MAX_GAME_PLIES   = 400;
-constexpr int     MATE_CP          = MIN_MATE_SCORE / 2;  // |cp| at/above this means a mate was found
+constexpr int     MATE_CP          = MIN_MATE_SCORE;  // |eval| at/above this means a mate was found
 
 // Each completed game is written and flushed to the OS immediately, so a hard
 // kill (console-window close, crash, taskkill) can lose at most the single
@@ -133,7 +136,9 @@ inline void appendBytes(std::vector<uint8_t>& v, const void* p, size_t n) {
 
 inline int whiteRelative(int cp, Color stm) { return stm == WHITE ? cp : -cp; }
 
-inline int16_t clampEval(int cp) { return static_cast<int16_t>(std::clamp(cp, -30000, 30000)); }
+// Raw evals reach ~32000 for mate scores; clamp just inside the int16 range so
+// those survive while any stray VALUE_INFINITE sentinel is bounded.
+inline int16_t clampEval(int cp) { return static_cast<int16_t>(std::clamp(cp, -32000, 32000)); }
 
 void packBoard(const Board& b, MarlinPackedBoard& out) {
     uint64_t occ  = b.occupied[WHITE] | b.occupied[BLACK];
