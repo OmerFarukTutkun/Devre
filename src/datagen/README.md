@@ -54,11 +54,16 @@ is thrown away at generation time except already-decided openings.
 python src/datagen/analyze_data.py DATA                 # -> datagen_report.html + text
 python src/datagen/analyze_data.py DATA --html out.html # choose the output path
 python src/datagen/analyze_data.py DATA --no-html       # text summary only
-python src/datagen/analyze_data.py DATA --max 2000000   # sample first N positions (faster)
+python src/datagen/analyze_data.py DATA --max 0         # process every position (not a sample)
 ```
 
-`DATA` is a `.bin` file or a directory of them. Every distribution is reported
-as a **percentage**. Pure stdlib — no matplotlib or other dependencies.
+`DATA` is a `.bin`/`.vf` file or a directory of them (both extensions are
+picked up). Every distribution is reported as a **percentage**. Pure stdlib —
+no matplotlib or other dependencies.
+
+By default only the first **100000** positions are processed, so a report is
+near-instant on datasets of any size; pass `--max 0` to use everything (or
+`--max N` for a different cap).
 
 By default it writes a single self-contained **interactive HTML dashboard**
 (`datagen_report.html`). Open it in a browser and hover any bar or heatmap
@@ -74,5 +79,5 @@ square to read exact percentages and counts. It contains:
   ply and halfmove-clock charts — all hoverable
 
 A percentage-based text summary is always printed too. `--no-html` skips the
-file; `--max N` samples the first N positions; `--no-check` skips the slower
-in-check detection.
+file; `--max 0` processes all positions; `--no-check` skips the slower in-check
+detection.

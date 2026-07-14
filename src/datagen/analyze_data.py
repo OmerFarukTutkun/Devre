@@ -9,9 +9,10 @@ counts. A percentage text summary is also printed to the terminal.
   python analyze_data.py DATA                  # -> datagen_report.html + text
   python analyze_data.py DATA --html out.html  # choose the output path
   python analyze_data.py DATA --no-html        # text summary only
-  python analyze_data.py DATA --max 2000000    # sample first N positions (faster)
+  python analyze_data.py DATA --max 0          # process every position, not just a sample
 
-DATA is a .bin file or a directory of them.
+DATA is a .bin/.vf file or a directory of them. By default only the first
+100000 positions are processed for a fast sample; pass --max 0 for the full set.
 """
 
 import argparse
@@ -394,6 +395,7 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
 
     k, mse, k_at_bound = fit_scale(calib)
     return {
+        "sampled": stop,  # True if we hit max_positions before exhausting the data
         "n_games": n_games, "n_positions": n_positions, "n_corrupt": n_corrupt,
         "wdl": wdl_counter, "game_len": game_len, "score_hist": score_hist,
         "piececount": piececount_hist, "stm": stm_counter, "halfmove": halfmove_hist,
@@ -414,9 +416,11 @@ def print_text_report(s, total_bytes, n_files):
     print("Devre self-play data report")
     print("=" * 60)
     print(f"files            : {n_files}  ({total_bytes/1e6:.2f} MB)")
+    if s.get("sampled"):
+        print(f"** sample of the first {npos} positions (pass --max 0 to process all) **")
     print(f"games            : {ng}")
     print(f"scored positions : {npos}")
-    if npos:
+    if npos and not s.get("sampled"):
         print(f"bytes / position : {total_bytes / npos:.2f}")
     if ng:
         print(f"avg game length  : {npos / ng:.1f} plies")
@@ -495,8 +499,9 @@ def build_dashboard_data(s, total_bytes, n_files):
 
     return {
         "files": n_files, "bytes": total_bytes, "games": ng, "positions": npos,
+        "sampled": s.get("sampled", False),
         "corrupt": s["n_corrupt"], "avglen": (npos / ng) if ng else 0,
-        "bytesPerPos": (total_bytes / npos) if npos else 0,
+        "bytesPerPos": (total_bytes / npos) if (npos and not s.get("sampled")) else 0,
         "wdl": {"white": s["wdl"][2], "draw": s["wdl"][1], "black": s["wdl"][0]},
         "stm": {"white": s["stm"][0], "black": s["stm"][1]},
         "moveType": {"quiet": s["movetype"]["quiet"], "capture": s["movetype"]["capture"],
@@ -588,7 +593,7 @@ function cards(){
   const wdl=DATA.wdl, mt=DATA.moveType, mtT=mt.quiet+mt.capture+mt.promotion;
   const items=[
     ['Games',fmt(DATA.games)],['Scored positions',fmt(DATA.positions)],
-    ['Bytes / position',DATA.positions?DATA.bytesPerPos.toFixed(2):'n/a'],
+    ['Bytes / position',DATA.bytesPerPos?DATA.bytesPerPos.toFixed(2):'n/a'],
     ['Avg game length',DATA.games?DATA.avglen.toFixed(1)+' plies':'n/a'],
     ['Corrupt records',fmt(DATA.corrupt)],
     ['Draw rate',pct(wdl.draw,DATA.games)],
@@ -702,7 +707,7 @@ function heatSection(){
 // ---- build ----
 function build(){
   app.appendChild(h('h1',{text:'Devre self-play data report'}));
-  app.appendChild(h('div',{class:'sub',html:`${fmt(DATA.games)} games &middot; ${fmt(DATA.positions)} scored positions &middot; ${DATA.files} file(s), ${(DATA.bytes/1e6).toFixed(2)} MB`}));
+  app.appendChild(h('div',{class:'sub',html:`${fmt(DATA.games)} games &middot; ${fmt(DATA.positions)} scored positions${DATA.sampled?' <b>(sample — pass --max 0 for all)</b>':''} &middot; ${DATA.files} file(s), ${(DATA.bytes/1e6).toFixed(2)} MB`}));
   app.appendChild(cards());
 
   app.appendChild(panel('Square occupancy per piece',heatSection(),
@@ -713,7 +718,7 @@ function build(){
   grid.appendChild(panel('Game result (white POV)',barChart([['white win',wdl.white],['draw',wdl.draw],['black win',wdl.black]],DATA.games,{unit:'games',xfmt:x=>x}),
     'Balance of outcomes. A very high draw rate or a big white/black skew hints at opening or adjudication bias.'));
   grid.appendChild(panel('Score distribution',barChart(DATA.scoreHist.items,DATA.positions,{unit:'positions',xfmt:x=>x}),
-    `White-relative eval (cp). Should peak near 0 and taper. ${DATA.scoreHist.overflow?fmt(DATA.scoreHist.overflow)+' positions beyond ±1000cp are not shown.':''}`));
+    `White-relative eval. Should peak near 0 and taper. ${DATA.scoreHist.overflow?fmt(DATA.scoreHist.overflow)+' positions beyond ±'+DATA.scoreRange+' are not shown.':''}`));
   grid.appendChild(panel('Score → WDL calibration',calibChart(),
     DATA.k?`Empirical win rate (dots) vs fitted sigmoid (line). K=${DATA.k.toFixed(0)} eval units, MSE=${DATA.mse.toFixed(4)}. Close agreement = evals and results are consistent.${DATA.kAtBound?' ⚠ fit hit the search-range edge — K unreliable (too little/degenerate data).':''}`:'not enough data'));
   grid.appendChild(panel('Piece count',barChart(DATA.pieceCount,DATA.positions,{unit:'positions',xfmt:x=>x}),
@@ -734,16 +739,17 @@ build();
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("data", help="a .bin file or directory of .bin files")
+    ap.add_argument("data", help="a .bin/.vf file or directory of them")
     ap.add_argument("--html", default="datagen_report.html", help="output dashboard path (default: datagen_report.html)")
     ap.add_argument("--no-html", action="store_true", help="print text summary only, no HTML")
-    ap.add_argument("--max", type=int, default=0, help="stop after N scored positions (0 = all)")
+    ap.add_argument("--max", type=int, default=100000,
+                    help="cap positions processed for a fast sample (0 = all; default 100000)")
     ap.add_argument("--no-check", action="store_true", help="skip (slower) in-check detection")
-    ap.add_argument("--score-bin", type=int, default=50, help="score histogram bin size (cp)")
+    ap.add_argument("--score-bin", type=int, default=50, help="score histogram bin size (eval units)")
     args = ap.parse_args()
 
     if os.path.isdir(args.data):
-        paths = sorted(glob.glob(os.path.join(args.data, "*.bin")))
+        paths = sorted(glob.glob(os.path.join(args.data, "*.bin")) + glob.glob(os.path.join(args.data, "*.vf")))
     else:
         paths = sorted(glob.glob(args.data))
     if not paths:
