@@ -96,6 +96,12 @@ constexpr int     DRAW_ADJ_MIN_PLY = 40;
 constexpr int     MAX_GAME_PLIES   = 400;
 constexpr int     MATE_CP          = MIN_MATE_SCORE / 2;  // |cp| at/above this means a mate was found
 
+// Each completed game is written and flushed to the OS immediately, so a hard
+// kill (console-window close, crash, taskkill) can lose at most the single
+// in-flight game per worker. Records are self-delimiting and the analyzer skips
+// a truncated tail, so a partially written final game stays readable. Games are
+// long enough (~100+ plies) that a flush per game is negligible I/O.
+
 // ---- shared run state ----
 std::atomic<bool>     g_stop{false};
 std::atomic<uint64_t> g_positions{0};
@@ -192,8 +198,6 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
         return;
     }
 
-    std::vector<uint8_t> buf;
-    buf.reserve(1 << 20);
     std::vector<uint8_t> rec;
     rec.reserve(4096);
 
@@ -338,7 +342,10 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
         appendBytes(rec, &terminator, sizeof(terminator));
         rec[hdrOff + offsetof(MarlinPackedBoard, wdl)] = result;
 
-        buf.insert(buf.end(), rec.begin(), rec.end());
+        // Write the whole game record and push it to the OS right away so an
+        // unexpected kill costs at most this single game.
+        out.write(reinterpret_cast<const char*>(rec.data()), static_cast<std::streamsize>(rec.size()));
+        out.flush();
         localGames++;
 
         g_games.fetch_add(1, std::memory_order_relaxed);
@@ -349,16 +356,8 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
             g_draw.fetch_add(1, std::memory_order_relaxed);
         else
             g_black.fetch_add(1, std::memory_order_relaxed);
-
-        if (buf.size() >= (1u << 20))
-        {
-            out.write(reinterpret_cast<const char*>(buf.data()), static_cast<std::streamsize>(buf.size()));
-            buf.clear();
-        }
     }
 
-    if (!buf.empty())
-        out.write(reinterpret_cast<const char*>(buf.data()), static_cast<std::streamsize>(buf.size()));
     out.flush();
     delete[] ss;
 }
