@@ -255,33 +255,58 @@ def sigmoid(x):
     return 1.0 / (1.0 + math.exp(-x))
 
 
-def fit_scale(evals, results):
-    """Golden-section fit of K minimizing MSE of sigmoid(eval/K) vs result."""
-    if not evals:
-        return None, None
+def fit_scale(calib):
+    """Fit the sigmoid scale K to the score->WDL relationship.
+
+    K minimizes the mean squared error of  sigmoid(eval/K)  against the white
+    game result (win=1, draw=0.5, loss=0), computed from the binned aggregates
+    calib[eval] = [count, sum(result), sum(result^2)]. Using bins (a few hundred)
+    instead of every position makes this exact and cheap regardless of dataset
+    size, because for a bin  sum_i (p - r_i)^2 = count*p^2 - 2p*sum(r) + sum(r^2)
+    with p = sigmoid(eval/K).
+
+    A coarse log-spaced scan brackets the global minimum (guards against a
+    non-unimodal MSE), then golden-section search refines it.
+
+    Returns (K, MSE, at_bound); at_bound is True when the optimum sits at the
+    edge of the search range, meaning the fit is unreliable (too little or
+    degenerate data, or evals in unexpected units).
+    """
+    bins = [(e, c, sr, sr2) for e, (c, sr, sr2) in calib.items() if c > 0]
+    total = sum(c for _, c, _, _ in bins)
+    if total == 0 or len(bins) < 2:
+        return None, None, False
 
     def mse(k):
         s = 0.0
-        for e, r in zip(evals, results):
-            s += (sigmoid(e / k) - r) ** 2
-        return s / len(evals)
+        for e, c, sr, sr2 in bins:
+            p = sigmoid(e / k)
+            s += c * p * p - 2.0 * p * sr + sr2
+        return s / total
 
-    lo, hi = 20.0, 1500.0
+    lo_k, hi_k, steps = 1.0, 8000.0, 160
+    ratio = (hi_k / lo_k) ** (1.0 / (steps - 1))
+    ks = [lo_k * ratio ** i for i in range(steps)]
+    vals = [mse(k) for k in ks]
+    bi = min(range(steps), key=lambda i: vals[i])
+    at_bound = (bi == 0 or bi == steps - 1)
+
+    a, b = ks[max(0, bi - 1)], ks[min(steps - 1, bi + 1)]
     gr = (math.sqrt(5) - 1) / 2
-    c = hi - gr * (hi - lo)
-    d = lo + gr * (hi - lo)
+    c = b - gr * (b - a)
+    d = a + gr * (b - a)
     fc, fd = mse(c), mse(d)
-    for _ in range(60):
+    for _ in range(80):
         if fc < fd:
-            hi, d, fd = d, c, fc
-            c = hi - gr * (hi - lo)
+            b, d, fd = d, c, fc
+            c = b - gr * (b - a)
             fc = mse(c)
         else:
-            lo, c, fc = c, d, fd
-            d = lo + gr * (hi - lo)
+            a, c, fc = c, d, fd
+            d = a + gr * (b - a)
             fd = mse(d)
-    k = (lo + hi) / 2
-    return k, mse(k)
+    k = 0.5 * (a + b)
+    return k, mse(k), at_bound
 
 
 def parse_piece_arg(s):
@@ -308,9 +333,7 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
     movetype_counter = Counter()
     in_check = checked_positions = 0
     piece_squares = {p: [0] * 64 for p in PIECE_CODES}
-    eval_samples = []
-    result_samples = []
-    calib = {}
+    calib = {}  # eval bin -> [count, sum(result), sum(result^2)]
 
     stop = False
     for header, moves, ok in iter_games(paths):
@@ -334,11 +357,10 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
 
             b = bin_cp * round(ev / bin_cp)
             score_hist[b] += 1
-            eval_samples.append(ev)
-            result_samples.append(white_result)
-            slot = calib.setdefault(b, [0, 0.0])
+            slot = calib.setdefault(b, [0, 0.0, 0.0])
             slot[0] += 1
             slot[1] += white_result
+            slot[2] += white_result * white_result
 
             piececount_hist[sum(1 for x in board if x != -1)] += 1
 
@@ -370,14 +392,14 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
         if stop:
             break
 
-    k, mse = fit_scale(eval_samples, result_samples)
+    k, mse, k_at_bound = fit_scale(calib)
     return {
         "n_games": n_games, "n_positions": n_positions, "n_corrupt": n_corrupt,
         "wdl": wdl_counter, "game_len": game_len, "score_hist": score_hist,
         "piececount": piececount_hist, "stm": stm_counter, "halfmove": halfmove_hist,
         "ply": ply_hist, "movetype": movetype_counter, "in_check": in_check,
         "checked": checked_positions, "piece_squares": piece_squares,
-        "calib": calib, "k": k, "mse": mse, "bin_cp": bin_cp,
+        "calib": calib, "k": k, "mse": mse, "k_at_bound": k_at_bound, "bin_cp": bin_cp,
     }
 
 
@@ -412,11 +434,29 @@ def print_text_report(s, total_bytes, n_files):
         print(f"\n-- in-check positions --\n  {pct(s['in_check'], s['checked'])}")
     if s["k"]:
         print("\n-- score -> WDL calibration --")
-        print(f"  fitted sigmoid scale K = {s['k']:.1f} cp   (P(win) = 1/(1+exp(-eval/K)))")
+        print(f"  fitted sigmoid scale K = {s['k']:.1f} (eval units)   P(win) = 1/(1+exp(-eval/K))")
         print(f"  fit MSE                = {s['mse']:.4f}")
+        if s.get("k_at_bound"):
+            print("  WARNING: fit hit the search-range edge; K is unreliable (too little/degenerate data)")
 
 
 # ---- interactive dashboard -----------------------------------------------
+def view_range(score_hist, npos, binc, frac=0.98, cap=8000):
+    """Smallest symmetric |eval| range covering `frac` of positions, rounded to
+    a whole number of bins. Adapts the score axis to the data's units."""
+    if not npos:
+        return 1000
+    acc = 0
+    r = binc
+    for e, c in sorted(score_hist.items(), key=lambda kv: abs(kv[0])):
+        acc += c
+        r = abs(e)
+        if acc >= frac * npos:
+            break
+    r = min(max(r, 10 * binc), cap)
+    return binc * ((r + binc - 1) // binc)
+
+
 def build_dashboard_data(s, total_bytes, n_files):
     ng, npos = s["n_games"], s["n_positions"]
     binc = s["bin_cp"]
@@ -424,14 +464,15 @@ def build_dashboard_data(s, total_bytes, n_files):
     def series(counter, keys):
         return [[k, counter.get(k, 0)] for k in keys]
 
-    score_keys = list(range(-1000, 1001, binc))
+    rng = view_range(s["score_hist"], npos, binc)
+    score_keys = list(range(-rng, rng + 1, binc))
     score_items = series(s["score_hist"], score_keys)
     score_overflow = npos - sum(c for _, c in score_items)
 
     calib = []
     for b in sorted(s["calib"]):
-        if -1000 <= b <= 1000:
-            cnt, wsum = s["calib"][b]
+        if -rng <= b <= rng:
+            cnt, wsum, _ = s["calib"][b]
             if cnt >= 1:
                 calib.append([b, wsum / cnt, sigmoid(b / s["k"]) if s["k"] else 0.0, cnt])
 
@@ -461,7 +502,8 @@ def build_dashboard_data(s, total_bytes, n_files):
         "moveType": {"quiet": s["movetype"]["quiet"], "capture": s["movetype"]["capture"],
                      "promotion": s["movetype"]["promotion"]},
         "inCheck": s["in_check"], "checked": s["checked"],
-        "k": s["k"], "mse": s["mse"], "binCp": binc,
+        "k": s["k"], "mse": s["mse"], "kAtBound": s.get("k_at_bound", False),
+        "binCp": binc, "scoreRange": rng,
         "scoreHist": {"items": score_items, "overflow": score_overflow},
         "calib": calib,
         "gameLen": series(len_buckets, len_keys),
@@ -553,7 +595,7 @@ function cards(){
     ['White / black win',pct(wdl.white,DATA.games)+' / '+pct(wdl.black,DATA.games)],
     ['Capture best-move',pct(mt.capture,mtT)],
     ['In-check',DATA.checked?pct(DATA.inCheck,DATA.checked):'n/a'],
-    ['Sigmoid K',DATA.k?DATA.k.toFixed(0)+' cp':'n/a'],
+    ['Sigmoid K',DATA.k?DATA.k.toFixed(0)+(DATA.kAtBound?' ⚠':''):'n/a'],
   ];
   const box=h('div',{class:'cards'});
   items.forEach(([l,v])=>box.appendChild(h('div',{class:'card'},[h('div',{class:'v',text:v}),h('div',{class:'l',text:l})])));
@@ -586,10 +628,10 @@ function barChart(items,total,opt){
 function calibChart(){
   const pts=DATA.calib;const W=640,H=340,ml=44,mr=12,mt=12,mb=34,pw=W-ml-mr,ph=H-mt-mb;
   const s=sv('svg',{viewBox:`0 0 ${W} ${H}`});
-  const xmin=-1000,xmax=1000,X=v=>ml+pw*(v-xmin)/(xmax-xmin),Y=v=>mt+ph*(1-v);
+  const R=DATA.scoreRange,xmin=-R,xmax=R,X=v=>ml+pw*(v-xmin)/(xmax-xmin),Y=v=>mt+ph*(1-v);
   for(let g=0;g<=4;g++){const y=Y(g/4);s.appendChild(sv('line',{class:'axis',x1:ml,y1:y,x2:W-mr,y2:y,'stroke-opacity':g?0.4:1}));
     const tx=sv('text',{class:'axis-text',x:ml-6,y:y+3,'text-anchor':'end'});tx.textContent=(g/4).toFixed(2);s.appendChild(tx);}
-  [-1000,-500,0,500,1000].forEach(v=>{const tx=sv('text',{class:'axis-text',x:X(v),y:H-mb+16,'text-anchor':'middle'});tx.textContent=v;s.appendChild(tx);});
+  [-R,-R/2,0,R/2,R].forEach(v=>{const tx=sv('text',{class:'axis-text',x:X(v),y:H-mb+16,'text-anchor':'middle'});tx.textContent=Math.round(v);s.appendChild(tx);});
   if(DATA.k){let d='';pts.forEach((p,i)=>{d+=(i?'L':'M')+X(p[0])+' '+Y(p[2]);});s.appendChild(sv('path',{d:d,fill:'none',stroke:'#c0504d','stroke-width':2}));}
   pts.forEach(p=>{const c=sv('circle',{cx:X(p[0]),cy:Y(p[1]),r:3.2,fill:'#4472c4'});
     c.addEventListener('mouseenter',ev=>showTip(`<b>eval ${p[0]} cp</b><br>empirical ${(p[1]*100).toFixed(1)}%<br>sigmoid ${(p[2]*100).toFixed(1)}%<br>${fmt(p[3])} positions`,ev));
@@ -673,7 +715,7 @@ function build(){
   grid.appendChild(panel('Score distribution',barChart(DATA.scoreHist.items,DATA.positions,{unit:'positions',xfmt:x=>x}),
     `White-relative eval (cp). Should peak near 0 and taper. ${DATA.scoreHist.overflow?fmt(DATA.scoreHist.overflow)+' positions beyond ±1000cp are not shown.':''}`));
   grid.appendChild(panel('Score → WDL calibration',calibChart(),
-    DATA.k?`Empirical win rate (dots) vs fitted sigmoid (line). K=${DATA.k.toFixed(0)}cp, MSE=${DATA.mse.toFixed(4)}. Close agreement = evals and results are consistent.`:'not enough data'));
+    DATA.k?`Empirical win rate (dots) vs fitted sigmoid (line). K=${DATA.k.toFixed(0)} eval units, MSE=${DATA.mse.toFixed(4)}. Close agreement = evals and results are consistent.${DATA.kAtBound?' ⚠ fit hit the search-range edge — K unreliable (too little/degenerate data).':''}`:'not enough data'));
   grid.appendChild(panel('Piece count',barChart(DATA.pieceCount,DATA.positions,{unit:'positions',xfmt:x=>x}),
     'Total pieces on board. Coverage from openings (32) to endgames.'));
   grid.appendChild(panel('Game length',barChart(DATA.gameLen,DATA.games,{unit:'games',xfmt:x=>x}),
