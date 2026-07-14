@@ -9,9 +9,10 @@ MSSSE3  = $(MSSE2) -mssse3
 MAVX2   = $(MSSSE3) -msse4.1 -mbmi -mfma -mavx2
 MAVX512 = $(MAVX2) -mavx512f -mavx512bw
 
-FILES = *.cpp fathom/src/tbprobe.c
+FILES = *.cpp datagen/*.cpp fathom/src/tbprobe.c
 
-CXX_FLAGS  = -static -pthread -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -O3 -flto -std=c++17 -D TB_NO_HELPER_API
+# -I. lets sources under datagen/ include the engine headers that live in src/.
+CXX_FLAGS  = -I. -static -pthread -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -O3 -flto -std=c++17 -D TB_NO_HELPER_API
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe

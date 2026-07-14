@@ -1,6 +1,6 @@
 #include "uci.h"
 #include "bench.h"
-#include "datagen.h"
+#include "datagen/datagen.h"
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "datagen")

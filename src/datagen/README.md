@@ -33,7 +33,7 @@ cat data/*.bin > all.bin
 
 ## On-disk format
 
-See the header comment in [`src/datagen.cpp`](../src/datagen.cpp) for the exact
+See the header comment in [`datagen.cpp`](datagen.cpp) for the exact
 byte layout. In short, every game is a 32-byte marlinformat-compatible packed
 start position (with the white-POV game result in its `wdl` byte) followed by
 one 4-byte `(move, eval)` pair per scored position and a `0,0` terminator.
@@ -50,7 +50,7 @@ is thrown away at generation time except already-decided openings.
 ## Analyzing data
 
 ```
-python tools/analyze_data.py DATA [--piece wp] [--plots OUT] [--max N] [--no-check]
+python src/datagen/analyze_data.py DATA [--piece wp] [--plots OUT] [--max N] [--no-check]
 ```
 
 `DATA` is a `.bin` file or a directory of them. The report covers record
