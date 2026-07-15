@@ -69,24 +69,18 @@ class NNUE {
 
     static NNUE instance;
 
-    int l1Clip = 64;
-    std::vector<int8_t, AlignedAllocator<int8_t, 64>> l1Weights;
-    alignas(64) int16_t l1Biases[NNUE_L1_MAX]{};
-    std::vector<int16_t, AlignedAllocator<int16_t, 64>> l2Weights;
-    alignas(64) int32_t l2Biases[NNUE_L2_MAX]{};
-    alignas(64) uint32_t l2ClipByRow[NNUE_L2_MAX]{};
-    alignas(64) float l3Weights[NNUE_L2_MAX]{};
-    float l3Bias = 0.0f;
+    alignas(64) int16_t ftWeights[NNUE_FT_IN * NNUE_FT_OUT]{}; // row per feature, 1536 cols
+    alignas(64) int16_t ftBiases[NNUE_FT_OUT]{};
+    alignas(64) int16_t headWeights[2 * NNUE_FT_OUT]{};        // [us | them] order
+    int16_t headBias  = 0;
+    bool    loaded    = false;
 
     static int baseIndex(int piece, int sq, Color perspective);
-    uint32_t featureIndex(int i, int j) const;
-    const int8_t* getPairWeights(uint32_t feature) const;
 
     int evaluateNet(Board& board);
     int head(const int16_t* us, const int16_t* them) const;
     void updateInputLayer(Board& board, int idx, bool fromScratch = false);
     void recalculateInputLayer(Board& board, Color perspective, int idx);
-    void prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch);
     bool loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
 
    public:

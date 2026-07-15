@@ -255,19 +255,11 @@ struct nnueChange {
 
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
-//TODO: maybe try reading these values from .nnue file instead of hardcoding
-constexpr int NNUE_BASE_FEATURES = 768;
-constexpr int NNUE_FEATURES = NNUE_BASE_FEATURES * (NNUE_BASE_FEATURES + 1) / 2;
-// Matches the l1 width the loader accepts; keeping it tight halves the size of
-// every accumulator, which matters for cache footprint during search.
-constexpr int NNUE_L1_MAX = 128;
-constexpr int NNUE_L2_MAX = 2 * NNUE_L1_MAX;
+constexpr int NNUE_FT_IN = 768;
+constexpr int NNUE_FT_OUT = 1536;
 
 struct NNUEAccumulator {
-    alignas(64) int16_t data[2][NNUE_L1_MAX]{};
-    std::bitset<NNUE_BASE_FEATURES> baseActive[2]{};
-    uint16_t activeList[2][N_SQUARES]{};
-    uint8_t activeCount[2]{};
+    alignas(64) int16_t data[2][NNUE_FT_OUT]{};
     nnueChange changes[4]{};
     uint8_t changeCount{};
     bool nonEmpty{};
@@ -275,10 +267,6 @@ struct NNUEAccumulator {
     void clear() {
         nonEmpty = false;
         changeCount = 0;
-        baseActive[WHITE].reset();
-        baseActive[BLACK].reset();
-        activeCount[WHITE] = 0;
-        activeCount[BLACK] = 0;
     }
 
     void invalidate() {
