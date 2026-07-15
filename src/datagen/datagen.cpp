@@ -85,6 +85,33 @@ struct ScoredMove {
 static_assert(sizeof(MarlinPackedBoard) == 32, "packed board must be 32 bytes");
 static_assert(sizeof(ScoredMove) == 4, "scored move must be 4 bytes");
 
+uint16_t toViriMove(uint16_t devreMove) {
+    int from = moveFrom(devreMove);
+    int to = moveTo(devreMove);
+    int type = moveType(devreMove);
+
+    int viriTo = to;
+    int viriType = 0;
+    int viriPromo = 0;
+
+    if (type == EN_PASSANT) {
+        viriType = 1;
+    } else if (type == KING_CASTLE) {
+        viriType = 2;
+        viriTo = from + 3;
+    } else if (type == QUEEN_CASTLE) {
+        viriType = 2;
+        viriTo = from - 4;
+    } else if (type >= KNIGHT_PROMOTION) {
+        viriType = 3;
+        viriPromo = type & 3; // Knight=0, Bishop=1, Rook=2, Queen=3
+    } else {
+        viriType = 0;
+    }
+
+    return from | (viriTo << 6) | (viriPromo << 12) | (viriType << 14);
+}
+
 // ---- generation parameters ----
 // Score thresholds are in Devre's RAW internal eval units (= 2 x centipawns),
 // matching what datagenSearch returns; the UCI-cp equivalent is half the value.
@@ -312,7 +339,7 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
                 bm = ml.moves[0];
             }
 
-            ScoredMove sm{bm, clampEval(wcp)};
+            ScoredMove sm{toViriMove(bm), clampEval(wcp)};
             appendBytes(rec, &sm, sizeof(sm));
             storedMoves++;
 
