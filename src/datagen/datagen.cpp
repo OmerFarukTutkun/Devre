@@ -221,7 +221,7 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
     Stack* ss = new Stack[MAX_PLY + 10];
     Rng    rng(seed);
 
-    std::string   path = outDir + "/devre_" + std::to_string(runStamp) + "_" + std::to_string(id) + ".bin";
+    std::string   path = outDir + "/devre_" + std::to_string(runStamp) + "_" + std::to_string(id) + ".vf";
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out)
     {

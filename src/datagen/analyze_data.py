@@ -191,34 +191,30 @@ def unpack_header(buf):
     }
 
 
-def apply_move(board, stm, move):
-    """Apply a Devre-encoded move to the mailbox; return the new side to move.
+def apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep):
+    """Apply a decoded move to the mailbox; return the new side to move.
 
     Assumes standard (non-FRC) castling, matching v1 datagen output.
     """
-    frm = (move >> 10) & 63
-    to = (move >> 4) & 63
-    typ = move & 15
     piece = board[frm]
 
-    if typ == KING_CASTLE:
+    if is_castle:
         board[to] = piece
         board[frm] = -1
-        board[7 if stm == 0 else 63] = -1
-        board[to - 1] = ROOK | (8 if stm else 0)
-    elif typ == QUEEN_CASTLE:
-        board[to] = piece
-        board[frm] = -1
-        board[0 if stm == 0 else 56] = -1
-        board[to + 1] = ROOK | (8 if stm else 0)
-    elif typ == EN_PASSANT:
+        if castle_king_side:
+            board[7 if stm == 0 else 63] = -1
+            board[to - 1] = ROOK | (8 if stm else 0)
+        else:
+            board[0 if stm == 0 else 56] = -1
+            board[to + 1] = ROOK | (8 if stm else 0)
+    elif is_ep:
         board[to] = piece
         board[frm] = -1
         board[sq_rank(frm) * 8 + sq_file(to)] = -1
-    elif typ >= KNIGHT_PROMO_BASE:
+    elif is_promo:
         board[frm] = -1
-        board[to] = (KNIGHT + (typ & 3)) | (8 if stm else 0)
-    else:  # QUIET, DOUBLE_PUSH, CAPTURE
+        board[to] = (KNIGHT + promo_piece) | (8 if stm else 0)
+    else:  # quiet, capture, double push
         board[to] = piece
         board[frm] = -1
     return 1 - stm
@@ -321,7 +317,6 @@ def parse_piece_arg(s):
     return None
 
 
-# ---- main analysis -------------------------------------------------------
 def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
     n_games = n_positions = n_corrupt = 0
     wdl_counter = Counter()
@@ -365,10 +360,36 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
 
             piececount_hist[sum(1 for x in board if x != -1)] += 1
 
-            typ = mv & 15
-            if typ >= KNIGHT_PROMO_BASE:
+            frm = mv & 63
+            viri_to = (mv >> 6) & 63
+            viri_promo = (mv >> 12) & 3
+            viri_type = (mv >> 14) & 3
+
+            is_ep = (viri_type == 1)
+            is_castle = (viri_type == 2)
+            is_promo = (viri_type == 3)
+            promo_piece = viri_promo if is_promo else 0
+
+            if is_castle:
+                # In viriformat, viri_to is the rook's original square.
+                # We map it to the king's standard destination square:
+                castle_king_side = (viri_to > frm)
+                to = frm + 2 if castle_king_side else frm - 2
+            else:
+                castle_king_side = False
+                to = viri_to
+
+            # Quiet vs capture detection
+            if is_ep:
+                is_cap = True
+            elif viri_type in (0, 3):
+                is_cap = (board[to] != -1)
+            else:
+                is_cap = False
+
+            if is_promo:
                 movetype_counter["promotion"] += 1
-            elif typ in (CAPTURE, EN_PASSANT):
+            elif is_cap:
                 movetype_counter["capture"] += 1
             else:
                 movetype_counter["quiet"] += 1
@@ -383,10 +404,10 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
                 if p != -1:
                     piece_squares[p][s] += 1
 
-            reset = (piece_type(board[frm_of(mv)]) == PAWN) or move_is_capture(mv)
+            reset = (piece_type(board[frm]) == PAWN) or is_cap
             half = 0 if reset else half + 1
 
-            stm = apply_move(board, stm, mv)
+            stm = apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep)
             if max_positions and n_positions >= max_positions:
                 stop = True
                 break
