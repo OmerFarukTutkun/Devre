@@ -272,8 +272,6 @@ void packBoard(const Board& b, MarlinPackedBoard& out) {
     out.extra          = 0;
 }
 
-// Rebuild the accumulator from scratch for a fresh search on `board` (mirrors
-// what Uci::go does before starting a search).
 inline void prepareEval(Board& board) {
     board.nnueData.size = 0;
     board.nnueData.accumulator[0].clear();

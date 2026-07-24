@@ -450,7 +450,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int      lmr;
     uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
-    ss->played = 0;
+    int moveCount = 0;
+    ss->played    = 0;
 
     //loop moves
     while ((move = moveList.pickMove(thread, ss)) != NO_MOVE)
@@ -458,19 +459,21 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (move == ss->excludedMove)
             continue;
+
+        moveCount++;
+
         if (rootNode)
             beforeNodes = thread.nodes;
-        ss->move                      = move;
-        ss->playedMoves[ss->played++] = move;
+        ss->move = move;
 
-        if (isQuiet(move) && ss->played > 3 && !PVNode)
+        if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
             // late move pruning
-            if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
+            if (depth <= 6 && moveCount > 6 + (2 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
+            if (depth <= 10 && eval + std::max(192, -moveCount * 10 + 192 + depth * 109) < alpha)
                 continue;
 
             //contHist pruning
@@ -478,15 +481,18 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (depth <= 3 && contHist < -3633)
                 continue;
         }
-        if (ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (moveCount > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
+
+        ss->playedMoves[ss->played++] = move;
+
         int history = 0;
         lmr         = 0;
-        if (ss->played > 2 && depth > 2)
+        if (moveCount > 2 && depth > 2)
         {
-            lmr = LMR_TABLE[depth][ss->played];
+            lmr = LMR_TABLE[depth][moveCount];
             lmr -= PVNode;  //reduce less for PV nodes
             lmr += !improving;
 
@@ -538,11 +544,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 extension = -1;
 
             //reAssign some stack values that might have been changed
-            ss->played                    = 0;
-            ss->move                      = move;
-            ss->playedMoves[ss->played++] = move;
-            ss->continuationHistory       = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
-            ss->contCorrHist              = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->played              = 1;
+            ss->move                = move;
+            ss->playedMoves[0]      = move;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
         int d        = newDepth - lmr;

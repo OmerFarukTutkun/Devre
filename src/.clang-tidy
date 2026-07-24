@@ -1,0 +1,53 @@
+---
+# clang-tidy config for Devre.
+#
+# Devre is a bitboard/SIMD-heavy chess engine: raw C arrays for tables,
+# lots of small ints (squares, pieces, scores), template-parametrized
+# search/movegen, and printf/iostream-style UCI output. The check list
+# below leans on the categories that catch real bugs and perf footguns
+# (bugprone-*, performance-*, portability-*, the static analyzer, plus a
+# trimmed cppcoreguidelines/readability/modernize slice) and turns off
+# the rules that would just be fighting the engine's idioms or existing
+# style (magic numbers, short names like sq/bb, raw arrays, brace-less
+# single-statement bodies, non-const globals for tables, etc.).
+#
+# modernize-use-nullptr is off for a different reason: it reliably
+# segfaults the clang-tidy shipped with VS2022 (LLVM 19.1.5) on this
+# machine, even on a one-line file. If you install a standalone LLVM
+# clang-tidy, it's safe to re-enable.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  clang-analyzer-*,
+  readability-*,
+  modernize-*,
+  cppcoreguidelines-*,
+  -modernize-use-nullptr,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-c-arrays,
+  -modernize-avoid-c-arrays,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-owning-memory,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-function-cognitive-complexity,
+  -readability-braces-around-statements,
+  -readability-implicit-bool-conversion,
+  -readability-uppercase-literal-suffix
+
+WarningsAsErrors: ''
+# Only report on Devre's own headers (src/*.h, src/datagen/*.h); the
+# vendored fathom/ (Syzygy probing) and incbin/ headers are excluded
+# below rather than "fixed" to our style.
+HeaderFilterRegex: '.*[/\\]src[/\\].*\.h$'
+ExcludeHeaderFilterRegex: 'fathom|incbin'
+FormatStyle: none
