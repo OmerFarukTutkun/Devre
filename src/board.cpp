@@ -6,7 +6,6 @@
 #include "nnue.h"
 #include "zobrist.h"
 #include "tt.h"
-#include "fathom/src/tbprobe.h"
 
 Board::Board(const std::string& fen) {
     key           = 0;

@@ -215,9 +215,13 @@ void generateCastlingMoves(const Board& board, int kingSq, uint64_t occ, uint64_
                 //supports frc
                 uint64_t path              = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo] | (ONE << kingTo) | (ONE << rookTo);
                 uint64_t squaresKingPasses = SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
-                occ &= ~((ONE << kingSq) | (ONE << rook));
+                // Only this side's king and rook may sit on the castling path. Use a
+                // local copy so clearing them does not leak into the other side's
+                // check: in DFRC one rook can stand on the other side's landing
+                // square, and mutating the shared occ would hide that blocker.
+                uint64_t pathOcc = occ & ~((ONE << kingSq) | (ONE << rook));
 
-                if (!((occ & path) | (squaresKingPasses & seen)))
+                if (!((pathOcc & path) | (squaresKingPasses & seen)))
                 {
                     moveList.addMove(createMove(kingSq, kingTo, KING_CASTLE + i));
                 }

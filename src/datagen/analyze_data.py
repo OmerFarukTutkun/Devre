@@ -191,22 +191,28 @@ def unpack_header(buf):
     }
 
 
-def apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep):
+def apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep, castle_rook_from=-1):
     """Apply a decoded move to the mailbox; return the new side to move.
 
-    Assumes standard (non-FRC) castling, matching v1 datagen output.
+    FRC/DFRC-safe: for castling the king always lands on the g-file (kingside)
+    or c-file (queenside) of its own rank and the rook on f/d, while the rook's
+    original square is `castle_rook_from` (viri_to in king-captures-rook
+    encoding). This reduces to standard castling when king/rooks start on e/a/h.
     """
     piece = board[frm]
 
     if is_castle:
-        board[to] = piece
-        board[frm] = -1
+        rank = frm >> 3
         if castle_king_side:
-            board[7 if stm == 0 else 63] = -1
-            board[to - 1] = ROOK | (8 if stm else 0)
+            king_to, rook_to = rank * 8 + 6, rank * 8 + 5  # g / f files
         else:
-            board[0 if stm == 0 else 56] = -1
-            board[to + 1] = ROOK | (8 if stm else 0)
+            king_to, rook_to = rank * 8 + 2, rank * 8 + 3  # c / d files
+        # Clear both origins before writing destinations so overlaps (king lands
+        # on the old rook square, or vice versa) resolve correctly.
+        board[frm] = -1
+        board[castle_rook_from] = -1
+        board[king_to] = piece
+        board[rook_to] = ROOK | (8 if stm else 0)
     elif is_ep:
         board[to] = piece
         board[frm] = -1
@@ -370,14 +376,12 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
             is_promo = (viri_type == 3)
             promo_piece = viri_promo if is_promo else 0
 
-            if is_castle:
-                # In viriformat, viri_to is the rook's original square.
-                # We map it to the king's standard destination square:
-                castle_king_side = (viri_to > frm)
-                to = frm + 2 if castle_king_side else frm - 2
-            else:
-                castle_king_side = False
-                to = viri_to
+            # In viriformat, castling is king-captures-rook, so viri_to is the
+            # rook's original square. The rook sits left/right of the king for
+            # queen/king-side; apply_move resolves the FRC king/rook landing.
+            castle_rook_from = viri_to if is_castle else -1
+            castle_king_side = is_castle and (viri_to > frm)
+            to = viri_to
 
             # Quiet vs capture detection
             if is_ep:
@@ -407,7 +411,7 @@ def analyze(paths, max_positions=0, do_check=True, bin_cp=50):
             reset = (piece_type(board[frm]) == PAWN) or is_cap
             half = 0 if reset else half + 1
 
-            stm = apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep)
+            stm = apply_move(board, stm, frm, to, is_promo, promo_piece, is_castle, castle_king_side, is_ep, castle_rook_from)
             if max_positions and n_positions >= max_positions:
                 stop = True
                 break

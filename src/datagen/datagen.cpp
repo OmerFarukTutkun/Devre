@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -40,18 +41,16 @@
 //                         bits0..6 = en-passant square, or 64 if none.
 //   u8  halfmoveClock     50-move counter at the first scored position.
 //   u16 fullmoveNumber
-//   i16 eval              white-relative raw eval of the first scored position.
+//   i16 eval              white-relative eval (Devre's cp) of the first scored position.
 //   u8  wdl               GAME RESULT, white POV: 0 = white loss (black win),
 //                         1 = draw, 2 = white win.
 //   u8  extra             reserved, 0.
 //
 // ScoredMove (one per scored position, in play order from the header position):
-//   u16 move              the best move found at that position, in Devre's
-//                         native encoding: from<<10 | to<<4 | type (see move.h).
-//                         Castling is king-to-king-destination; promotions and
-//                         en-passant are distinguished by `type`.
-//   i16 eval              WHITE-RELATIVE search score in Devre's RAW internal
-//                         units (= 2 x centipawns; UCI cp = eval / 2), negated
+//   u16 move              the best move found at that position, in viriformat:
+//                         from | to<<6 | promo<<12 | flag<<14 (flag 0 normal,
+//                         1 en-passant, 2 castling (king-captures-rook), 3 promo).
+//   i16 eval              WHITE-RELATIVE search score in Devre's cp, negated
 //                         when black moves.
 //
 // Perspective summary: every eval and the wdl live in white's frame, so the
@@ -85,7 +84,9 @@ struct ScoredMove {
 static_assert(sizeof(MarlinPackedBoard) == 32, "packed board must be 32 bytes");
 static_assert(sizeof(ScoredMove) == 4, "scored move must be 4 bytes");
 
-uint16_t toViriMove(uint16_t devreMove) {
+// `board` must be the position the move is made from (its sideToMove owns the
+// move), needed to resolve the rook square for FRC/DFRC castling.
+uint16_t toViriMove(uint16_t devreMove, const Board& board) {
     int from = moveFrom(devreMove);
     int to = moveTo(devreMove);
     int type = moveType(devreMove);
@@ -96,12 +97,12 @@ uint16_t toViriMove(uint16_t devreMove) {
 
     if (type == EN_PASSANT) {
         viriType = 1;
-    } else if (type == KING_CASTLE) {
+    } else if (type == KING_CASTLE || type == QUEEN_CASTLE) {
+        // viriformat/marlinformat encodes castling as king-captures-rook, so the
+        // target is the rook's actual square. For standard chess this is h/a as
+        // before; for FRC/DFRC the rook can be on any file.
         viriType = 2;
-        viriTo = from + 3;
-    } else if (type == QUEEN_CASTLE) {
-        viriType = 2;
-        viriTo = from - 4;
+        viriTo = board.castlingRooks[2 * board.sideToMove + (type - KING_CASTLE)];
     } else if (type >= KNIGHT_PROMOTION) {
         viriType = 3;
         viriPromo = type & 3; // Knight=0, Bishop=1, Rook=2, Queen=3
@@ -113,14 +114,12 @@ uint16_t toViriMove(uint16_t devreMove) {
 }
 
 // ---- generation parameters ----
-// Score thresholds are in Devre's RAW internal eval units (= 2 x centipawns),
-// matching what datagenSearch returns; the UCI-cp equivalent is half the value.
 constexpr int     RANDOM_PLIES_MIN = 8;
 constexpr int64_t VERIFY_NODES     = 5000;
-constexpr int     OPENING_MAX_CP   = 600;    // discard openings past ~300 UCI cp (white-rel)
-constexpr int     WIN_ADJ_CP       = 2000;   // win-adjudicate at ~1000 UCI cp
+constexpr int     OPENING_MAX_CP   = 600;    // discard openings past 
+constexpr int     WIN_ADJ_CP       = 2000;   // win-adjudicate at 
 constexpr int     WIN_ADJ_PLIES    = 4;
-constexpr int     DRAW_ADJ_CP      = 16;     // draw-adjudicate at ~8 UCI cp
+constexpr int     DRAW_ADJ_CP      = 16;     // draw-adjudicate at 
 constexpr int     DRAW_ADJ_PLIES   = 10;
 constexpr int     DRAW_ADJ_MIN_PLY = 40;
 constexpr int     MAX_GAME_PLIES   = 400;
@@ -129,8 +128,7 @@ constexpr int     MATE_CP          = MIN_MATE_SCORE;  // |eval| at/above this me
 // Each completed game is written and flushed to the OS immediately, so a hard
 // kill (console-window close, crash, taskkill) can lose at most the single
 // in-flight game per worker. Records are self-delimiting and the analyzer skips
-// a truncated tail, so a partially written final game stays readable. Games are
-// long enough (~100+ plies) that a flush per game is negligible I/O.
+// a truncated tail, so a partially written final game stays readable. 
 
 // ---- shared run state ----
 std::atomic<bool>     g_stop{false};
@@ -155,6 +153,76 @@ struct Rng {
     }
     int nextInt(int n) { return static_cast<int>(next() % static_cast<uint64_t>(n)); }
 };
+
+// Fill an 8-file back rank (files a..h) with a uniformly random legal
+// Fischer-random arrangement of pieces (uppercase letters) and report the two
+// rook files. Uniform over the 960 legal ranks: bishops on opposite colors,
+// king always between its rooks.
+void randomBackRank(Rng& rng, char pieces[8], int rookFiles[2]) {
+    for (int i = 0; i < 8; i++)
+        pieces[i] = 0;
+
+    pieces[1 + 2 * rng.nextInt(4)] = 'B';  // light-squared bishop: files 1,3,5,7
+    pieces[0 + 2 * rng.nextInt(4)] = 'B';  // dark-squared  bishop: files 0,2,4,6
+
+    // Place a piece on the n-th still-empty file (left to right, 0-based).
+    auto placeOnNthEmpty = [&](int n, char pc) {
+        for (int f = 0; f < 8; f++)
+            if (pieces[f] == 0 && n-- == 0)
+            {
+                pieces[f] = pc;
+                return;
+            }
+    };
+    placeOnNthEmpty(rng.nextInt(6), 'Q');  // queen among the 6 remaining squares
+    placeOnNthEmpty(rng.nextInt(5), 'N');  // knights among the next 5, then 4
+    placeOnNthEmpty(rng.nextInt(4), 'N');
+
+    // Three squares remain: rook, king, rook from left to right, so the king is
+    // always between its two rooks (a hard FRC requirement).
+    int slot = 0, ri = 0;
+    for (int f = 0; f < 8; f++)
+    {
+        if (pieces[f] != 0)
+            continue;
+        if (slot == 1)
+            pieces[f] = 'K';
+        else
+        {
+            pieces[f]         = 'R';
+            rookFiles[ri++] = f;
+        }
+        slot++;
+    }
+}
+
+// Build a random DFRC (double Fischer-random) start position as a Shredder-FEN.
+// White and black back ranks are scrambled independently (the "double" in DFRC).
+// Castling rights are emitted as rook files (uppercase = white, lowercase =
+// black) so Board's Shredder-FEN parser reconstructs castlingRooks correctly.
+std::string randomDfrcFen(Rng& rng) {
+    char wr[8];
+    int  wRookFiles[2];
+    char br[8];
+    int  bRookFiles[2];
+    randomBackRank(rng, wr, wRookFiles);
+    randomBackRank(rng, br, bRookFiles);
+
+    std::string fen;
+    for (int f = 0; f < 8; f++)  // rank 8: black back rank (lowercase)
+        fen += static_cast<char>(std::tolower(static_cast<unsigned char>(br[f])));
+    fen += "/pppppppp/8/8/8/8/PPPPPPPP/";
+    for (int f = 0; f < 8; f++)  // rank 1: white back rank (uppercase)
+        fen += wr[f];
+
+    fen += " w ";
+    fen += static_cast<char>('A' + wRookFiles[0]);
+    fen += static_cast<char>('A' + wRookFiles[1]);
+    fen += static_cast<char>('a' + bRookFiles[0]);
+    fen += static_cast<char>('a' + bRookFiles[1]);
+    fen += " - 0 1";
+    return fen;
+}
 
 inline void appendBytes(std::vector<uint8_t>& v, const void* p, size_t n) {
     const uint8_t* b = static_cast<const uint8_t*>(p);
@@ -209,11 +277,10 @@ void packBoard(const Board& b, MarlinPackedBoard& out) {
 inline void prepareEval(Board& board) {
     board.nnueData.size = 0;
     board.nnueData.accumulator[0].clear();
-    NNUE::Instance()->calculateInputLayer(board, 0, true);
 }
 
 // One worker: plays independent games on its own Search/Board and streams them.
-void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed, int temperaturePct) {
+void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed, int temperaturePct, bool frc, int randomPliesBase) {
     Search search;
     search.setThread(1);
     Board& board = search.threads[0]->board;
@@ -238,9 +305,12 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
     while (!g_stop.load(std::memory_order_relaxed))
     {
         // ---- random opening ----
-        int randomPlies = RANDOM_PLIES_MIN + static_cast<int>(localGames & 1);  // alternate 8/9
+        // Alternate base/base+1 plies for color-parity variety. In DFRC mode the
+        // scrambled start already supplies most of the diversity, so a small base
+        // (2 -> 2/3 plies) is enough; standard chess uses 8 -> 8/9.
+        int randomPlies = randomPliesBase + static_cast<int>(localGames & 1);
 
-        board       = Board(START_FEN);
+        board        = frc ? Board(randomDfrcFen(rng)) : Board(START_FEN);
         bool aborted = false;
         for (int i = 0; i < randomPlies; i++)
         {
@@ -339,7 +409,7 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
                 bm = ml.moves[0];
             }
 
-            ScoredMove sm{toViriMove(bm), clampEval(wcp)};
+            ScoredMove sm{toViriMove(bm, board), clampEval(wcp)};
             appendBytes(rec, &sm, sizeof(sm));
             storedMoves++;
 
@@ -435,10 +505,16 @@ void runDatagen(int argc, char** argv) {
     uint64_t    target         = (argc > 4) ? std::stoull(argv[4]) : 0ull;
     int64_t     softNodes      = (argc > 5) ? std::stoll(argv[5]) : 5000;
     int         temperaturePct = (argc > 6) ? std::stoi(argv[6]) : 0;
+    bool        frc            = (argc > 7) ? (std::stoi(argv[7]) != 0) : false;
+    int         randomPliesArg = (argc > 8) ? std::stoi(argv[8]) : 0;
     int64_t     hardNodes = std::max<int64_t>(softNodes * 40, 200000);
 
     if (threads < 1)
         threads = 1;
+
+    // Opening random-ply base: explicit arg wins; otherwise a small base for DFRC
+    // (the scrambled start already diversifies) and the historical 8 for standard.
+    int randomPliesBase = randomPliesArg > 0 ? randomPliesArg : (frc ? 2 : RANDOM_PLIES_MIN);
 
     std::error_code ec;
     std::filesystem::create_directories(outDir, ec);
@@ -454,7 +530,9 @@ void runDatagen(int argc, char** argv) {
     std::cout << "Devre " << VERSION << " datagen" << std::endl;
     std::cout << "threads=" << threads << " outDir=" << outDir << " softNodes=" << softNodes << " hardNodes=" << hardNodes
               << " target=" << (target ? std::to_string(target) : std::string("infinite"))
-              << " temperature=" << temperaturePct << "%" << std::endl;
+              << " temperature=" << temperaturePct << "%"
+              << " variant=" << (frc ? "DFRC" : "standard")
+              << " randomPlies=" << randomPliesBase << "/" << (randomPliesBase + 1) << std::endl;
     std::cout << "press Ctrl-C to stop" << std::endl;
 
     uint64_t                 runStamp = currentTime();
@@ -463,7 +541,7 @@ void runDatagen(int argc, char** argv) {
     for (int i = 0; i < threads; i++)
     {
         uint64_t seed = runStamp * 0x9E3779B97F4A7C15ull + static_cast<uint64_t>(i) * 0x632BE59BD9B4E019ULL + 1;
-        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed, temperaturePct);
+        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed, temperaturePct, frc, randomPliesBase);
     }
 
     uint64_t t0        = currentTime();

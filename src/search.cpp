@@ -44,8 +44,8 @@ void Search::initSearchParameters() {
 }
 
 void updatePv(Stack* ss) {
-    auto pv      = ss->pv;
-    auto childPv = (ss + 1)->pv;
+    auto *pv      = ss->pv;
+    auto *childPv = (ss + 1)->pv;
 
     pv[0]  = ss->move;
     auto i = 0;
@@ -61,7 +61,7 @@ void updatePv(Stack* ss) {
 
 std::string getPV(Stack* stack, Board& board) {
     std::stringstream ss;
-    auto              pv = stack->pv;
+    auto *              pv = stack->pv;
     for (int i = 0; i < MAX_PLY; i++)
     {
         if (pv[i] == NO_MOVE)
@@ -89,44 +89,38 @@ uint32_t probeTB(Board& pos) {
 }
 
 
-Stack::Stack() {
-    excludedMove    = NO_MOVE;
-    staticEval      = VALUE_INFINITE;
-    move            = NO_MOVE;
-    threat          = 0ull;
+Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(VALUE_INFINITE), threat(0ull), excludedMove(NO_MOVE) {
     killers[0]      = NO_MOVE;
     killers[1]      = NO_MOVE;
     pv[0]           = NO_MOVE;
-    played          = 0;
-    doubleExtension = 0;
 }
 
-Search::Search() {
-    timeManager = nullptr;
-    numThread   = 1;
+Search::Search() :
+    stopped(false),
+    numThread(1),
+    m_bestMove(NO_MOVE),
+    moveNodes(new uint64_t[1 << 16])
+{
     threads.clear();
-    stopped    = false;
-    m_bestMove = NO_MOVE;
     initSearchParameters();
-    moveNodes = new uint64_t[1 << 16];
 }
 
 void Search::setThread(int thread) {
     numThread = thread;
-    for (auto th : threads)
+    for (auto* th : threads)
     {
         delete th;
     }
     threads.clear();
     for (int i = 0; i < numThread; i++)
     {
-        auto th = new ThreadData(START_FEN, i);
+        auto* th = new ThreadData(START_FEN, i);
         threads.emplace_back(th);
     }
 }
 
 Search::~Search() {
-    for (auto th : threads)
+    for (auto* th : threads)
     {
         delete th;
     }
@@ -377,8 +371,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
     int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
-    if(!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval,TT_NONE , 0, NO_MOVE);
+    if (!ttHit)
+        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
 
     bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
 
@@ -705,7 +699,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
             //extra protection
             bestMoveFraction = std::clamp(bestMoveFraction, 0.0f, 1.0f);
-            float nodeTm = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
+            float nodeTm     = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
 
             int   stabPercent     = std::max<int>(bmStabMin, bmStabBase - bmStabScale * bmStability);
             float stabilityFactor = stabPercent / 100.0f;
@@ -737,22 +731,22 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
 SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNodes, uint16_t rootExclude) {
     ThreadData* td = threads.at(0);
 
-    stopped  = false;
-    seldepth = 0;
+    stopped         = false;
+    seldepth        = 0;
     td->nodes       = 0ull;
     td->tbHits      = 0ull;
     td->searchDepth = 0;
 
     // Only node limits gate this search; time/movetime are disabled.
     TimeManager tm;
-    tm.depthLimit    = MAX_PLY;
-    tm.nodeLimit     = hardNodes;
-    tm.fixedMoveTime = -1;
-    tm.startTime     = currentTime();
-    tm.hardTime      = std::numeric_limits<int64_t>::max();
-    tm.softTime      = std::numeric_limits<int64_t>::max();
-    tm.period        = 1024;
-    tm.calls         = tm.period;
+    tm.depthLimit     = MAX_PLY;
+    tm.nodeLimit      = hardNodes;
+    tm.fixedMoveTime  = -1;
+    tm.startTime      = currentTime();
+    tm.hardTime       = std::numeric_limits<int64_t>::max();
+    tm.softTime       = std::numeric_limits<int64_t>::max();
+    tm.period         = 1024;
+    tm.calls          = tm.period;
     this->timeManager = &tm;
 
     // Full reset of the reused stack, matching a freshly constructed one.

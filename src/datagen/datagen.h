@@ -4,7 +4,7 @@
 // Self-play training-data generator.
 //
 // Usage:
-//   Devre(.exe) datagen [threads] [outDir] [targetPositions] [softNodes] [temperaturePct]
+//   Devre(.exe) datagen [threads] [outDir] [targetPositions] [softNodes] [temperaturePct] [frc] [randomPlies]
 //
 //   threads          number of worker threads (default: hardware concurrency)
 //   outDir           directory for output files       (default: ./data)
@@ -16,6 +16,13 @@
 //                    excluded and a second search discovers the second-best
 //                    move, which is played instead. This makes games branch
 //                    differently without playing outright blunders.
+//   frc              0 = standard chess, 1 = DFRC (double Fischer-random):
+//                    each game starts from an independently scrambled white
+//                    and black back rank                (default: 0)
+//   randomPlies      base number of random opening plies; the worker alternates
+//                    base/base+1 for color-parity variety. 0 selects the mode
+//                    default: 8 for standard (-> 8/9), 2 for DFRC (-> 2/3, since
+//                    the scrambled start already supplies most of the diversity).
 //
 // Each worker plays independent games and streams them to its own file
 // data/devre_<pid>_<worker>.bin using the on-disk format documented in
