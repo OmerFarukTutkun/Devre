@@ -89,7 +89,7 @@ uint32_t probeTB(Board& pos) {
 }
 
 
-Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(VALUE_INFINITE), threat(0ull), excludedMove(NO_MOVE) {
+Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(SCORE_NONE), threat(0ull), excludedMove(NO_MOVE) {
     killers[0]      = NO_MOVE;
     killers[1]      = NO_MOVE;
     pv[0]           = NO_MOVE;
@@ -161,11 +161,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
 
     bool inCheck = board->inCheck();
 
-    auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-
-    if (!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
-
+    int      rawEval = SCORE_NONE;
     int      bestScore, score;
     uint16_t move, bestMove = NO_MOVE;
 
@@ -176,6 +172,11 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     }
     else
     {
+        rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
+
+        if (!ttHit)
+            TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+
         auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
         //ttValue can be used as a better position evaluation
@@ -368,13 +369,30 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
     }
 
-    int rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-    int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
+    int rawEval = SCORE_NONE;
+    int eval    = SCORE_NONE;
 
-    if (!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+    if (inCheck)
+    {
+        ss->staticEval = SCORE_NONE;
+    }
+    else
+    {
+        rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
+        eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
-    bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
+        if (!ttHit)
+            TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+    }
+
+    bool improving = false;
+    if (!inCheck)
+    {
+        if ((ss - 2)->staticEval != SCORE_NONE)
+            improving = ss->staticEval > (ss - 2)->staticEval;
+        else if ((ss - 4)->staticEval != SCORE_NONE)
+            improving = ss->staticEval > (ss - 4)->staticEval;
+    }
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > eval ? TT_LOWERBOUND : TT_UPPERBOUND)))
