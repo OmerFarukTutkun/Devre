@@ -180,8 +180,7 @@ void Uci::go(std::vector<std::string>& commands) {
         cmd = popFront(commands);
     }
     timeManager.start();
-    board->nnueData.size        = 0;
-    board->nnueData.accumulator[0].clear();
+    NNUE::Instance()->calculateInputLayer(*board, 0, true);
     searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);
 }
 
