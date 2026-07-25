@@ -89,7 +89,7 @@ uint32_t probeTB(Board& pos) {
 }
 
 
-Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(VALUE_INFINITE), threat(0ull), excludedMove(NO_MOVE) {
+Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(SCORE_NONE), threat(0ull), excludedMove(NO_MOVE) {
     killers[0]      = NO_MOVE;
     killers[1]      = NO_MOVE;
     pv[0]           = NO_MOVE;
@@ -161,11 +161,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
 
     bool inCheck = board->inCheck();
 
-    auto rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-
-    if (!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
-
+    int      rawEval = SCORE_NONE;
     int      bestScore, score;
     uint16_t move, bestMove = NO_MOVE;
 
@@ -176,6 +172,11 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     }
     else
     {
+        rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
+
+        if (!ttHit)
+            TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+
         auto standPat = adjustEvalWithCorrHist(thread, ss, rawEval);
 
         //ttValue can be used as a better position evaluation
@@ -368,13 +369,30 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
     }
 
-    int rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
-    int eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
+    int rawEval = SCORE_NONE;
+    int eval    = SCORE_NONE;
 
-    if (!ttHit)
-        TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+    if (inCheck)
+    {
+        ss->staticEval = SCORE_NONE;
+    }
+    else
+    {
+        rawEval = (ttStaticEval != SCORE_NONE) ? ttStaticEval : board->eval();
+        eval = ss->staticEval = adjustEvalWithCorrHist(thread, ss, rawEval);
 
-    bool improving = !inCheck && ss->staticEval > (ss - 2)->staticEval;
+        if (!ttHit)
+            TT::Instance()->ttSave(board->key, ss->ply, SCORE_NONE, rawEval, TT_NONE, 0, NO_MOVE);
+    }
+
+    bool improving = false;
+    if (!inCheck)
+    {
+        if ((ss - 2)->staticEval != SCORE_NONE)
+            improving = ss->staticEval > (ss - 2)->staticEval;
+        else if ((ss - 4)->staticEval != SCORE_NONE)
+            improving = ss->staticEval > (ss - 4)->staticEval;
+    }
 
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > eval ? TT_LOWERBOUND : TT_UPPERBOUND)))
@@ -432,7 +450,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int      lmr;
     uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
-    ss->played = 0;
+    int moveCount = 0;
+    ss->played    = 0;
 
     //loop moves
     while ((move = moveList.pickMove(thread, ss)) != NO_MOVE)
@@ -440,19 +459,21 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (move == ss->excludedMove)
             continue;
+
+        moveCount++;
+
         if (rootNode)
             beforeNodes = thread.nodes;
-        ss->move                      = move;
-        ss->playedMoves[ss->played++] = move;
+        ss->move = move;
 
-        if (isQuiet(move) && ss->played > 3 && !PVNode)
+        if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
             // late move pruning
-            if (depth <= 6 && ss->played > 6 + (2 + 2 * improving) * depth)
+            if (depth <= 6 && moveCount > 6 + (2 + 2 * improving) * depth)
                 continue;
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(192, -(ss->played) * 10 + 192 + depth * 109) < alpha)
+            if (depth <= 10 && eval + std::max(192, -moveCount * 10 + 192 + depth * 109) < alpha)
                 continue;
 
             //contHist pruning
@@ -460,15 +481,18 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (depth <= 3 && contHist < -3633)
                 continue;
         }
-        if (ss->played > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (moveCount > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
+
+        ss->playedMoves[ss->played++] = move;
+
         int history = 0;
         lmr         = 0;
-        if (ss->played > 2 && depth > 2)
+        if (moveCount > 2 && depth > 2)
         {
-            lmr = LMR_TABLE[depth][ss->played];
+            lmr = LMR_TABLE[depth][moveCount];
             lmr -= PVNode;  //reduce less for PV nodes
             lmr += !improving;
 
@@ -520,11 +544,11 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 extension = -1;
 
             //reAssign some stack values that might have been changed
-            ss->played                    = 0;
-            ss->move                      = move;
-            ss->playedMoves[ss->played++] = move;
-            ss->continuationHistory       = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
-            ss->contCorrHist              = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->played              = 1;
+            ss->move                = move;
+            ss->playedMoves[0]      = move;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
         int d        = newDepth - lmr;
