@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "threadData.h"
+#include <atomic>
 #include <thread>
 #include "timeManager.h"
 
@@ -31,12 +32,12 @@ struct SearchResult {
 
 class Search {
    private:
-    bool         stopped;
-    int          numThread;
-    uint16_t     m_bestMove{};
-    uint64_t*    moveNodes;
-    int          seldepth{};
-    TimeManager* timeManager{};
+    std::atomic<bool> stopped;
+    int               numThread;
+    uint16_t          m_bestMove{};
+    uint64_t*         moveNodes;
+    int               seldepth{};
+    TimeManager*      timeManager{};
 
     uint64_t totalNodes();
 

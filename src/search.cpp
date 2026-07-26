@@ -402,10 +402,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     if (!ttHit && depth >= 3 && !PVNode)
         depth -= 1;
 
-    //Reverse Futility Pruning
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && (!ttMove || ttCapture) && eval > beta + depth * 107 && !rootNode)
+
+    if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && std::abs(eval) < MIN_TB_SCORE)
     {
-        return eval;
+        const int rfpDepth  = std::max(0, depth - improving);
+        const int rfpMargin = 107  * rfpDepth ;
+
+        if (eval - rfpMargin >= beta)
+            return (eval + beta) / 2;
     }
 
     //Razoring
@@ -446,7 +450,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
-    int      beforeNodes = 0;
+    uint64_t beforeNodes = 0;
     int      lmr;
     uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
@@ -583,7 +587,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (this->stopped)
             return 0;
 
-        if (rootNode)
+        if (rootNode && thread.ThreadID == 0)
             moveNodes[move] += thread.nodes - beforeNodes;
 
         if (score > bestScore)
@@ -667,18 +671,28 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         // aspiration window search
         if (i > 4)
         {
-            int windowSize = 20;
-            int alpha      = score - windowSize;
-            int beta       = score + windowSize;
+            int windowSize  = 20;
+            int alpha       = score - windowSize;
+            int beta        = score + windowSize;
+            int failHighCnt = 0;
             while (true)
             {
-                score = alphaBeta(alpha, beta, i, false, *threads.at(ThreadID), ss + 6);
+                const int adjustedDepth = std::max(1, i - failHighCnt);
+
+                score = alphaBeta(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
-                    alpha = std::max(-VALUE_INFINITE, alpha - windowSize);
+                {
+                    beta        = (alpha + beta) / 2;
+                    alpha       = std::max(-VALUE_INFINITE, alpha - windowSize);
+                    failHighCnt = 0;
+                }
                 else if (score >= beta)
+                {
                     beta = std::min(+VALUE_INFINITE, beta + windowSize);
+                    failHighCnt++;
+                }
 
                 windowSize += windowSize / 3;
             }
@@ -720,7 +734,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                 bmStability = 0;
             previousBestMove = m_bestMove;
 
-            float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
+            float bestMoveFraction = static_cast<double>(bestMoveNode) / threads.at(0)->nodes;
             //extra protection
             bestMoveFraction = std::clamp(bestMoveFraction, 0.0f, 1.0f);
             float nodeTm     = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
