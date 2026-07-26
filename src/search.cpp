@@ -587,9 +587,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (this->stopped)
             return 0;
 
-        // Only the main thread's root node counts feed node-based time management,
-        // and only the main thread reads moveNodes. Restricting the write keeps
-        // helper threads from racing on this shared array.
         if (rootNode && thread.ThreadID == 0)
             moveNodes[move] += thread.nodes - beforeNodes;
 
@@ -680,9 +677,6 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int failHighCnt = 0;
             while (true)
             {
-                // Each consecutive fail-high re-searches one ply shallower. A move
-                // that really is that good still shows up in the shorter search,
-                // and we stop re-walking a full-depth tree for every widening.
                 const int adjustedDepth = std::max(1, i - failHighCnt);
 
                 score = alphaBeta(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
@@ -690,8 +684,6 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                     break;
                 if (score <= alpha)
                 {
-                    // Pull beta back toward the failing bound so the re-search
-                    // stays narrow instead of opening up in both directions.
                     beta        = (alpha + beta) / 2;
                     alpha       = std::max(-VALUE_INFINITE, alpha - windowSize);
                     failHighCnt = 0;
@@ -742,8 +734,6 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                 bmStability = 0;
             previousBestMove = m_bestMove;
 
-            // moveNodes only accumulates this thread's root subtree counts, so the
-            // fraction has to be taken against this thread's nodes, not all threads'.
             float bestMoveFraction = static_cast<double>(bestMoveNode) / threads.at(0)->nodes;
             //extra protection
             bestMoveFraction = std::clamp(bestMoveFraction, 0.0f, 1.0f);

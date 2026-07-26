@@ -32,14 +32,12 @@ struct SearchResult {
 
 class Search {
    private:
-    // Written by the main thread, read by every helper thread on each node.
-    // On x86-64 a seq_cst load compiles to a plain mov, so this costs nothing.
     std::atomic<bool> stopped;
-    int          numThread;
-    uint16_t     m_bestMove{};
-    uint64_t*    moveNodes;
-    int          seldepth{};
-    TimeManager* timeManager{};
+    int               numThread;
+    uint16_t          m_bestMove{};
+    uint64_t*         moveNodes;
+    int               seldepth{};
+    TimeManager*      timeManager{};
 
     uint64_t totalNodes();
 
