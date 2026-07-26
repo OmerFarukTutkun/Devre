@@ -5,7 +5,12 @@
 #include "uciOptions.h"
 #include <sstream>
 
-constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 150, 0, 0, 100, 300, 300, 500, 1000, 150, 0, 0};
+// Indexed both by Piece (0-13, EMPTY=15) and by pieceType (0-5), hence the
+// duplicated halves. The king must be 0: SEE()'s legality guard fires only when
+// `balance >= 0` after the king capture, and balance = -balance - 1 - value is
+// guaranteed non-negative only when value is 0. A non-zero king value lets the
+// loop continue past an illegal king recapture.
+constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 0, 0, 0, 100, 300, 300, 500, 1000, 0, 0, 0};
 
 std::string moveToUci(uint16_t move, Board& board) {
     std::stringstream ss;

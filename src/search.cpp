@@ -450,7 +450,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
-    int      beforeNodes = 0;
+    uint64_t beforeNodes = 0;
     int      lmr;
     uint16_t bestMove = NO_MOVE, move = NO_MOVE;
 
@@ -587,7 +587,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (this->stopped)
             return 0;
 
-        if (rootNode)
+        // Only the main thread's root node counts feed node-based time management,
+        // and only the main thread reads moveNodes. Restricting the write keeps
+        // helper threads from racing on this shared array.
+        if (rootNode && thread.ThreadID == 0)
             moveNodes[move] += thread.nodes - beforeNodes;
 
         if (score > bestScore)
@@ -724,7 +727,9 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                 bmStability = 0;
             previousBestMove = m_bestMove;
 
-            float bestMoveFraction = static_cast<double>(bestMoveNode) / nodes;
+            // moveNodes only accumulates this thread's root subtree counts, so the
+            // fraction has to be taken against this thread's nodes, not all threads'.
+            float bestMoveFraction = static_cast<double>(bestMoveNode) / threads.at(0)->nodes;
             //extra protection
             bestMoveFraction = std::clamp(bestMoveFraction, 0.0f, 1.0f);
             float nodeTm     = (nodeTmBase + bestMoveFraction * nodeTmMultp) / 100.0f;
