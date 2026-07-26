@@ -674,18 +674,33 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         // aspiration window search
         if (i > 4)
         {
-            int windowSize = 20;
-            int alpha      = score - windowSize;
-            int beta       = score + windowSize;
+            int windowSize  = 20;
+            int alpha       = score - windowSize;
+            int beta        = score + windowSize;
+            int failHighCnt = 0;
             while (true)
             {
-                score = alphaBeta(alpha, beta, i, false, *threads.at(ThreadID), ss + 6);
+                // Each consecutive fail-high re-searches one ply shallower. A move
+                // that really is that good still shows up in the shorter search,
+                // and we stop re-walking a full-depth tree for every widening.
+                const int adjustedDepth = std::max(1, i - failHighCnt);
+
+                score = alphaBeta(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
-                    alpha = std::max(-VALUE_INFINITE, alpha - windowSize);
+                {
+                    // Pull beta back toward the failing bound so the re-search
+                    // stays narrow instead of opening up in both directions.
+                    beta        = (alpha + beta) / 2;
+                    alpha       = std::max(-VALUE_INFINITE, alpha - windowSize);
+                    failHighCnt = 0;
+                }
                 else if (score >= beta)
+                {
                     beta = std::min(+VALUE_INFINITE, beta + windowSize);
+                    failHighCnt++;
+                }
 
                 windowSize += windowSize / 3;
             }
