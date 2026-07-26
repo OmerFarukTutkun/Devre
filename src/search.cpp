@@ -399,7 +399,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         eval = ttScore;
 
     //IIR
-    if (!ttHit && depth >= 3 && !PVNode)
+    if (!ttHit && depth >= 3)
+        depth -= 1;
+    else if (!PVNode && depth >= 8 && ttMove != NO_MOVE && ttDepth + 4 <= depth)
         depth -= 1;
 
 
