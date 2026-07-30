@@ -4,7 +4,7 @@
 // Self-play training-data generator.
 //
 // Usage:
-//   Devre(.exe) datagen [threads] [outDir] [targetPositions] [softNodes] [temperaturePct] [frc] [randomPlies]
+//   Devre(.exe) datagen [threads] [outDir] [targetPositions] [softNodes] [temperaturePct] [frc] [randomPlies] [book]
 //
 //   threads          number of worker threads (default: hardware concurrency)
 //   outDir           directory for output files       (default: ./data)
@@ -21,8 +21,11 @@
 //                    and black back rank                (default: 0)
 //   randomPlies      base number of random opening plies; the worker alternates
 //                    base/base+1 for color-parity variety. 0 selects the mode
-//                    default: 8 for standard (-> 8/9), 2 for DFRC (-> 2/3, since
-//                    the scrambled start already supplies most of the diversity).
+//                    default: 0 with a book, 8 for standard (-> 8/9), 2 for DFRC
+//                    (-> 2/3, since scrambled start supplies diversity).
+//   book             optional path to plain-text FEN or EPD opening book file.
+//                    Mutually exclusive with frc mode. Worker threads stride
+//                    disjointly through book positions to avoid duplicate games.
 //
 // Each worker plays independent games and streams them to its own file
 // data/devre_<pid>_<worker>.bin using the on-disk format documented in

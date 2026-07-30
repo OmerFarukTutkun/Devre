@@ -140,6 +140,95 @@ std::atomic<uint64_t> g_black{0};
 
 void onSignal(int) { g_stop.store(true); }
 
+// ---- opening book ----
+// A plain-text file of one position per line, FEN or EPD. Lines are normalised
+// once at load and stored NUL-separated in a single buffer with an offset
+// table: a 2.6M-entry vector<string> costs several hundred MB and one heap
+// allocation per line, this costs about the file size plus 8 bytes per entry.
+struct Book {
+    std::string           data;
+    std::vector<uint64_t> offsets;
+
+    size_t      size() const { return offsets.size(); }
+    const char* fen(size_t i) const { return data.c_str() + offsets[i]; }
+
+    static bool isSpace(char ch) { return std::isspace(static_cast<unsigned char>(ch)) != 0; }
+
+    // Accepts full FEN (6 fields) and EPD (4 fields plus operations). Trailing
+    // EPD operations and '#' comments are dropped; missing halfmove/fullmove
+    // counters default to "0 1".
+    static bool normalise(const char* begin, const char* end, std::string& out) {
+        for (const char* c = begin; c != end; ++c)
+            if (*c == ';' || *c == '#')
+            {
+                end = c;
+                break;
+            }
+
+        const char* field[6];
+        size_t      len[6];
+        int         n = 0;
+        const char* c = begin;
+        while (c != end && n < 6)
+        {
+            while (c != end && isSpace(*c))
+                ++c;
+            if (c == end)
+                break;
+            const char* start = c;
+            while (c != end && !isSpace(*c))
+                ++c;
+            field[n]  = start;
+            len[n]    = static_cast<size_t>(c - start);
+            ++n;
+        }
+        if (n < 4)
+            return false;
+
+        // A 5th/6th token that is not a number is an EPD operation, not a counter.
+        auto numeric = [&](int i) {
+            for (size_t k = 0; k < len[i]; k++)
+                if (!std::isdigit(static_cast<unsigned char>(field[i][k])))
+                    return false;
+            return len[i] > 0;
+        };
+        if (n > 4 && !numeric(4))
+            n = 4;
+        if (n > 5 && !numeric(5))
+            n = 5;
+
+        out.clear();
+        for (int i = 0; i < n; i++)
+        {
+            if (i)
+                out.push_back(' ');
+            out.append(field[i], len[i]);
+        }
+        if (n == 4)
+            out.append(" 0 1");
+        else if (n == 5)
+            out.append(" 1");
+        return true;
+    }
+
+    bool load(const std::string& path) {
+        std::ifstream in(path, std::ios::binary);
+        if (!in)
+            return false;
+
+        std::string line, fen;
+        while (std::getline(in, line))
+        {
+            if (!normalise(line.data(), line.data() + line.size(), fen))
+                continue;
+            offsets.push_back(data.size());
+            data.append(fen);
+            data.push_back(0);
+        }
+        return true;
+    }
+};
+
 // splitmix64 - small, fast, adequate for uniform opening-move selection.
 struct Rng {
     uint64_t s;
@@ -279,7 +368,8 @@ inline void prepareEval(Board& board) {
 }
 
 // One worker: plays independent games on its own Search/Board and streams them.
-void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed, int temperaturePct, bool frc, int randomPliesBase) {
+void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, uint64_t runStamp, uint64_t seed, int temperaturePct, bool frc, int randomPliesBase,
+            const Book* book, int bookStride, uint64_t bookStart) {
     Search search;
     search.setThread(1);
     Board& board = search.threads[0]->board;
@@ -300,16 +390,37 @@ void worker(int id, std::string outDir, int64_t softNodes, int64_t hardNodes, ui
     rec.reserve(4096);
 
     uint64_t localGames = 0;
+    uint64_t bookDraws  = 0;  // book lines consumed by this worker, including rejected ones
 
     while (!g_stop.load(std::memory_order_relaxed))
     {
-        // ---- random opening ----
-        // Alternate base/base+1 plies for color-parity variety. In DFRC mode the
-        // scrambled start already supplies most of the diversity, so a small base
-        // (2 -> 2/3 plies) is enough; standard chess uses 8 -> 8/9.
-        int randomPlies = randomPliesBase + static_cast<int>(localGames & 1);
+        // ---- opening ----
+        int randomPlies;
+        if (book)
+        {
+            // Workers stride through the book on disjoint residues, so no two
+            // ever draw the same line. The book already varies side to move and
+            // structure, so there is no ply alternation here: exactly
+            // randomPliesBase random moves, which defaults to 0.
+            randomPlies      = randomPliesBase;
+            const size_t idx = static_cast<size_t>((bookStart + static_cast<uint64_t>(id) + bookDraws * static_cast<uint64_t>(bookStride)) % book->size());
+            bookDraws++;
+            board = Board(book->fen(idx));
 
-        board        = frc ? Board(randomDfrcFen(rng)) : Board(START_FEN);
+            // A malformed line can produce a position with no king, which would
+            // not survive a search.
+            if (!board.bitboards[WHITE_KING] || !board.bitboards[BLACK_KING])
+                continue;
+        }
+        else
+        {
+            // Alternate base/base+1 plies for color-parity variety. In DFRC mode
+            // the scrambled start already supplies most of the diversity, so a
+            // small base (2 -> 2/3 plies) is enough; standard chess uses 8 -> 8/9.
+            randomPlies = randomPliesBase + static_cast<int>(localGames & 1);
+            board       = frc ? Board(randomDfrcFen(rng)) : Board(START_FEN);
+        }
+
         bool aborted = false;
         for (int i = 0; i < randomPlies; i++)
         {
@@ -506,14 +617,37 @@ void runDatagen(int argc, char** argv) {
     int         temperaturePct = (argc > 6) ? std::stoi(argv[6]) : 0;
     bool        frc            = (argc > 7) ? (std::stoi(argv[7]) != 0) : false;
     int         randomPliesArg = (argc > 8) ? std::stoi(argv[8]) : 0;
+    std::string bookPath       = (argc > 9) ? std::string(argv[9]) : std::string();
     int64_t     hardNodes = std::max<int64_t>(softNodes * 40, 200000);
 
     if (threads < 1)
         threads = 1;
 
-    // Opening random-ply base: explicit arg wins; otherwise a small base for DFRC
-    // (the scrambled start already diversifies) and the historical 8 for standard.
-    int randomPliesBase = randomPliesArg > 0 ? randomPliesArg : (frc ? 2 : RANDOM_PLIES_MIN);
+    Book book;
+    if (!bookPath.empty())
+    {
+        if (frc)
+        {
+            std::cerr << "datagen: a book and DFRC mode are mutually exclusive" << std::endl;
+            return;
+        }
+        if (!book.load(bookPath))
+        {
+            std::cerr << "datagen: could not read book " << bookPath << std::endl;
+            return;
+        }
+        if (book.size() == 0)
+        {
+            std::cerr << "datagen: book " << bookPath << " has no usable positions" << std::endl;
+            return;
+        }
+    }
+    const Book* bookPtr = book.size() ? &book : nullptr;
+
+    // Opening random-ply base: explicit arg wins; otherwise 0 with a book (start
+    // straight from the book line), a small base for DFRC (the scrambled start
+    // already diversifies) and the historical 8 for standard chess.
+    int randomPliesBase = randomPliesArg > 0 ? randomPliesArg : (bookPtr ? 0 : (frc ? 2 : RANDOM_PLIES_MIN));
 
     std::error_code ec;
     std::filesystem::create_directories(outDir, ec);
@@ -530,17 +664,25 @@ void runDatagen(int argc, char** argv) {
     std::cout << "threads=" << threads << " outDir=" << outDir << " softNodes=" << softNodes << " hardNodes=" << hardNodes
               << " target=" << (target ? std::to_string(target) : std::string("infinite"))
               << " temperature=" << temperaturePct << "%"
-              << " variant=" << (frc ? "DFRC" : "standard")
-              << " randomPlies=" << randomPliesBase << "/" << (randomPliesBase + 1) << std::endl;
+              << " variant=" << (frc ? "DFRC" : "standard");
+    if (bookPtr)
+        std::cout << " book=" << bookPath << " (" << book.size() << " positions)"
+                  << " randomPlies=" << randomPliesBase << std::endl;
+    else
+        std::cout << " randomPlies=" << randomPliesBase << "/" << (randomPliesBase + 1) << std::endl;
     std::cout << "press Ctrl-C to stop" << std::endl;
 
-    uint64_t                 runStamp = currentTime();
+    uint64_t runStamp = currentTime();
+    // One run-wide random offset so successive runs do not replay the same
+    // prefix of the book.
+    uint64_t bookStart = bookPtr ? (Rng(runStamp).next() % book.size()) : 0ull;
+
     std::vector<std::thread> pool;
     pool.reserve(threads);
     for (int i = 0; i < threads; i++)
     {
         uint64_t seed = runStamp * 0x9E3779B97F4A7C15ull + static_cast<uint64_t>(i) * 0x632BE59BD9B4E019ULL + 1;
-        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed, temperaturePct, frc, randomPliesBase);
+        pool.emplace_back(worker, i, outDir, softNodes, hardNodes, runStamp, seed, temperaturePct, frc, randomPliesBase, bookPtr, threads, bookStart);
     }
 
     uint64_t t0        = currentTime();
