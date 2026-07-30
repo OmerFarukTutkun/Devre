@@ -256,7 +256,7 @@ struct nnueChange {
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
 constexpr int NNUE_FT_IN = 768;
-constexpr int NNUE_FT_OUT = 1536;
+constexpr int NNUE_FT_OUT = 2048;
 
 struct NNUEAccumulator {
     alignas(64) int16_t data[2][NNUE_FT_OUT]{};
@@ -282,10 +282,14 @@ struct NNUEAccumulator {
     }
 };
 
+static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::data");
+
 class NNUEData {
    public:
-    alignas(64) NNUEAccumulator accumulator[MAX_PLY + 10]{};
+    std::vector<NNUEAccumulator> accumulator;
     int size{};
+
+    NNUEData() : accumulator(MAX_PLY + 10) {}
 };
 
 struct BoardHistory {

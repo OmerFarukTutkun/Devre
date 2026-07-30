@@ -20,7 +20,6 @@ Board::Board(const std::string& fen) {
     boardHistory.reserve(1024);
     boardHistory.clear();
     castlings = 0;
-    nnueData  = NNUEData();
 
     std::fill(bitboards, bitboards + N_PIECES, 0ull);
     std::fill(occupied, occupied + N_COLORS, 0ull);

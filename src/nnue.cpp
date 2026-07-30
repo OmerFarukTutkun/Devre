@@ -3,8 +3,6 @@
 #include "incbin/incbin.h"
 
 #include <algorithm>
-#include <array>
-#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -18,7 +16,7 @@ INCBIN(EmbeddedNet, NET);
 namespace {
 constexpr int QA    = 255;
 constexpr int QB    = 64;
-constexpr int SCALE = 300;
+constexpr int SCALE = 450;
 
 constexpr uint32_t numBlocks = NNUE_FT_OUT / SIMD::vecSize;
 static_assert(NNUE_FT_OUT % SIMD::vecSize == 0);
@@ -27,7 +25,7 @@ inline __attribute__((always_inline)) void
 applyDelta(int16_t* __restrict__ out, const int16_t* __restrict__ prev,
            const int16_t* const* addRows, int nAdd,
            const int16_t* const* subRows, int nSub) {
-    constexpr uint32_t chunkBlocks = 8;
+    constexpr uint32_t chunkBlocks = (numBlocks < 8) ? numBlocks : 8 ;
     for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks) {
         const uint32_t base = chunk * SIMD::vecSize;
 
@@ -232,7 +230,6 @@ bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string
                                + NNUE_FT_OUT * 2
                                + 2 * NNUE_FT_OUT * 2
                                + 2;
-    static_assert(exactSize == 2368514);
 
     if (size < exactSize)
         return fail("invalid file size (expected >= " + std::to_string(exactSize) + ", got " + std::to_string(size) + ")");
