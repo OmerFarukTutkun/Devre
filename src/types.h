@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifndef VERSION
-    #define VERSION "6.52"
+    #define VERSION "6.54"
 #endif
 
 constexpr auto MAX_PLY   = 100;
@@ -255,36 +255,37 @@ struct nnueChange {
 
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
-//TODO: maybe try reading these values from .nnue file instead of hardcoding
-constexpr int NNUE_BASE_FEATURES = 768;
-constexpr int NNUE_FEATURES = NNUE_BASE_FEATURES * (NNUE_BASE_FEATURES + 1) / 2;
-// Matches the l1 width the loader accepts; keeping it tight halves the size of
-// every accumulator, which matters for cache footprint during search.
-constexpr int NNUE_L1_MAX = 128;
-constexpr int NNUE_L2_MAX = 2 * NNUE_L1_MAX;
+// One sparse index space: 12*768 king-bucketed piece-square features followed
+// by 96*95/2 pawn pairs. NNUE_FT_OUT must match the trainer's FT constant in
+// bullet's examples/devre_plenty.rs.
+constexpr int NNUE_FT_IN = 12 * 768 + 96 * 95 / 2;  // 13776
+constexpr int NNUE_FT_OUT = 1024;
 
 struct NNUEAccumulator {
-    alignas(64) int16_t data[2][NNUE_L1_MAX]{};
-    std::bitset<NNUE_BASE_FEATURES> baseActive[2]{};
-    uint16_t activeList[2][N_SQUARES]{};
-    uint8_t activeCount[2]{};
+    alignas(64) int16_t data[2][NNUE_FT_OUT]{};
+
+    // Board state AFTER this ply, needed by the incremental update and filled
+    // by `Board::makeMove`. The pawn bitboards drive the pawn-pair delta, and
+    // the king squares decide whether a perspective can be updated at all: a
+    // king that crosses a bucket or mirror boundary re-indexes every psq
+    // feature and forces that perspective to be rebuilt.
+    uint64_t pawns[N_COLORS]{};
+    uint8_t  kingSq[N_COLORS]{};
+    bool     stateValid{};
+
     nnueChange changes[4]{};
     uint8_t changeCount{};
-    bool nonEmpty{};
+    // Per perspective, because one side's king can force a rebuild while the
+    // other side's accumulator stays incrementally reachable.
+    bool computed[N_COLORS]{};
 
     void clear() {
-        nonEmpty = false;
-        changeCount = 0;
-        baseActive[WHITE].reset();
-        baseActive[BLACK].reset();
-        activeCount[WHITE] = 0;
-        activeCount[BLACK] = 0;
+        computed[WHITE] = computed[BLACK] = false;
+        stateValid      = false;
+        changeCount     = 0;
     }
 
-    void invalidate() {
-        nonEmpty = false;
-        changeCount = 0;
-    }
+    void invalidate() { clear(); }
 
     void clearChanges() { changeCount = 0; }
 
@@ -294,10 +295,34 @@ struct NNUEAccumulator {
     }
 };
 
+static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::data");
+
+/// One cached accumulator per (perspective, king bucket, mirror), together with
+/// the piece placement it was built from. A king that changes bucket cannot be
+/// updated with deltas, but it can be rebuilt as a delta from the last position
+/// that used the SAME bucket instead of from the bias, which is normally a
+/// handful of rows rather than all ~68.
+struct NNUERefreshEntry {
+    alignas(64) int16_t data[NNUE_FT_OUT]{};
+    uint64_t pieces[N_PIECES]{};
+    bool     initialised{};
+};
+
 class NNUEData {
    public:
-    alignas(64) NNUEAccumulator accumulator[MAX_PLY + 10]{};
-    int size{};
+    static constexpr int REFRESH_BUCKETS = 12;
+    static constexpr int REFRESH_ENTRIES = N_COLORS * REFRESH_BUCKETS * 2;  // x2 for the mirror
+
+    std::vector<NNUEAccumulator>  accumulator;
+    std::vector<NNUERefreshEntry> refreshCache;
+    int                           size{};
+
+    NNUEData() : accumulator(MAX_PLY + 10), refreshCache(REFRESH_ENTRIES) {}
+
+    void clearRefreshCache() {
+        for (auto& entry : refreshCache)
+            entry.initialised = false;
+    }
 };
 
 struct BoardHistory {

@@ -27,6 +27,19 @@ inline vecType vecLoadI8ToI16(const int8_t* p) {
 }
 inline int vecReduceEpi32(vecType a) { return _mm512_reduce_add_epi32(a); }
 
+// --- Ops used by the NNUE head. ---------------------------------------------
+// `packUnsignedEpi16` keeps the LOGICAL element order: the hardware pack
+// instructions interleave 128-bit lanes, so each one needs a permute afterwards.
+template<int N>
+inline vecType vecSrliEpi16(vecType a) { return _mm512_srli_epi16(a, N); }
+inline vecType packUnsignedEpi16(vecType a, vecType b) {
+    const __m512i order = _mm512_setr_epi64(0, 2, 4, 6, 1, 3, 5, 7);
+    return _mm512_permutexvar_epi64(order, _mm512_packus_epi16(a, b));
+}
+inline vecType vecMaddubsEpi16(vecType u8, vecType i8) { return _mm512_maddubs_epi16(u8, i8); }
+inline vecType vecLoadRaw(const void* p) { return _mm512_load_si512(p); }
+inline void vecStoreRaw(void* p, vecType v) { _mm512_store_si512(p, v); }
+
 // Horizontal sums of eight vectors at once via a hadd tree; out[i] receives the
 // lane sum of vector i. Wrap-around int32 addition makes the result identical
 // to eight separate vecReduceEpi32 calls.
@@ -73,6 +86,18 @@ inline int vecReduceEpi32(vecType sum) {
     return _mm_cvtsi128_si32(sum128);
 }
 
+// --- Ops used by the NNUE head. ---------------------------------------------
+// `packUnsignedEpi16` keeps the LOGICAL element order: `packus` packs each
+// 128-bit lane of a and b separately, so the halves need swapping back.
+template<int N>
+inline vecType vecSrliEpi16(vecType a) { return _mm256_srli_epi16(a, N); }
+inline vecType packUnsignedEpi16(vecType a, vecType b) {
+    return _mm256_permute4x64_epi64(_mm256_packus_epi16(a, b), 0xD8);
+}
+inline vecType vecMaddubsEpi16(vecType u8, vecType i8) { return _mm256_maddubs_epi16(u8, i8); }
+inline vecType vecLoadRaw(const void* p) { return _mm256_load_si256(reinterpret_cast<const __m256i*>(p)); }
+inline void vecStoreRaw(void* p, vecType v) { _mm256_store_si256(reinterpret_cast<__m256i*>(p), v); }
+
 // Horizontal sums of eight vectors at once via a hadd tree; out[i] receives the
 // lane sum of vector i. Wrap-around int32 addition makes the result identical
 // to eight separate vecReduceEpi32 calls.
@@ -110,6 +135,20 @@ inline int vecReduceEpi32(vecType sum) {
     sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, 0xB1));
     return _mm_cvtsi128_si32(sum);
 }
+
+// --- Ops used by the NNUE head. ---------------------------------------------
+// A single 128-bit lane needs no permute after packing. `maddubs` is SSSE3, so
+// a plain SSE2 build gets the scalar head instead.
+template<int N>
+inline vecType vecSrliEpi16(vecType a) { return _mm_srli_epi16(a, N); }
+inline vecType packUnsignedEpi16(vecType a, vecType b) { return _mm_packus_epi16(a, b); }
+inline vecType vecLoadRaw(const void* p) { return _mm_load_si128(reinterpret_cast<const __m128i*>(p)); }
+inline void vecStoreRaw(void* p, vecType v) { _mm_store_si128(reinterpret_cast<__m128i*>(p), v); }
+#if defined(__SSSE3__)
+inline vecType vecMaddubsEpi16(vecType u8, vecType i8) { return _mm_maddubs_epi16(u8, i8); }
+#else
+    #error "Devre's NNUE head requires SSSE3 or better (build=ssse3, avx2, avx512 or native)"
+#endif
 
 // SSE2 has no hadd; plain per-vector reductions keep this path simple.
 inline void vecReduceEpi32x8(vecType a0, vecType a1, vecType a2, vecType a3, vecType a4, vecType a5, vecType a6, vecType a7, int32_t* out) {

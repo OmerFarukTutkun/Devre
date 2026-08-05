@@ -1,419 +1,557 @@
 #include "nnue.h"
 #include "simd.h"
+#include "util.h"
 #include "incbin/incbin.h"
 
 #include <algorithm>
-#include <array>
-#include <cmath>
 #include <cstring>
 #include <fstream>
+#include <iostream>
+#include <utility>
+#include <vector>
 
 #ifndef NET
-    #define NET "devre_mc.bin"
+    #define NET "quantised.bin"
 #endif
 
 INCBIN(EmbeddedNet, NET);
 
 namespace {
-constexpr char     NET_MAGIC[8]     = {'D', 'e', 'v', 'r', 'e', 'N', 'e', 't'};
-constexpr float    NET_CP_SCALE     = 450.0f;
-constexpr int      max_delta_rows   = 320;
-constexpr uint32_t l1_cols          = 128;
-constexpr uint32_t l2_rows          = 32;
-constexpr uint32_t accum_simd_width = SIMD::vecSize;
-static_assert(64 % accum_simd_width == 0);
-static_assert(l1_cols % 64 == 0);
-static_assert(l1_cols <= NNUE_L1_MAX);
-static_assert(l2_rows <= NNUE_L2_MAX);
-static_assert(l2_rows % accum_simd_width == 0);
 
-// First row index of each 'low' base feature in the triangular pair-feature
-// matrix, so featureIndex needs no multiplications in the hot gather loops.
-constexpr auto genPairRowOffsets() {
-    std::array<uint32_t, NNUE_BASE_FEATURES> offsets{};
-    for (uint32_t low = 0; low < NNUE_BASE_FEATURES; low++)
-        offsets[low] = low * NNUE_BASE_FEATURES - (low * (low + 1)) / 2;
-    return offsets;
-}
-constexpr auto PAIR_ROW_OFFSETS = genPairRowOffsets();
+// Internal units per logit. Must match ENGINE_SCALE in devre_plenty.rs.
+constexpr int EVAL_SCALE = 400;
 
-// Pair-weight rows live in a ~38MB table, so most gathered rows are cache
-// misses; prefetching them while the row list is still being built lets the
-// misses overlap instead of stalling the delta pass below.
-inline __attribute__((always_inline)) void prefetchRow(const int8_t* row) {
-    for (uint32_t k = 0; k < l1_cols; k += 64)
-        __builtin_prefetch(row + k, 0, 3);
-}
+// The pairwise stage lands at QA * QA >> INPUT_SHIFT = 127.002, not QA.
+constexpr float PAIRWISE_QUANT   = static_cast<float>(NNUE::QA) * NNUE::QA / (1 << NNUE::INPUT_SHIFT);
+constexpr float L1_NORMALISATION = 1.0f / (PAIRWISE_QUANT * NNUE::L1_QUANT);
+constexpr int   PAIRWISE_MAX     = (NNUE::QA * NNUE::QA) >> NNUE::INPUT_SHIFT;
+static_assert(PAIRWISE_MAX == 127, "the pairwise activations must fit in int8");
 
-inline __attribute__((always_inline)) void applyDeltaAddInt8(int16_t* __restrict__ accumulator, const int8_t* __restrict__ row) {
-    for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
-    {
-        const SIMD::vecType delta = SIMD::vecLoadI8ToI16(row + k);
-        const SIMD::vecType acc   = SIMD::vecLoad(accumulator + k);
-        SIMD::vecStore(accumulator + k, SIMD::vecAddEpi16(acc, delta));
-    }
+static_assert(2 * PAIRWISE_MAX * 127 <= 32767, "maddubs would saturate");
+
+// Must match KING_BUCKET_LAYOUT in devre_plenty.rs.
+// clang-format off
+constexpr uint8_t KING_BUCKET_LAYOUT[64] = {
+     0,  1,  2,  3,  3,  2,  1,  0,
+     4,  5,  6,  7,  7,  6,  5,  4,
+     8,  8,  9,  9,  9,  9,  8,  8,
+    10, 10, 10, 10, 10, 10, 10, 10,
+    11, 11, 11, 11, 11, 11, 11, 11,
+    11, 11, 11, 11, 11, 11, 11, 11,
+    11, 11, 11, 11, 11, 11, 11, 11,
+    11, 11, 11, 11, 11, 11, 11, 11,
+};
+// clang-format on
+
+/// Only same/adjacent-file pawns pair, so partners are one AND away.
+constexpr uint64_t adjacentFiles(int file) {
+    uint64_t mask = FILE_A_BB << file;
+    if (file > 0)
+        mask |= FILE_A_BB << (file - 1);
+    if (file < 7)
+        mask |= FILE_A_BB << (file + 1);
+    return mask;
 }
 
-// Rows are walked in the outer loop with one accumulator register per column
-// block: the per-block add chains stay independent, so the CPU is not stuck on
-// a serial dependency chain over all delta rows. int16 wrap-around addition is
-// order-independent, so the result is bit-identical to any other ordering.
+constexpr std::array<uint64_t, 8> ADJACENT_FILES = [] {
+    std::array<uint64_t, 8> table{};
+    for (int file = 0; file < 8; file++)
+        table[file] = adjacentFiles(file);
+    return table;
+}();
+
+// --- Accumulator arithmetic -------------------------------------------------
+
+constexpr uint32_t numBlocks = NNUE_FT_OUT / SIMD::vecSize;
+static_assert(NNUE_FT_OUT % SIMD::vecSize == 0);
+
+/// `out = base + sum(addRows) - sum(subRows)` in one pass.
+///
+/// `out` may alias `base` -- the refresh cache updates in place -- so nothing is
+/// `restrict`. Each chunk loads before it stores, so aliasing is safe.
 inline __attribute__((always_inline)) void
-applyDeltaBatchInt8(int16_t* __restrict__ out, const int16_t* __restrict__ prev, const int8_t* const* __restrict__ addRows, int addCount, const int8_t* const* __restrict__ subRows, int subCount) {
-    constexpr uint32_t numBlocks = l1_cols / accum_simd_width;
-    // Cap the live accumulator registers so narrow SIMD builds do not spill.
-    constexpr uint32_t chunkBlocks = numBlocks <= 8 ? numBlocks : 8;
+accumulateRows(int16_t* out, const int16_t* base, const int16_t* const* addRows, int nAdd,
+               const int16_t* const* subRows, int nSub) {
+    constexpr uint32_t chunkBlocks = (numBlocks < 8) ? numBlocks : 8;
 
     for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks)
     {
-        const uint32_t base = chunk * accum_simd_width;
+        const uint32_t offset = chunk * SIMD::vecSize;
 
         SIMD::vecType acc[chunkBlocks];
         for (uint32_t b = 0; b < chunkBlocks; b++)
-            acc[b] = SIMD::vecLoad(prev + base + b * accum_simd_width);
+            acc[b] = SIMD::vecLoad(base + offset + b * SIMD::vecSize);
 
-        for (int a = 0; a < addCount; a++)
+        for (int a = 0; a < nAdd; a++)
         {
-            const int8_t* row = addRows[a] + base;
+            const int16_t* row = addRows[a] + offset;
             for (uint32_t b = 0; b < chunkBlocks; b++)
-                acc[b] = SIMD::vecAddEpi16(acc[b], SIMD::vecLoadI8ToI16(row + b * accum_simd_width));
+                acc[b] = SIMD::vecAddEpi16(acc[b], SIMD::vecLoad(row + b * SIMD::vecSize));
         }
 
-        for (int s = 0; s < subCount; s++)
+        for (int s = 0; s < nSub; s++)
         {
-            const int8_t* row = subRows[s] + base;
+            const int16_t* row = subRows[s] + offset;
             for (uint32_t b = 0; b < chunkBlocks; b++)
-                acc[b] = SIMD::vecSubEpi16(acc[b], SIMD::vecLoadI8ToI16(row + b * accum_simd_width));
+                acc[b] = SIMD::vecSubEpi16(acc[b], SIMD::vecLoad(row + b * SIMD::vecSize));
         }
 
         for (uint32_t b = 0; b < chunkBlocks; b++)
-            SIMD::vecStore(out + base + b * accum_simd_width, acc[b]);
+            SIMD::vecStore(out + offset + b * SIMD::vecSize, acc[b]);
     }
 }
 
-} 
+inline float crelu(float x) { return std::clamp(x, 0.0f, 1.0f); }
 
-struct NNUEDeltaBatch {
-    const int8_t*  addRows[max_delta_rows];
-    const int8_t*  subRows[max_delta_rows];
-    int16_t*       out;
-    const int16_t* prev;
-    int            addCount = 0;
-    int            subCount = 0;
-    bool           pending  = false;
-};
+inline float screlu(float x) {
+    const float c = crelu(x);
+    return c * c;
+}
+
+// --- File format ------------------------------------------------------------
+
+// 48-byte header (magic, format version, nine architecture fields) then the
+// tensors back to back in NetworkData's declaration order. `VERSION` is already
+// the engine's own version macro, hence the prefix.
+constexpr char     MAGIC[8]    = {'D', 'V', 'N', 'N', 'U', 'E', '3', '\0'};
+constexpr uint32_t NET_VERSION = 1;
+constexpr size_t   HEADER_LEN  = 48;
+
+uint32_t readU32(const uint8_t* p, size_t at) {
+    uint32_t v;
+    std::memcpy(&v, p + at, sizeof(v));
+    return v;
+}
+
+
+}  // namespace
 
 NNUE NNUE::instance;
 
 NNUE::NNUE() {
-    if (!loadNetFromBuffer(gEmbeddedNetData, gEmbeddedNetSize, "<embedded>"))
-        std::cout << "info string Failed to load embedded net" << std::endl;
+    if (!loadFromBuffer(gEmbeddedNetData, gEmbeddedNetSize, "<embedded>"))
+        std::cout << "info string No usable embedded net; set EvalFile" << std::endl;
 }
 
-int NNUE::baseIndex(int piece, int sq, Color perspective) {
-    const int orientedSquare = (perspective == BLACK) ? mirrorVertically(sq) : sq;
-    const int pIdx           = pieceType(piece) + 6 * (pieceColor(piece) != perspective);
-    return orientedSquare + pIdx * 64;
+// --- Feature indexing -------------------------------------------------------
+
+NNUE::PerspectiveKey NNUE::perspectiveKey(int kingSquare, Color perspective) {
+    const int mirrored = (kingSquare & 7) > 3 ? 7 : 0;
+    const int oriented = perspective == BLACK ? mirrorVertically(kingSquare) : kingSquare;
+    return {KING_BUCKET_LAYOUT[oriented], static_cast<uint8_t>((perspective == BLACK ? 56 : 0) ^ mirrored)};
 }
 
-uint32_t NNUE::featureIndex(int i, int j) const {
-    const uint32_t low  = static_cast<uint32_t>(std::min(i, j));
-    const uint32_t high = static_cast<uint32_t>(std::max(i, j));
-    return PAIR_ROW_OFFSETS[low] + high;
+int NNUE::psqFeature(int piece, int square, Color perspective, PerspectiveKey key) {
+    const int relativeSquare = square ^ key.flip;
+    const int relativeColor  = pieceColor(piece) != perspective;
+    return 768 * key.bucket + 384 * relativeColor + 64 * pieceType(piece) + relativeSquare;
 }
 
-const int8_t* NNUE::getPairWeights(uint32_t feature) const { return &l1Weights[static_cast<size_t>(feature) * l1_cols]; }
+int NNUE::pawnId(int square, Color pawnColor, Color perspective, int flip) {
+    const int base = (square ^ flip) - 8;
+    return base + (pawnColor != perspective ? 48 : 0);
+}
 
-void NNUE::recalculateInputLayer(Board& board, Color perspective, int idx) {
-    auto& acc        = board.nnueData.accumulator[idx];
-    auto& active     = acc.baseActive[perspective];
-    auto* activeList = acc.activeList[perspective];
-    int   baseFeatures[N_SQUARES];
-    int   activeCount = 0;
+int NNUE::pawnPairIndex(int idA, int idB) {
+    const int lo = std::min(idA, idB);
+    const int hi = std::max(idA, idB);
+    return hi * (hi - 1) / 2 + lo;
+}
 
-    active.reset();
+int NNUE::outputBucket(const Board& board) {
+    const int pieces = popcount64(board.occupied[WHITE] | board.occupied[BLACK]);
+    return std::min((pieces - 2) / 4, OUTPUT_BUCKETS - 1);
+}
 
-    for (int sq = 0; sq < N_SQUARES; sq++)
+// --- Full refresh -----------------------------------------------------------
+
+void NNUE::refresh(const Board& board, Color perspective, int16_t* accumulator) const {
+    const NetworkData&   net = *network;
+    const PerspectiveKey key = perspectiveKey(bitScanForward(board.bitboards[pieceIndex(perspective, KING)]),
+                                              perspective);
+
+    const int16_t* rows[32 + 96];
+    int            nRows = 0;
+
+    // Entry i of both buffers must be the same pawn: pawnPairIndex
+    // canonicalises each perspective independently.
+    int pawnIds[16];
+    int pawnFiles[16];
+    int pawns = 0;
+
+    uint64_t occ = board.occupied[WHITE] | board.occupied[BLACK];
+    while (occ)
     {
+        const int sq    = poplsb(occ);
         const int piece = board.pieceBoard[sq];
-        if (piece == EMPTY)
+
+        rows[nRows++] = net.ftWeights + static_cast<size_t>(psqFeature(piece, sq, perspective, key)) * NNUE_FT_OUT;
+
+        if (pieceType(piece) == PAWN)
+        {
+            pawnIds[pawns] = pawnId(sq, static_cast<Color>(pieceColor(piece)), perspective, key.flip);
+            pawnFiles[pawns] = sq & 7;
+            pawns++;
+        }
+    }
+
+    for (int i = 0; i < pawns; i++)
+        for (int j = i + 1; j < pawns; j++)
+            if (std::abs(pawnFiles[i] - pawnFiles[j]) <= 1)
+                rows[nRows++] = net.ftWeights
+                              + static_cast<size_t>(PSQ_FEATURES + pawnPairIndex(pawnIds[i], pawnIds[j]))
+                                    * NNUE_FT_OUT;
+
+    accumulateRows(accumulator, net.ftBiases, rows, nRows, nullptr, 0);
+}
+
+// --- Incremental update -----------------------------------------------------
+
+/// Apply ply `idx` on top of ply `idx - 1`: psq from the change list, pawn
+/// pairs from the pawn bitboards either side of the move.
+void NNUE::applyPly(Board& board, Color perspective, int idx, PerspectiveKey key) const {
+    const NetworkData& net  = *network;
+    auto&              cur  = board.nnueData.accumulator[idx];
+    const auto&        prev = board.nnueData.accumulator[idx - 1];
+
+    // 4 psq + 2 moved pawns x 15 partners + 1 = 35.
+    const int16_t* addRows[48];
+    const int16_t* subRows[48];
+    int            nAdd = 0;
+    int            nSub = 0;
+
+    auto row = [&](int feature) { return net.ftWeights + static_cast<size_t>(feature) * NNUE_FT_OUT; };
+
+    for (int i = 0; i < cur.changeCount; i++)
+    {
+        const auto& change  = cur.changes[i];
+        const int   feature = psqFeature(change.piece, change.sq, perspective, key);
+        if (change.sign > 0)
+            addRows[nAdd++] = row(feature);
+        else
+            subRows[nSub++] = row(feature);
+    }
+
+    pawnPairDelta(prev.pawns, cur.pawns, perspective, key, addRows, nAdd, subRows, nSub);
+
+
+    accumulateRows(cur.data[perspective], prev.data[perspective], addRows, nAdd, subRows, nSub);
+    cur.computed[perspective] = true;
+}
+
+void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curPawns[N_COLORS], Color perspective,
+                         PerspectiveKey key, const int16_t** addRows, int& nAdd, const int16_t** subRows,
+                         int& nSub) const {
+    if (prevPawns[WHITE] == curPawns[WHITE] && prevPawns[BLACK] == curPawns[BLACK])
+        return;
+
+    const NetworkData& net = *network;
+    auto row = [&](int feature) { return net.ftWeights + static_cast<size_t>(feature) * NNUE_FT_OUT; };
+
+    // id in the low byte, file above it: recovering the file from the id would
+    // have to undo the mirror. A refresh can change all sixteen pawns.
+    int removed[16], added[16];
+    int nRemoved = 0, nAdded = 0;
+
+    for (int c = 0; c < N_COLORS; c++)
+    {
+        const auto colour = static_cast<Color>(c);
+
+        uint64_t gone = prevPawns[c] & ~curPawns[c];
+        while (gone)
+        {
+            const int sq        = poplsb(gone);
+            removed[nRemoved++] = pawnId(sq, colour, perspective, key.flip) | ((sq & 7) << 8);
+        }
+
+        uint64_t fresh = curPawns[c] & ~prevPawns[c];
+        while (fresh)
+        {
+            const int sq    = poplsb(fresh);
+            added[nAdded++] = pawnId(sq, colour, perspective, key.flip) | ((sq & 7) << 8);
+        }
+    }
+
+    const uint64_t keptWhite = prevPawns[WHITE] & curPawns[WHITE];
+    const uint64_t keptBlack = prevPawns[BLACK] & curPawns[BLACK];
+
+    auto pairsWithKept = [&](const int* moved, int count, const int16_t** rows, int& n) {
+        for (int i = 0; i < count; i++)
+        {
+            const int id   = moved[i] & 0xFF;
+            const int file = moved[i] >> 8;
+
+            uint64_t partners = keptWhite & ADJACENT_FILES[file];
+            while (partners)
+            {
+                const int sq = poplsb(partners);
+                rows[n++]    = row(PSQ_FEATURES + pawnPairIndex(id, pawnId(sq, WHITE, perspective, key.flip)));
+            }
+
+            partners = keptBlack & ADJACENT_FILES[file];
+            while (partners)
+            {
+                const int sq = poplsb(partners);
+                rows[n++]    = row(PSQ_FEATURES + pawnPairIndex(id, pawnId(sq, BLACK, perspective, key.flip)));
+            }
+
+            for (int j = i + 1; j < count; j++)
+                if (std::abs(file - (moved[j] >> 8)) <= 1)
+                    rows[n++] = row(PSQ_FEATURES + pawnPairIndex(id, moved[j] & 0xFF));
+        }
+    };
+
+    pairsWithKept(removed, nRemoved, subRows, nSub);
+    pairsWithKept(added, nAdded, addRows, nAdd);
+}
+
+/// Rebuild a perspective as a delta from the last position that used the same
+/// bucket and mirror, rather than from the bias. An empty entry degenerates to
+/// the bias rebuild, hence the full-rebuild row bound below.
+void NNUE::refreshFromCache(Board& board, Color perspective, PerspectiveKey key, int16_t* accumulator) const {
+    const NetworkData& net   = *network;
+    auto&              entry = board.nnueData.refreshCache[(perspective * KING_BUCKETS + key.bucket) * 2
+                                              + (key.flip & 7 ? 1 : 0)];
+
+    if (!entry.initialised)
+    {
+        std::memcpy(entry.data, net.ftBiases, sizeof(net.ftBiases));
+        std::memset(entry.pieces, 0, sizeof(entry.pieces));
+        entry.initialised = true;
+    }
+
+    // 32 psq + at most 96 pawn pairs; no delta exceeds a full rebuild.
+    const int16_t* addRows[32 + 96];
+    const int16_t* subRows[32 + 96];
+    int            nAdd = 0;
+    int            nSub = 0;
+
+    auto row = [&](int feature) { return net.ftWeights + static_cast<size_t>(feature) * NNUE_FT_OUT; };
+
+    for (int piece = 0; piece < N_PIECES; piece++)
+    {
+        if (pieceType(piece) > KING)
             continue;
 
-        const int baseFeature = baseIndex(piece, sq, perspective);
-        active.set(baseFeature);
-        activeList[activeCount]     = static_cast<uint16_t>(baseFeature);
-        baseFeatures[activeCount++] = baseFeature;
+        uint64_t gone = entry.pieces[piece] & ~board.bitboards[piece];
+        while (gone)
+            subRows[nSub++] = row(psqFeature(piece, poplsb(gone), perspective, key));
+
+        uint64_t fresh = board.bitboards[piece] & ~entry.pieces[piece];
+        while (fresh)
+            addRows[nAdd++] = row(psqFeature(piece, poplsb(fresh), perspective, key));
     }
 
-    acc.activeCount[perspective] = static_cast<uint8_t>(activeCount);
+    const uint64_t cachedPawns[N_COLORS]  = {entry.pieces[WHITE_PAWN], entry.pieces[BLACK_PAWN]};
+    const uint64_t currentPawns[N_COLORS] = {board.bitboards[WHITE_PAWN], board.bitboards[BLACK_PAWN]};
+    pawnPairDelta(cachedPawns, currentPawns, perspective, key, addRows, nAdd, subRows, nSub);
 
-    int16_t* out = acc.data[perspective];
-    std::memcpy(out, l1Biases, static_cast<size_t>(l1_cols) * sizeof(int16_t));
 
-    for (int a = 0; a < activeCount; a++)
-    {
-        for (int b = a; b < activeCount; b++)
-        {
-            const uint32_t feature = featureIndex(baseFeatures[a], baseFeatures[b]);
-            applyDeltaAddInt8(out, getPairWeights(feature));
-        }
-    }
+    accumulateRows(entry.data, entry.data, addRows, nAdd, subRows, nSub);
+    std::memcpy(entry.pieces, board.bitboards, sizeof(entry.pieces));
+    std::memcpy(accumulator, entry.data, NNUE_FT_OUT * sizeof(int16_t));
 }
 
-void NNUE::prepareIncrementalUpdate(Board& board, Color perspective, int idx, NNUEDeltaBatch& batch) {
-    auto& prevAcc = board.nnueData.accumulator[idx - 1];
-    auto& curAcc  = board.nnueData.accumulator[idx];
+void NNUE::updatePerspective(Board& board, Color perspective) const {
+    auto&     stack = board.nnueData.accumulator;
+    const int cur   = board.nnueData.size;
 
-    auto& prevActive = prevAcc.baseActive[perspective];
-    auto& curActive  = curAcc.baseActive[perspective];
-    curActive        = prevActive;
-
-    const int       prevCount = prevAcc.activeCount[perspective];
-    int             curCount  = prevCount;
-    const uint16_t* prevList  = prevAcc.activeList[perspective];
-    uint16_t*       curList   = curAcc.activeList[perspective];
-    std::memcpy(curList, prevList, static_cast<size_t>(prevCount) * sizeof(uint16_t));
-
-    int16_t*       out  = curAcc.data[perspective];
-    const int16_t* prev = prevAcc.data[perspective];
-    batch.out           = out;
-    batch.prev          = prev;
-
-    int removedBases[4];
-    int addedBases[4];
-    int removedBaseCount = 0;
-    int addedBaseCount   = 0;
-
-    const auto& changeAcc = board.nnueData.accumulator[idx];
-    for (int i = 0; i < changeAcc.changeCount; i++)
-    {
-        const auto& change      = changeAcc.changes[i];
-        const int   baseFeature = baseIndex(change.piece, change.sq, perspective);
-
-        if (change.sign > 0)
-        {
-            if (!curActive.test(baseFeature))
-            {
-                curActive.set(baseFeature);
-                addedBases[addedBaseCount++] = baseFeature;
-                curList[curCount++]          = static_cast<uint16_t>(baseFeature);
-            }
-        }
-        else if (curActive.test(baseFeature))
-        {
-            curActive.reset(baseFeature);
-            removedBases[removedBaseCount++] = baseFeature;
-
-            for (int j = 0; j < curCount; j++)
-            {
-                if (curList[j] == baseFeature)
-                {
-                    curList[j] = curList[curCount - 1];
-                    curCount--;
-                    break;
-                }
-            }
-        }
-    }
-
-    curAcc.activeCount[perspective] = static_cast<uint8_t>(curCount);
-
-    if (removedBaseCount == 0 && addedBaseCount == 0)
-    {
-        std::memcpy(out, prev, static_cast<size_t>(l1_cols) * sizeof(int16_t));
+    if (stack[cur].computed[perspective])
         return;
-    }
 
-    int survivors[N_SQUARES];
-    int survivorCount = 0;
-    for (int i = 0; i < prevCount; i++)
+    const PerspectiveKey key = perspectiveKey(bitScanForward(board.bitboards[pieceIndex(perspective, KING)]),
+                                              perspective);
+
+    // Nearest computed accumulator with the same key: a bucket or mirror change
+    // re-indexes every psq row and cannot be bridged with deltas.
+    int base = -1;
+    for (int i = cur - 1; i >= 0; i--)
     {
-        const int prevBase = prevList[i];
-        if (curActive.test(prevBase))
-            survivors[survivorCount++] = prevBase;
-    }
-
-    const int8_t** addRows = batch.addRows;
-    const int8_t** subRows = batch.subRows;
-
-    int subRowCount = 0;
-    for (int i = 0; i < removedBaseCount; i++)
-    {
-        subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], removedBases[i]));
-        prefetchRow(subRows[subRowCount++]);
-        for (int j = 0; j < survivorCount; j++)
+        if (!stack[i].stateValid || perspectiveKey(stack[i].kingSq[perspective], perspective) != key)
+            break;
+        if (stack[i].computed[perspective])
         {
-            subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], survivors[j]));
-            prefetchRow(subRows[subRowCount++]);
-        }
-    }
-
-    for (int i = 0; i < removedBaseCount; i++)
-    {
-        for (int j = i + 1; j < removedBaseCount; j++)
-        {
-            subRows[subRowCount] = getPairWeights(featureIndex(removedBases[i], removedBases[j]));
-            prefetchRow(subRows[subRowCount++]);
-        }
-    }
-
-    int addRowCount = 0;
-    for (int i = 0; i < addedBaseCount; i++)
-    {
-        addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], addedBases[i]));
-        prefetchRow(addRows[addRowCount++]);
-        for (int j = 0; j < survivorCount; j++)
-        {
-            addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], survivors[j]));
-            prefetchRow(addRows[addRowCount++]);
-        }
-    }
-
-    for (int i = 0; i < addedBaseCount; i++)
-    {
-        for (int j = i + 1; j < addedBaseCount; j++)
-        {
-            addRows[addRowCount] = getPairWeights(featureIndex(addedBases[i], addedBases[j]));
-            prefetchRow(addRows[addRowCount++]);
-        }
-    }
-
-    batch.addCount = addRowCount;
-    batch.subCount = subRowCount;
-    batch.pending  = true;
-}
-
-void NNUE::updateInputLayer(Board& board, int idx, bool fromScratch) {
-    if (idx == 0 || fromScratch || !board.nnueData.accumulator[idx - 1].nonEmpty)
-    {
-        recalculateInputLayer(board, WHITE, idx);
-        recalculateInputLayer(board, BLACK, idx);
-    }
-    else
-    {
-        // Prepare both perspectives before applying either, so the prefetches
-        // issued while gathering one perspective's rows overlap with the
-        // other's delta pass as well.
-        NNUEDeltaBatch batches[N_COLORS];
-        prepareIncrementalUpdate(board, WHITE, idx, batches[WHITE]);
-        prepareIncrementalUpdate(board, BLACK, idx, batches[BLACK]);
-
-        for (const auto& batch : batches)
-        {
-            if (batch.pending)
-                applyDeltaBatchInt8(batch.out, batch.prev, batch.addRows, batch.addCount, batch.subRows, batch.subCount);
-        }
-    }
-    board.nnueData.accumulator[idx].nonEmpty = true;
-}
-
-void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) { updateInputLayer(board, idx, fromScratch); }
-
-int NNUE::head(const int16_t* us, const int16_t* them) const {
-    const int           clip      = l1Clip;
-    const SIMD::vecType zero      = SIMD::vecZero();
-    const SIMD::vecType clipVec   = SIMD::vecSet1Epi16(static_cast<int16_t>(clip));
-    constexpr uint32_t  totalCols = 2 * l1_cols;
-
-    // Clipped-square activations for both perspectives, computed once and laid
-    // out as [us | them] to match the column order of every l2 weight row.
-    alignas(64) int16_t act[totalCols];
-    for (uint32_t k = 0; k < l1_cols; k += accum_simd_width)
-    {
-        const SIMD::vecType usRaw     = SIMD::vecLoad(us + k);
-        const SIMD::vecType usClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, usRaw));
-        SIMD::vecStore(act + k, SIMD::vecMulloEpi16(usClipped, usClipped));
-        const SIMD::vecType themRaw     = SIMD::vecLoad(them + k);
-        const SIMD::vecType themClipped = SIMD::vecMinEpi16(clipVec, SIMD::vecMaxEpi16(zero, themRaw));
-        SIMD::vecStore(act + l1_cols + k, SIMD::vecMulloEpi16(themClipped, themClipped));
-    }
-
-    float logit         = l3Bias;
-    auto  accumulateRow = [this, &logit](uint32_t row, int32_t sum) {
-        const int32_t raw = l2Biases[row] + sum;
-        if (raw <= 0)
-            return;
-
-        const uint32_t clipped      = std::min<uint32_t>(static_cast<uint32_t>(raw), l2ClipByRow[row]);
-        const float    clippedFloat = static_cast<float>(clipped);
-        logit += l3Weights[row] * clippedFloat * clippedFloat;
-    };
-    constexpr uint32_t rowsPerTile = 8;
-    static_assert(l2_rows % rowsPerTile == 0);
-
-    for (uint32_t row = 0; row < l2_rows; row += rowsPerTile)
-    {
-        const int16_t* const __restrict__ weights0 = l2Weights.data() + static_cast<size_t>(row + 0) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights1 = l2Weights.data() + static_cast<size_t>(row + 1) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights2 = l2Weights.data() + static_cast<size_t>(row + 2) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights3 = l2Weights.data() + static_cast<size_t>(row + 3) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights4 = l2Weights.data() + static_cast<size_t>(row + 4) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights5 = l2Weights.data() + static_cast<size_t>(row + 5) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights6 = l2Weights.data() + static_cast<size_t>(row + 6) * 2 * l1_cols;
-        const int16_t* const __restrict__ weights7 = l2Weights.data() + static_cast<size_t>(row + 7) * 2 * l1_cols;
-
-        SIMD::vecType acc0 = SIMD::vecZero();
-        SIMD::vecType acc1 = SIMD::vecZero();
-        SIMD::vecType acc2 = SIMD::vecZero();
-        SIMD::vecType acc3 = SIMD::vecZero();
-        SIMD::vecType acc4 = SIMD::vecZero();
-        SIMD::vecType acc5 = SIMD::vecZero();
-        SIMD::vecType acc6 = SIMD::vecZero();
-        SIMD::vecType acc7 = SIMD::vecZero();
-
-        for (uint32_t k = 0; k < totalCols; k += accum_simd_width)
-        {
-            const SIMD::vecType a = SIMD::vecLoad(act + k);
-
-            acc0 = SIMD::vecAddEpi32(acc0, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights0 + k)));
-            acc1 = SIMD::vecAddEpi32(acc1, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights1 + k)));
-            acc2 = SIMD::vecAddEpi32(acc2, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights2 + k)));
-            acc3 = SIMD::vecAddEpi32(acc3, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights3 + k)));
-            acc4 = SIMD::vecAddEpi32(acc4, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights4 + k)));
-            acc5 = SIMD::vecAddEpi32(acc5, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights5 + k)));
-            acc6 = SIMD::vecAddEpi32(acc6, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights6 + k)));
-            acc7 = SIMD::vecAddEpi32(acc7, SIMD::vecMaddEpi16(a, SIMD::vecLoad(weights7 + k)));
-        }
-
-        alignas(32) int32_t sums[rowsPerTile];
-        SIMD::vecReduceEpi32x8(acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7, sums);
-
-        for (uint32_t i = 0; i < rowsPerTile; i++)
-            accumulateRow(row + i, sums[i]);
-    }
-
-    float cp = logit * NET_CP_SCALE;
-    cp       = std::max(-1.0f * MAX_MATE_SCORE, std::min(cp, 1.0f * MAX_MATE_SCORE));
-    return static_cast<int>(std::lround(cp));
-}
-
-int NNUE::evaluateNet(Board& board) {
-    if (l1Weights.empty())
-        return 0;
-
-    int lastNonEmptyAcc = -1;
-    for (int i = board.nnueData.size; i >= 0; i--)
-    {
-        if (board.nnueData.accumulator[i].nonEmpty)
-        {
-            lastNonEmptyAcc = i;
+            base = i;
             break;
         }
     }
 
-    for (int i = lastNonEmptyAcc + 1; i <= board.nnueData.size; i++)
-        updateInputLayer(board, i, i == 0);
+    if (base < 0)
+    {
+        refreshFromCache(board, perspective, key, stack[cur].data[perspective]);
+        stack[cur].computed[perspective] = true;
+        return;
+    }
 
-    auto& acc = board.nnueData.accumulator[board.nnueData.size];
-    return head(acc.data[board.sideToMove], acc.data[~board.sideToMove]);
+    for (int i = base + 1; i <= cur; i++)
+        applyPly(board, perspective, i, key);
 }
 
-int NNUE::evaluate(Board& board) { return evaluateNet(board); }
+// --- Head -------------------------------------------------------------------
+
+/// L1 dot products are already done, in int32.
+int NNUE::finishHead(const int32_t* l1Dots, int bucket) const {
+    const NetworkData& net = *network;
+
+    float l1Activations[2 * L1_SIZE];
+    for (int i = 0; i < L1_SIZE; i++)
+    {
+        const float value = static_cast<float>(l1Dots[i]) * L1_NORMALISATION + net.l1Biases[bucket * L1_SIZE + i];
+        l1Activations[i]           = crelu(value);
+        l1Activations[L1_SIZE + i] = screlu(value);
+    }
+
+    // Across outputs, not within one: the weights are input-major, so each
+    // input is one contiguous FMA over all 32 outputs and nothing reduces.
+    alignas(64) float head[HEAD_SIZE];
+    std::memcpy(head, net.l2Biases + bucket * L2_SIZE, L2_SIZE * sizeof(float));
+
+    for (int c = 0; c < 2 * L1_SIZE; c++)
+    {
+        const float  x = l1Activations[c];
+        const float* w = net.l2Weights[bucket][c];
+        for (int j = 0; j < L2_SIZE; j++)
+            head[j] += x * w[j];
+    }
+
+    for (int j = 0; j < L2_SIZE; j++)
+        head[j] = screlu(head[j]);
+
+    // Skip connection: the output layer sees the L1 activations as well.
+    std::memcpy(head + L2_SIZE, l1Activations, sizeof(l1Activations));
+
+    // Eight partial sums: one 64-term float chain is not reassociable, so the
+    // compiler cannot split it. The order is a contract -- write_reference_cps
+    // in devre_plenty.rs sums the same way.
+    constexpr int LANES = 8;
+    static_assert(HEAD_SIZE % LANES == 0);
+
+    float partial[LANES] = {};
+    for (int c = 0; c < HEAD_SIZE; c += LANES)
+        for (int lane = 0; lane < LANES; lane++)
+            partial[lane] += head[c + lane] * net.l3Weights[bucket][c + lane];
+
+    float output = net.l3Biases[bucket];
+    for (int lane = 0; lane < LANES; lane++)
+        output += partial[lane];
+
+    const int score = static_cast<int>(output * EVAL_SCALE);
+    return std::clamp(score, -static_cast<int>(MAX_MATE_SCORE), static_cast<int>(MAX_MATE_SCORE));
+}
+
+/// Pairwise, side to move first, straight into the uint8 layout L1 wants. The
+/// product of two [0, 255] values fits a 16-bit lane, so a logical shift is the
+/// whole `>> INPUT_SHIFT` and nothing widens to int32.
+void NNUE::computePairwise(const int16_t* stm, const int16_t* nstm, uint8_t* out) {
+    const SIMD::vecType zero = SIMD::vecZero();
+    const SIMD::vecType clip = SIMD::vecSet1Epi16(static_cast<int16_t>(QA));
+
+    for (int perspective = 0; perspective < 2; perspective++)
+    {
+        const int16_t* acc  = perspective == 0 ? stm : nstm;
+        uint8_t*       dest = out + perspective * PW;
+
+        for (int i = 0; i < PW; i += 2 * SIMD::vecSize)
+        {
+            SIMD::vecType products[2];
+            for (int half = 0; half < 2; half++)
+            {
+                const int           at = i + half * SIMD::vecSize;
+                const SIMD::vecType lo = SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, SIMD::vecLoad(acc + at)));
+                const SIMD::vecType hi =
+                    SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, SIMD::vecLoad(acc + at + PW)));
+                products[half] = SIMD::vecSrliEpi16<INPUT_SHIFT>(SIMD::vecMulloEpi16(lo, hi));
+            }
+            SIMD::vecStoreRaw(dest + i, SIMD::packUnsignedEpi16(products[0], products[1]));
+        }
+    }
+}
+
+/// Eight output neurons at a time: one reduction tree, shared input loads.
+void NNUE::l1Dots(const uint8_t* pairwise, int bucket, int32_t* dots) const {
+    const NetworkData&  net  = *network;
+    const SIMD::vecType ones = SIMD::vecSet1Epi16(1);
+
+    for (int group = 0; group < L1_SIZE; group += 8)
+    {
+        SIMD::vecType sums[8];
+        for (int n = 0; n < 8; n++)
+            sums[n] = SIMD::vecZero();
+
+        for (int c = 0; c < 2 * PW; c += SIMD::vecSize * 2)
+        {
+            const SIMD::vecType inputs = SIMD::vecLoadRaw(pairwise + c);
+            for (int n = 0; n < 8; n++)
+            {
+                const SIMD::vecType w = SIMD::vecLoadRaw(net.l1Weights[bucket * L1_SIZE + group + n] + c);
+                sums[n] = SIMD::vecAddEpi32(sums[n], SIMD::vecMaddEpi16(SIMD::vecMaddubsEpi16(inputs, w), ones));
+            }
+        }
+
+        SIMD::vecReduceEpi32x8(sums[0], sums[1], sums[2], sums[3], sums[4], sums[5], sums[6], sums[7], dots + group);
+    }
+}
+
+int NNUE::runHead(const int16_t* stm, const int16_t* nstm, int bucket) const {
+    alignas(64) uint8_t pairwise[2 * PW];
+    alignas(64) int32_t dots[L1_SIZE];
+
+    computePairwise(stm, nstm, pairwise);
+    l1Dots(pairwise, bucket, dots);
+    return finishHead(dots, bucket);
+}
+
+// --- Evaluation -------------------------------------------------------------
+
+void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
+    if (!loaded)
+        return;
+
+    auto& acc = board.nnueData.accumulator[idx];
+
+    if (fromScratch || !acc.computed[WHITE] || !acc.computed[BLACK])
+    {
+        refresh(board, WHITE, acc.data[WHITE]);
+        refresh(board, BLACK, acc.data[BLACK]);
+        acc.computed[WHITE] = acc.computed[BLACK] = true;
+    }
+
+    acc.pawns[WHITE]  = board.bitboards[WHITE_PAWN];
+    acc.pawns[BLACK]  = board.bitboards[BLACK_PAWN];
+    acc.kingSq[WHITE] = static_cast<uint8_t>(bitScanForward(board.bitboards[WHITE_KING]));
+    acc.kingSq[BLACK] = static_cast<uint8_t>(bitScanForward(board.bitboards[BLACK_KING]));
+    acc.stateValid    = true;
+}
+
+int NNUE::evaluate(Board& board) {
+    if (!loaded)
+        return 0;
+
+    auto& acc = board.nnueData.accumulator[board.nnueData.size];
+
+    // makeMove fills this; it is missing only at a root set up without one.
+    if (!acc.stateValid)
+    {
+        acc.pawns[WHITE]  = board.bitboards[WHITE_PAWN];
+        acc.pawns[BLACK]  = board.bitboards[BLACK_PAWN];
+        acc.kingSq[WHITE] = static_cast<uint8_t>(bitScanForward(board.bitboards[WHITE_KING]));
+        acc.kingSq[BLACK] = static_cast<uint8_t>(bitScanForward(board.bitboards[BLACK_KING]));
+        acc.stateValid    = true;
+    }
+
+
+    updatePerspective(board, WHITE);
+    updatePerspective(board, BLACK);
+
+    return runHead(acc.data[board.sideToMove], acc.data[~board.sideToMove], outputBucket(board));
+}
 
 float NNUE::halfMoveScale(Board& board) { return (100.0f - board.halfMove) / 100.0f; }
 
 float NNUE::materialScale(Board& board) {
-    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT] | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP]) * 3.0f;
+    float gamePhase = popcount64(board.bitboards[WHITE_KNIGHT] | board.bitboards[BLACK_KNIGHT]
+                                 | board.bitboards[WHITE_BISHOP] | board.bitboards[BLACK_BISHOP])
+                    * 3.0f;
     gamePhase += popcount64(board.bitboards[WHITE_ROOK] | board.bitboards[BLACK_ROOK]) * 5.0f;
     gamePhase += popcount64(board.bitboards[WHITE_QUEEN] | board.bitboards[BLACK_QUEEN]) * 10.0f;
 
@@ -425,102 +563,90 @@ float NNUE::materialScale(Board& board) {
     return a + (b - a) * gamePhase / 64.0f;
 }
 
-bool NNUE::loadNetFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel) {
+// --- Loading ----------------------------------------------------------------
+
+bool NNUE::loadFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel) {
     auto fail = [&](const std::string& message) {
         std::cout << "info string Failed to load net from " << sourceLabel << ": " << message << std::endl;
+        loaded = false;
         return false;
     };
 
-    if (!data || size == 0)
-        return fail("empty buffer");
+    if (!data || size < HEADER_LEN)
+        return fail("shorter than the header");
 
-    const uint8_t*       cursor    = data;
-    const uint8_t* const end       = data + size;
-    auto                 readBytes = [&](void* dst, size_t bytes, const char* fieldName) {
-        if (bytes > static_cast<size_t>(end - cursor))
-            return fail(std::string("truncated at ") + fieldName);
+    if (std::memcmp(data, MAGIC, sizeof(MAGIC)) != 0)
+        return fail("bad magic (expected DVNNUE3)");
 
-        std::memcpy(dst, cursor, bytes);
-        cursor += bytes;
-        return true;
+    auto expect = [&](const char* field, uint64_t got, uint64_t want, bool& ok) {
+        if (got != want)
+        {
+            std::cout << "info string Network " << field << " is " << got << ", engine expects " << want << std::endl;
+            ok = false;
+        }
     };
-    auto readValue = [&](auto& value, const char* fieldName) { return readBytes(&value, sizeof(value), fieldName); };
 
-    char magic[sizeof(NET_MAGIC)]{};
-    if (!readValue(magic, "magic"))
-        return false;
-    if (std::memcmp(magic, NET_MAGIC, sizeof(NET_MAGIC)) != 0)
-        return fail("invalid magic");
+    bool ok = true;
+    expect("version", readU32(data, 8), NET_VERSION, ok);
+    expect("kingBuckets", readU32(data, 12), KING_BUCKETS, ok);
+    expect("ftSize", readU32(data, 16), NNUE_FT_OUT, ok);
+    expect("outputBuckets", readU32(data, 20), OUTPUT_BUCKETS, ok);
+    expect("pawnPairs", readU32(data, 24), PAWN_PAIRS, ok);
+    expect("psqFeatures", readU32(data, 28), PSQ_FEATURES, ok);
+    expect("inputQuant", readU32(data, 32), QA, ok);
+    expect("l1Quant", readU32(data, 36), L1_QUANT, ok);
+    expect("l1Size", readU32(data, 40), L1_SIZE, ok);
+    expect("l2Size", readU32(data, 44), L2_SIZE, ok);
+    if (!ok)
+        return fail("architecture mismatch");
 
-    uint32_t version   = 0;
-    float    l1Scale   = 0.0f;
-    uint32_t l1Rows    = 0;
-    uint32_t l1Cols    = 0;
-    uint32_t l1BiasLen = 0;
-    uint32_t l2Rows    = 0;
-    uint32_t l2Cols    = 0;
-    uint32_t l2BiasLen = 0;
-    uint32_t l3Rows    = 0;
-    uint32_t l3Cols    = 0;
-    uint32_t l3BiasLen = 0;
+    // Not sizeof(NetworkData): the struct is padded to its alignment, the file
+    // is not.
+    constexpr size_t payload = sizeof(NetworkData::ftWeights) + sizeof(NetworkData::ftBiases)
+                             + sizeof(NetworkData::l1Weights) + sizeof(NetworkData::l1Biases)
+                             + sizeof(NetworkData::l2Weights) + sizeof(NetworkData::l2Biases)
+                             + sizeof(NetworkData::l3Weights) + sizeof(NetworkData::l3Biases);
 
-    if (!readValue(version, "version") || !readValue(l1Scale, "l1_scale"))
-        return false;
+    if (size - HEADER_LEN < payload)
+        return fail("payload is " + std::to_string(size - HEADER_LEN) + " bytes, architecture needs "
+                    + std::to_string(payload));
 
-    if (!readValue(l1Rows, "l1_rows") || !readValue(l1Cols, "l1_cols") || !readValue(l1BiasLen, "l1_b_len") || !readValue(l2Rows, "l2_rows") || !readValue(l2Cols, "l2_cols")
-        || !readValue(l2BiasLen, "l2_b_len") || !readValue(l3Rows, "l3_rows") || !readValue(l3Cols, "l3_cols") || !readValue(l3BiasLen, "l3_b_len"))
-        return false;
+    if (!network)
+        network = std::make_unique<NetworkData>();
+    NetworkData& net = *network;
 
-    const bool dimsOk = l1Scale > 0.0f && l1Rows == NNUE_FEATURES && l1Cols == l1_cols && l1BiasLen == l1_cols && l2Rows == l2_rows && l2Cols == 2 * l1_cols && l2BiasLen == l2_rows && l3Rows == 1
-                     && l3Cols == l2_rows && l3BiasLen == 1;
-    if (!dimsOk)
-        return fail("unexpected dimensions");
+    const uint8_t* src  = data + HEADER_LEN;
+    auto           read = [&src](void* dst, size_t bytes) {
+        std::memcpy(dst, src, bytes);
+        src += bytes;
+    };
 
-    const int newL1Clip = std::max(1, static_cast<int>(std::lround(l1Scale)));
+    read(net.ftWeights, sizeof(net.ftWeights));
+    read(net.ftBiases, sizeof(net.ftBiases));
+    read(net.l1Weights, sizeof(net.l1Weights));
+    read(net.l1Biases, sizeof(net.l1Biases));
+    read(net.l2Weights, sizeof(net.l2Weights));
+    read(net.l2Biases, sizeof(net.l2Biases));
+    read(net.l3Weights, sizeof(net.l3Weights));
+    read(net.l3Biases, sizeof(net.l3Biases));
 
-    const size_t l1WeightCount = static_cast<size_t>(l1Rows) * l1Cols;
-    const size_t l1BiasCount   = l1BiasLen;
-    const size_t l2WeightCount = static_cast<size_t>(l2Rows) * l2Cols;
-    const size_t l2BiasCount   = l2BiasLen;
-    const size_t l3WeightCount = static_cast<size_t>(l3Rows) * l3Cols;
-
-    l1Clip = newL1Clip;
-    l1Weights.resize(l1WeightCount);
-    l2Weights.resize(l2WeightCount);
-
-    if (!readBytes(l2ClipByRow, l2Rows * sizeof(uint32_t), "l2_row_scales") || !readBytes(l1Weights.data(), l1Weights.size() * sizeof(int8_t), "l1_w"))
+    // L2 arrives output-major, evaluated input-major. Same bytes, so transpose
+    // in place.
+    for (int b = 0; b < OUTPUT_BUCKETS; b++)
     {
-        return false;
+        float raw[L2_SIZE][2 * L1_SIZE];
+        std::memcpy(raw, net.l2Weights[b], sizeof(raw));
+
+        for (int out = 0; out < L2_SIZE; out++)
+            for (int in = 0; in < 2 * L1_SIZE; in++)
+                net.l2Weights[b][in][out] = raw[out][in];
     }
 
-    for (uint32_t i = 0; i < l2Rows; i++)
-    {
-        if (l2ClipByRow[i] == 0)
-            return fail("l2_row_scales must be positive");
-    }
+    loaded = true;
 
-    for (uint32_t i = 0; i < l1BiasCount; i++)
-    {
-        int8_t bias = 0;
-        if (!readValue(bias, "l1_b"))
-            return false;
-
-        l1Biases[i] = bias;
-    }
-
-    if (!readBytes(l2Weights.data(), l2Weights.size() * sizeof(int16_t), "l2_w") || !readBytes(l2Biases, l2BiasCount * sizeof(int32_t), "l2_b")
-        || !readBytes(l3Weights, l3WeightCount * sizeof(float), "l3_w") || !readValue(l3Bias, "l3_b"))
-    {
-        return false;
-    }
-
-    for (uint32_t i = 0; i < l3WeightCount; i++)
-    {
-        const float scale = static_cast<float>(l2ClipByRow[i]);
-        l3Weights[i] /= scale * scale;
-    }
-
-    std::cout << "info string Loaded DevreNet v" << version << " from " << sourceLabel << " (" << l1Rows << "x" << l1Cols << " -> " << l2Rows << " -> 1)" << std::endl;
+    std::cout << "info string Loaded net from " << sourceLabel << " (" << NNUE_FT_IN << " -> " << NNUE_FT_OUT
+              << ", " << KING_BUCKETS << " king buckets, " << PAWN_PAIRS << " pawn pairs, " << OUTPUT_BUCKETS
+              << " output buckets)" << std::endl;
     return true;
 }
 
@@ -550,5 +676,5 @@ bool NNUE::loadNetwork(const std::string& filePath) {
         return false;
     }
 
-    return loadNetFromBuffer(bytes.data(), bytes.size(), filePath);
+    return loadFromBuffer(bytes.data(), bytes.size(), filePath);
 }
