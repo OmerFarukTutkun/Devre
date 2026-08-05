@@ -1,7 +1,8 @@
 #thanks for https://github.com/gab8192/Obsidian for Makefile
 CXX      = g++
 LIBS     = -lm
-NETWORK  = devre-f7b0506932d8.bin
+# Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
+NETWORK ?= devre-c3a7d0321623.bin
 
 M64     = -m64 -mpopcnt
 MSSE2   = $(M64) -msse -msse2

@@ -212,6 +212,8 @@ void Uci::setoption(std::vector<std::string>& commands) {
             {
                 board->nnueData.size = 0;
                 board->nnueData.accumulator[0].clear();
+                // The cached refresh accumulators belong to the old weights.
+                board->nnueData.clearRefreshCache();
             }
         }
         return;

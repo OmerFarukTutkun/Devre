@@ -301,6 +301,20 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     sideToMove = ~sideToMove;
     if (isCapture(move) || pieceType(piece) == PAWN)
         halfMove = 0;
+
+    // Four stores that let the NNUE update this ply without ever looking at an
+    // intermediate board: the pawn-pair delta needs the pawn sets on both sides
+    // of the move, and the king squares decide whether a perspective can be
+    // updated incrementally at all.
+    if (updateNNUE)
+    {
+        auto& acc          = nnueData.accumulator[nnueData.size];
+        acc.pawns[WHITE]   = bitboards[WHITE_PAWN];
+        acc.pawns[BLACK]   = bitboards[BLACK_PAWN];
+        acc.kingSq[WHITE]  = static_cast<uint8_t>(bitScanForward(bitboards[WHITE_KING]));
+        acc.kingSq[BLACK]  = static_cast<uint8_t>(bitScanForward(bitboards[BLACK_KING]));
+        acc.stateValid     = true;
+    }
 }
 
 void Board::unmakeMove(uint16_t move, bool updateNNUE) {

@@ -36,7 +36,9 @@ Devre is a strong open-source UCI-compatible chess engine written in C++. While 
 
 ## Evaluation
 
-Devre uses a `768 -> 2048x2 -> 1` SCReLU NNUE network for evaluation.
+Devre uses a `(768x12 + 4560) -> 1024x2 -> 16 -> 32 -> 1` NNUE network for evaluation.
+
+The inputs are king-bucketed piece-square features over 12 mirrored buckets, plus 4560 pawn-pair features. Each accumulator is combined pairwise into 512 activations, and the output head is picked from 8 material buckets.
 
 The net is trained using the [bullet](https://github.com/JWinslow23/bullet) trainer on self-generated training data available at [DevreChess/Datagen](https://huggingface.co/datasets/DevreChess/Datagen/tree/main).
 
