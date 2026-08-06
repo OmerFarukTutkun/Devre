@@ -3,6 +3,7 @@
 #include "tt.h"
 #include "move.h"
 #include "movegen.h"
+#include "movepick.h"
 #include "history.h"
 #include "util.h"
 #include <sstream>
@@ -196,18 +197,12 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         bestScore = standPat;
     }
 
-    auto moveList = MoveList(ttMove, true);
-    if (inCheck)
-        legalmoves<ALL_MOVES>(*board, moveList);
-    else
-        legalmoves<TACTICAL_MOVES>(*board, moveList);
+    MovePicker picker(thread, ss, ttMove, inCheck ? PICK_QSEARCH_CHECK : PICK_QSEARCH);
+    int        movesSeen = 0;
 
-    // checkmate
-    if (inCheck && moveList.numMove == 0)
-        return -(MAX_MATE_SCORE - ss->ply);
-
-    while ((move = moveList.pickMove(thread, ss)))
+    while ((move = picker.next()))
     {
+        movesSeen++;
 
         if (!inCheck && move != ttMove && !SEE(*board, move))
             continue;
@@ -235,6 +230,10 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         }
     }
 
+    // checkmate
+    if (inCheck && movesSeen == 0)
+        return -(MAX_MATE_SCORE - ss->ply);
+
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
@@ -255,7 +254,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return 0;
     }
-    if (thread.ThreadID == 0 && timeManager->shouldCheck() && timeManager->checkLimits(totalNodes()))
+    // The first iteration is never aborted: it is what produces the move we are
+    // going to send, and it costs a fraction of a millisecond.
+    if (thread.ThreadID == 0 && thread.searchDepth > 1 && timeManager->shouldCheck() && timeManager->checkLimits(totalNodes()))
     {
         stopped = true;
         return 0;
@@ -444,23 +445,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
-    auto moveList = MoveList(ttMove);
-    legalmoves<ALL_MOVES>(*board, moveList);
-
-    // checkmate or stalemate
-    if (0 == moveList.numMove)
-    {
-        return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
-    }
-    uint64_t beforeNodes = 0;
-    int      lmr;
-    uint16_t bestMove = NO_MOVE, move = NO_MOVE;
+    MovePicker picker(thread, ss, ttMove, PICK_MAIN);
+    uint64_t   beforeNodes = 0;
+    int        lmr;
+    uint16_t   bestMove = NO_MOVE, move = NO_MOVE;
 
     int moveCount = 0;
     ss->played    = 0;
 
     //loop moves
-    while ((move = moveList.pickMove(thread, ss)) != NO_MOVE)
+    while ((move = picker.next()) != NO_MOVE)
     {
 
         if (move == ss->excludedMove)
@@ -474,13 +468,21 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
-            // late move pruning
+            // late move pruning. Both this and the futility margin below only get
+            // stricter as moveCount grows, so the picker can drop every quiet
+            // move still to come instead of generating and scoring them.
             if (depth <= 6 && moveCount > 6 + (2 + 2 * improving) * depth)
+            {
+                picker.skipQuiets();
                 continue;
+            }
 
             // futility pruning
             if (depth <= 10 && eval + std::max(192, -moveCount * 10 + 192 + depth * 109) < alpha)
+            {
+                picker.skipQuiets();
                 continue;
+            }
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
@@ -613,6 +615,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             }
         }
     }
+
+    // checkmate or stalemate: with lazy generation we only know it once the
+    // picker is exhausted. A singular search must return its untouched
+    // bestScore instead, as it did when the excluded move was skipped here.
+    if (moveCount == 0)
+    {
+        if (ss->excludedMove != NO_MOVE)
+            return bestScore;
+        return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
+    }
     if (ss->excludedMove == NO_MOVE)
     {
         TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
@@ -640,6 +652,14 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         stopped  = false;
         seldepth = 0;
         std::fill(moveNodes, moveNodes + (1 << 16), 0);
+
+        // Have a legal move ready before searching anything. m_bestMove is only
+        // written when an iteration completes, so a search that is stopped
+        // before that would otherwise send the best move of the previous
+        // search, which is illegal in this position and loses the game.
+        MoveList rootMoves;
+        legalmoves<ALL_MOVES>(*board, rootMoves);
+        m_bestMove = (rootMoves.numMove > 0) ? rootMoves.moves[0] : NO_MOVE;
 
         for (int i = 0; i < numThread; i++)
         {

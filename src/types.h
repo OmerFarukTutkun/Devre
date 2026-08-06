@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifndef VERSION
-    #define VERSION "6.54"
+    #define VERSION "6.55"
 #endif
 
 constexpr auto MAX_PLY   = 100;

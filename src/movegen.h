@@ -215,10 +215,6 @@ void generateCastlingMoves(const Board& board, int kingSq, uint64_t occ, uint64_
                 //supports frc
                 uint64_t path              = SQUARES_BETWEEN[kingSq][kingTo] | SQUARES_BETWEEN[rook][rookTo] | (ONE << kingTo) | (ONE << rookTo);
                 uint64_t squaresKingPasses = SQUARES_BETWEEN[kingSq][kingTo] | (ONE << kingSq) | (ONE << kingTo);
-                // Only this side's king and rook may sit on the castling path. Use a
-                // local copy so clearing them does not leak into the other side's
-                // check: in DFRC one rook can stand on the other side's landing
-                // square, and mutating the shared occ would hide that blocker.
                 uint64_t pathOcc = occ & ~((ONE << kingSq) | (ONE << rook));
 
                 if (!((pathOcc & path) | (squaresKingPasses & seen)))
@@ -347,41 +343,63 @@ void generateLegalPawnMoves(const Board& board, int kingSq, uint64_t occAll, uin
     }
 }
 
+// Everything legalmoves() needs before it can emit a move. The staged move
+// picker computes it once and generates tacticals and quiets from it.
+struct MoveGenInfo {
+    int      kingSq;
+    int      numCheck;
+    uint64_t checkMask;
+    uint64_t seen;
+    uint64_t pinHv;
+    uint64_t pinD;
+    uint64_t occUs;
+    uint64_t occEnemy;
+    uint64_t occAll;
+};
+
+template<Color c>
+void prepareMoveGen(const Board& board, MoveGenInfo& info) {
+    info.kingSq    = bitScanForward(board.bitboards[pieceIndex(c, KING)]);
+    info.occUs     = board.occupied[c];
+    info.occEnemy  = board.occupied[~c];
+    info.occAll    = info.occUs | info.occEnemy;
+    info.numCheck  = 0;
+    info.checkMask = CheckMask<c>(board, info.kingSq, info.occAll, info.numCheck);
+    info.seen      = allAttackedSquares<~c>(board, info.occAll & (~(ONE << info.kingSq)));
+    info.pinHv     = pinMaskRooks<c>(board, info.kingSq, info.occUs, info.occEnemy);
+    info.pinD      = pinMaskBishops<c>(board, info.kingSq, info.occUs, info.occEnemy);
+}
+
+template<Color c, MoveGenerationTypes type>
+void generateMoves(const Board& board, const MoveGenInfo& info, MoveList& movelist) {
+    uint64_t movable = ~info.occUs;
+
+    generateLegalKingMoves<type>(info.kingSq, movable, info.occEnemy, info.seen, movelist);
+
+    if (info.numCheck >= 2)
+        return;
+
+    if ((type == ALL_MOVES || type == QUIET_MOVES) && board.castlings && info.numCheck == 0)
+        generateCastlingMoves<c>(board, info.kingSq, info.occAll, info.seen, info.pinHv, movelist);
+
+    movable &= info.checkMask;
+
+    uint64_t knights = board.bitboards[pieceIndex(c, KNIGHT)] & ~(info.pinD | info.pinHv);
+    uint64_t rooks   = (board.bitboards[pieceIndex(c, ROOK)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(info.pinD);
+    uint64_t bishops = (board.bitboards[pieceIndex(c, BISHOP)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(info.pinHv);
+
+    generateLegalPawnMoves<c, type>(board, info.kingSq, info.occAll, info.occEnemy, info.checkMask, info.pinHv, info.pinD, movelist);
+    generatePieceMoves<KNIGHT, type>(knights, movable, info.occAll, info.occEnemy, 0ULL, movelist);
+    generatePieceMoves<BISHOP, type>(bishops, movable, info.occAll, info.occEnemy, info.pinD, movelist);
+    generatePieceMoves<ROOK, type>(rooks, movable, info.occAll, info.occEnemy, info.pinHv, movelist);
+}
+
 // all legal moves for a position
 template<Color c, MoveGenerationTypes type>
 void legalmoves(const Board& board, MoveList& movelist) {
-
-    int      kingSq   = bitScanForward(board.bitboards[pieceIndex(c, KING)]);
-    uint64_t occUs    = board.occupied[c];
-    uint64_t occEnemy = board.occupied[~c];
-    uint64_t occAll   = occUs | occEnemy;
-    int      numCheck = 0;
-
-    const uint64_t checkMask = CheckMask<c>(board, kingSq, occAll, numCheck);
-    auto           seen      = allAttackedSquares<~c>(board, occAll & (~(ONE << kingSq)));
-    auto           pin_hv    = pinMaskRooks<c>(board, kingSq, occUs, occEnemy);
-    auto           pin_d     = pinMaskBishops<c>(board, kingSq, occUs, occEnemy);
-    uint64_t       movable   = ~occUs;
-
-    generateLegalKingMoves<type>(kingSq, movable, occEnemy, seen, movelist);
-
-    if (numCheck >= 2)
-        return;
-
-    if (type == ALL_MOVES && board.castlings && numCheck == 0)
-        generateCastlingMoves<c>(board, kingSq, occAll, seen, pin_hv, movelist);
-
-
-    movable &= checkMask;
-
-    uint64_t knights = board.bitboards[pieceIndex(c, KNIGHT)] & ~(pin_d | pin_hv);
-    uint64_t rooks   = (board.bitboards[pieceIndex(c, ROOK)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_d);
-    uint64_t bishops = (board.bitboards[pieceIndex(c, BISHOP)] | board.bitboards[pieceIndex(c, QUEEN)]) & ~(pin_hv);
-
-    generateLegalPawnMoves<c, type>(board, kingSq, occAll, occEnemy, checkMask, pin_hv, pin_d, movelist);
-    generatePieceMoves<KNIGHT, type>(knights, movable, occAll, occEnemy, 0ULL, movelist);
-    generatePieceMoves<BISHOP, type>(bishops, movable, occAll, occEnemy, pin_d, movelist);
-    generatePieceMoves<ROOK, type>(rooks, movable, occAll, occEnemy, pin_hv, movelist);
+    MoveGenInfo info;
+    prepareMoveGen<c>(board, info);
+    generateMoves<c, type>(board, info, movelist);
 }
 
 // all legal moves for a position
