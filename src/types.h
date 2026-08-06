@@ -13,11 +13,17 @@
 #include <vector>
 
 #ifndef VERSION
-    #define VERSION "6.55"
+    #define VERSION "7.0"
 #endif
 
 constexpr auto MAX_PLY   = 100;
 constexpr auto START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Internal eval units per reported pawn. Fitted on 3.2M positions from 37836
+// self-play games: a position worth this much internally is won half the time,
+// so "score cp 100" means a 50% win probability, as in Stockfish. Only the
+// reported score is scaled; search and datagen keep the internal units.
+constexpr int NORMALIZE_TO_PAWN = 325;
 
 enum Score : int16_t {
     MAX_MATE_SCORE = 32000,
@@ -257,7 +263,6 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
 // One sparse index space: 12*768 king-bucketed piece-square features followed
 // by 96*95/2 pawn pairs. NNUE_FT_OUT must match the trainer's FT constant in
-// bullet's examples/devre_plenty.rs.
 constexpr int NNUE_FT_IN = 12 * 768 + 96 * 95 / 2;  // 13776
 constexpr int NNUE_FT_OUT = 1024;
 

@@ -739,7 +739,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             std::cout << " seldepth " << seldepth;
             if (abs(score) < MIN_MATE_SCORE)
             {
-                std::cout << " score cp " << score / 2;
+                std::cout << " score cp " << 100 * score / NORMALIZE_TO_PAWN;
             }
             else
             {
@@ -780,7 +780,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
         runningThreads.clear();
 
-        res.cp    = score / 2;
+        res.cp    = 100 * score / NORMALIZE_TO_PAWN;
         res.move  = this->m_bestMove;
         res.nodes = totalNodes();
         TT::Instance()->updateAge();

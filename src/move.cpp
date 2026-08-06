@@ -9,7 +9,7 @@ constexpr int16_t SEE_VALUE[] = {100, 300, 300, 500, 1000, 0, 0, 0, 100, 300, 30
 
 std::string moveToUci(uint16_t move, Board& board) {
     std::stringstream ss;
-    if (move == NULL_MOVE)
+    if (move == NO_MOVE || move == NULL_MOVE)
     {
         ss << "0000";
         return ss.str();

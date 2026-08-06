@@ -9,8 +9,8 @@
 #include <memory>
 #include <string>
 
-// Trained by bullet examples/devre_plenty.rs.
-//
+
+
 //     inputs, per perspective, one index space of NNUE_FT_IN:
 //         [0, PSQ_FEATURES)      12 mirrored king buckets x 768
 //         [PSQ_FEATURES, FT_IN)  4560 unordered pairs of 96 pawn ids
@@ -42,7 +42,6 @@ class NNUE {
     static_assert(NNUE_FT_OUT % 2 == 0, "the pairwise stage halves the accumulator");
 
    private:
-    // In the order devre_plenty.rs writes it.
     struct NetworkData {
         alignas(64) int16_t ftWeights[static_cast<size_t>(NNUE_FT_IN) * NNUE_FT_OUT];
         alignas(64) int16_t ftBiases[NNUE_FT_OUT];
@@ -93,7 +92,6 @@ class NNUE {
     bool loadFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
 
    public:
-    // --- Feature indexing, mirrored in devre_plenty.rs.
 
     static int psqFeature(int piece, int square, Color perspective, PerspectiveKey key);
 

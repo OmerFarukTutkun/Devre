@@ -47,15 +47,9 @@ void TimeManager::start() {
     hardTime = remainingTime * hardTimePercentage / 100 + inc - overhead;
     hardTime = std::min(hardTime, 80 * remainingTime / 100);
 
-    // The move still has to reach the gui before the flag falls, and with a
-    // nearly empty clock the formula above can even go negative. Answering late
-    // loses the game outright, so cap on what is really left and keep the limit
-    // positive: a search that is out of time must still return a legal move.
     hardTime = std::min(hardTime, remainingTime - overhead);
     hardTime = std::max<int64_t>(hardTime, 1);
 
     softTime = remainingTime * softTimePercentage / 100 + inc;
-
-    //starting an iteration we cannot finish only burns the little time we have
     softTime = std::min(softTime, hardTime);
 }

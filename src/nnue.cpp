@@ -18,7 +18,6 @@ INCBIN(EmbeddedNet, NET);
 
 namespace {
 
-// Internal units per logit. Must match ENGINE_SCALE in devre_plenty.rs.
 constexpr int EVAL_SCALE = 400;
 
 // The pairwise stage lands at QA * QA >> INPUT_SHIFT = 127.002, not QA.
@@ -29,7 +28,6 @@ static_assert(PAIRWISE_MAX == 127, "the pairwise activations must fit in int8");
 
 static_assert(2 * PAIRWISE_MAX * 127 <= 32767, "maddubs would saturate");
 
-// Must match KING_BUCKET_LAYOUT in devre_plenty.rs.
 // clang-format off
 constexpr uint8_t KING_BUCKET_LAYOUT[64] = {
      0,  1,  2,  3,  3,  2,  1,  0,
@@ -420,9 +418,7 @@ int NNUE::finishHead(const int32_t* l1Dots, int bucket) const {
     // Skip connection: the output layer sees the L1 activations as well.
     std::memcpy(head + L2_SIZE, l1Activations, sizeof(l1Activations));
 
-    // Eight partial sums: one 64-term float chain is not reassociable, so the
-    // compiler cannot split it. The order is a contract -- write_reference_cps
-    // in devre_plenty.rs sums the same way.
+    
     constexpr int LANES = 8;
     static_assert(HEAD_SIZE % LANES == 0);
 

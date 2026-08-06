@@ -3,35 +3,13 @@
 Devre is a strong open-source UCI-compatible chess engine written in C++. While writing the engine, I got great help from chessprogramming wiki, talkchess forum, Stockfish discord, and some open-source engines: Ethereal, Vice, and Koivisto. 
 
 
-## Movegen
+## Features
 
-* Fancy magic bitboards
-* legal movegen with make/unmake.
+* Multithreaded search (Lazy SMP)
+* Syzygy tablebase support
+* Chess960 (FRC and DFRC)
+* NNUE evaluation, embedded in the binary
 
-
-
-## Search
-* Alpha beta search (PVS)
-* Quiessence search
-* Transposition table
-* Iterative Depening
-* Aspiration Window
-* Null Move Pruning
-* Mate Distance Pruning
-* Late Move Reduction
-* Check Extension
-* Futility prunings
-* SEE pruning
-* Singular Extension
-* Correction History
-
-## Move ordering
-*  Hash move
-*  Good Captures sorted by Capture History
-*  Killer moves
-*  countermove
-*  History heuristic
-*  Bad Captures sorted  by Capture History
 
 
 ## Evaluation
@@ -40,7 +18,7 @@ Devre uses a `(768x12 + 4560) -> 1024x2 -> 16 -> 32 -> 1` NNUE network for evalu
 
 The inputs are king-bucketed piece-square features over 12 mirrored buckets, plus 4560 pawn-pair features. Each accumulator is combined pairwise into 512 activations, and the output head is picked from 8 material buckets.
 
-The net is trained using the [bullet](https://github.com/JWinslow23/bullet) trainer on self-generated training data available at [DevreChess/Datagen](https://huggingface.co/datasets/DevreChess/Datagen/tree/main).
+The net is trained using the [bullet](https://github.com/JWinslow23/bullet) trainer on self-generated training data.
 
 
 ## Compiling 
