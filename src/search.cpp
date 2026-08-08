@@ -196,7 +196,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         }
         bestScore = standPat;
     }
-
+    ss->threat = board->threat();
     MovePicker picker(thread, ss, ttMove, inCheck ? PICK_QSEARCH_CHECK : PICK_QSEARCH);
     int        movesSeen = 0;
 
@@ -291,10 +291,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return board->eval();
     }
-    //calculate opponent threats
-    ss->threat = board->threat();
-    //find we are in check or not by using opponent threat
-    bool inCheck = board->inCheck(ss->threat);
+
+    bool inCheck = board->inCheck();
 
     //check Extension
     if (!rootNode && inCheck)
@@ -324,7 +322,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
     }
     const bool ttCapture = isTactical(ttMove);
-
+    
+    ss->threat = board->threat();
     // Probe tablebases
     uint32_t tbResult = (rootNode || ss->excludedMove) ? TB_RESULT_FAILED : probeTB(*board);
 
