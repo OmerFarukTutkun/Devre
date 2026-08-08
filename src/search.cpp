@@ -20,15 +20,75 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+// --- Search parameters -----------------------------------------------------
+// Reverse futility pruning
+DEFINE_PARAM_B(rfpMargin, 107, 50, 170);
+DEFINE_PARAM_B(rfpMaxDepth, 8, 4, 12);
+
+// Razoring
+DEFINE_PARAM_B(razorMargin, 408, 200, 620);
+DEFINE_PARAM_B(razorMaxDepth, 4, 2, 8);
+
+// Null move pruning
+DEFINE_PARAM_B(nmpBase, 4, 2, 6);
+DEFINE_PARAM_B(nmpDepthDiv, 4, 2, 8);
+DEFINE_PARAM_B(nmpEvalDiv, 177, 90, 280);
+DEFINE_PARAM_B(nmpEvalMax, 3, 1, 6);
+DEFINE_PARAM_B(nmpMinDepth, 2, 1, 5);
+
+// Late move pruning
+DEFINE_PARAM_B(lmpBase, 6, 2, 12);
+DEFINE_PARAM_B(lmpScale, 2, 1, 5);
+DEFINE_PARAM_B(lmpImprovingScale, 2, 0, 5);
+DEFINE_PARAM_B(lmpMaxDepth, 6, 3, 10);
+
+// Quiet futility pruning
+DEFINE_PARAM_B(futBase, 192, 90, 300);
+DEFINE_PARAM_B(futMoveCountScale, 10, 0, 25);
+DEFINE_PARAM_B(futDepthScale, 109, 50, 175);
+DEFINE_PARAM_B(futMaxDepth, 10, 5, 14);
+
+// Continuation history pruning
+DEFINE_PARAM_B(contHistPruneMargin, 3633, 1800, 5500);
+DEFINE_PARAM_B(contHistPruneMaxDepth, 3, 1, 6);
+
+// SEE pruning
+DEFINE_PARAM_B(seeMaxDepth, 5, 3, 9);
+DEFINE_PARAM_B(seeQuietMargin, 97, 40, 160);
+DEFINE_PARAM_B(seeNoisyMargin, 324, 150, 500);
+
+// Move count thresholds before pruning / reductions start
+DEFINE_PARAM_B(prunePruneMinMoves, 3, 1, 6);
+DEFINE_PARAM_B(seePruneMinMoves, 3, 1, 6);
+
+// Late move reductions. lmrBase and lmrDivisor are in hundredths.
+DEFINE_PARAM_B(lmrBase, 28, 0, 90);
+DEFINE_PARAM_B(lmrDivisor, 257, 180, 340);
+DEFINE_PARAM_B(lmrHistDiv, 8474, 4000, 13000);
+DEFINE_PARAM_B(lmrCorrThreshold, 350, 150, 600);
+DEFINE_PARAM_B(lmrMinMoves, 2, 1, 5);
+DEFINE_PARAM_B(lmrMinDepth, 2, 1, 5);
+
+// Deeper / shallower re-search after a reduced search beats alpha
+DEFINE_PARAM_B(doDeeperBase, 35, 10, 70);
+DEFINE_PARAM_B(doDeeperScale, 2, 0, 5);
+
+// Internal iterative reduction
+DEFINE_PARAM_B(iirMinDepth, 3, 2, 7);
+
+// Aspiration windows
+DEFINE_PARAM_B(aspWindow, 20, 8, 40);
+DEFINE_PARAM_B(aspWidenDiv, 3, 1, 6);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
     if (quiet)
     {
-        return -97 * depth;
+        return -seeQuietMargin * depth;
     }
     else
-        return -324 * depth;
+        return -seeNoisyMargin * depth;
 }
 
 void Search::initSearchParameters() {
@@ -37,7 +97,7 @@ void Search::initSearchParameters() {
         for (int j = 0; j < 256; j++)
         {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 0.28 + log(i) * log(j - 1) / 2.57;
+                LMR_TABLE[i][j] = lmrBase / 100.0 + log(i) * log(j - 1) / (lmrDivisor / 100.0);
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -400,23 +460,22 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         eval = ttScore;
 
     //IIR
-    if (!ttHit && depth >= 3)
+    if (!ttHit && depth >= iirMinDepth)
         depth -= 1;
     else if (!PVNode && depth >= 8 && ttMove != NO_MOVE && ttDepth + 4 <= depth)
         depth -= 1;
 
 
-    if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && std::abs(eval) < MIN_TB_SCORE)
+    if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= rfpMaxDepth && std::abs(eval) < MIN_TB_SCORE)
     {
-        const int rfpDepth  = std::max(0, depth - improving);
-        const int rfpMargin = 107  * rfpDepth ;
+        const int rfpDepth = std::max(0, depth - improving);
 
-        if (eval - rfpMargin >= beta)
+        if (eval - rfpMargin * rfpDepth >= beta)
             return (eval + beta) / 2;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 408 * depth < alpha)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= razorMaxDepth && eval + razorMargin * depth < alpha)
     {
         int score = qsearch(alpha, beta, thread, ss);
         if (score < alpha)
@@ -430,9 +489,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta && board->hasNonPawnPieces())
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= nmpMinDepth && eval > beta && board->hasNonPawnPieces())
     {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
+        int R = nmpBase + depth / nmpDepthDiv + std::min<int>(nmpEvalMax, (eval - beta) / nmpEvalDiv);
 
         ss->move                = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -466,19 +525,19 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             beforeNodes = thread.nodes;
         ss->move = move;
 
-        if (isQuiet(move) && moveCount > 3 && !PVNode)
+        if (isQuiet(move) && moveCount > prunePruneMinMoves && !PVNode)
         {
             // late move pruning. Both this and the futility margin below only get
             // stricter as moveCount grows, so the picker can drop every quiet
             // move still to come instead of generating and scoring them.
-            if (depth <= 6 && moveCount > 6 + (2 + 2 * improving) * depth)
+            if (depth <= lmpMaxDepth && moveCount > lmpBase + (lmpScale + lmpImprovingScale * improving) * depth)
             {
                 picker.skipQuiets();
                 continue;
             }
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(192, -moveCount * 10 + 192 + depth * 109) < alpha)
+            if (depth <= futMaxDepth && eval + std::max<int>(futBase, -moveCount * futMoveCountScale + futBase + depth * futDepthScale) < alpha)
             {
                 picker.skipQuiets();
                 continue;
@@ -486,10 +545,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
-            if (depth <= 3 && contHist < -3633)
+            if (depth <= contHistPruneMaxDepth && contHist < -contHistPruneMargin)
                 continue;
         }
-        if (moveCount > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (moveCount > seePruneMinMoves && !PVNode && depth <= seeMaxDepth && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
@@ -498,7 +557,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         int history = 0;
         lmr         = 0;
-        if (moveCount > 2 && depth > 2)
+        if (moveCount > lmrMinMoves && depth > lmrMinDepth)
         {
             lmr = LMR_TABLE[depth][moveCount];
             lmr -= PVNode;  //reduce less for PV nodes
@@ -509,10 +568,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread, ss, move);
 
-            lmr -= std::clamp(history / 8474, -2, 2);
+            lmr -= std::clamp(history / lmrHistDiv, -2, 2);
             lmr += cutNode;
             lmr += ttMove && ttCapture;
-            lmr -= std::abs(ss->staticEval - rawEval) > 350;
+            lmr -= std::abs(ss->staticEval - rawEval) > lmrCorrThreshold;
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
@@ -568,7 +627,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (score > alpha && d < newDepth)
             {
 
-                const bool doDeeperSearch    = score > (bestScore + 35 + 2 * newDepth);
+                const bool doDeeperSearch    = score > (bestScore + doDeeperBase + doDeeperScale * newDepth);
                 const bool doShallowerSearch = score < bestScore + newDepth;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -693,7 +752,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         // aspiration window search
         if (i > 4)
         {
-            int windowSize  = 20;
+            int windowSize  = aspWindow;
             int alpha       = score - windowSize;
             int beta        = score + windowSize;
             int failHighCnt = 0;
@@ -716,7 +775,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                     failHighCnt++;
                 }
 
-                windowSize += windowSize / 3;
+                windowSize += windowSize / aspWidenDiv;
             }
         }
         else

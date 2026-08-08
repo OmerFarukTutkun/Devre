@@ -2,14 +2,28 @@
 #include "tuning.h"
 #include "nnue.h"
 
-const int HistoryDivisor = 16384;
+DEFINE_PARAM_B(histDivisor, 16384, 8000, 26000);
+DEFINE_PARAM_B(histBonusScale, 400, 180, 620);
+DEFINE_PARAM_B(histBonusOffset, 100, 0, 300);
+DEFINE_PARAM_B(histBonusMax, 1500, 700, 2400);
 
-int statBonus(int depth) { return std::min(400 * depth - 100, 1500); }
+// Correction history. The 512 denominator is left fixed: scaling every
+// numerator is the same move, so tuning it too would be a redundant direction.
+DEFINE_PARAM_B(corrWeightPawn, 52, 0, 128);
+DEFINE_PARAM_B(corrWeightNonPawnW, 52, 0, 128);
+DEFINE_PARAM_B(corrWeightNonPawnB, 52, 0, 128);
+DEFINE_PARAM_B(corrWeightCont, 47, 0, 128);
+DEFINE_PARAM_B(corrWeightThreat, 37, 0, 128);
+DEFINE_PARAM_B(corrWeightMajor, 30, 0, 128);
+DEFINE_PARAM_B(corrHistD, 1024, 512, 2048);
+DEFINE_PARAM_B(corrBonusDiv, 8, 2, 20);
+
+int statBonus(int depth) { return std::min<int>(histBonusScale * depth - histBonusOffset, histBonusMax); }
 
 void updateHistory(int16_t* current, int depth, bool good) {
 
     const int delta = good ? statBonus(depth) : -statBonus(depth);
-    *current += delta - *current * std::abs(delta) / HistoryDivisor;
+    *current += delta - *current * std::abs(delta) / histDivisor;
 }
 // When a node fails low, the opponent's previous quiet move "worked":
 // give it a continuation-history bonus.
@@ -156,8 +170,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
-    const int bonus        = diff * depth / 8;
-    const int D            = 1024;
+    const int bonus        = diff * depth / corrBonusDiv;
+    const int D            = corrHistD;
     int       clampedBonus = std::clamp(bonus, -D, D);
 
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
@@ -206,8 +220,9 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
         threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
-    const int average =
-      (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry * 30) / 512;
+    const int average = (corrWeightPawn * pawnCorrHistEntry + corrWeightNonPawnW * nonPawnCorrHistEntryWhite + corrWeightNonPawnB * nonPawnCorrHistEntryBlack
+                         + contcorrHistEntry * corrWeightCont + threatLastMoveCorrHistEntry * corrWeightThreat + majorCorrHistEntry * corrWeightMajor)
+                      / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);
