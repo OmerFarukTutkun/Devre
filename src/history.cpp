@@ -2,9 +2,9 @@
 #include "tuning.h"
 #include "nnue.h"
 
-const int HistoryDivisor = 16384;
+const int HistoryDivisor = 17417;
 
-int statBonus(int depth) { return std::min(400 * depth - 100, 1500); }
+int statBonus(int depth) { return std::min(452 * depth - 92, 1741); }
 
 void updateHistory(int16_t* current, int depth, bool good) {
 
@@ -156,8 +156,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
-    const int bonus        = diff * depth / 8;
-    const int D            = 1024;
+    const int bonus        = diff * depth / 6;
+    const int D            = 926;
     int       clampedBonus = std::clamp(bonus, -D, D);
 
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
@@ -207,7 +207,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     }
 
     const int average =
-      (52 * pawnCorrHistEntry + 52 * nonPawnCorrHistEntryWhite + 52 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 47 + threatLastMoveCorrHistEntry * 37 + majorCorrHistEntry * 30) / 512;
+      (41 * pawnCorrHistEntry + 51 * nonPawnCorrHistEntryWhite + 49 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 66 + threatLastMoveCorrHistEntry * 35 + majorCorrHistEntry * 13) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);

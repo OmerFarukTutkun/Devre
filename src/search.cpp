@@ -25,10 +25,10 @@ int LMR_TABLE[MAX_PLY][256];
 int seeThreshold(bool quiet, int depth) {
     if (quiet)
     {
-        return -97 * depth;
+        return -80 * depth;
     }
     else
-        return -324 * depth;
+        return -326 * depth;
 }
 
 void Search::initSearchParameters() {
@@ -37,7 +37,7 @@ void Search::initSearchParameters() {
         for (int j = 0; j < 256; j++)
         {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 0.28 + log(i) * log(j - 1) / 2.57;
+                LMR_TABLE[i][j] = 0.17 + log(i) * log(j - 1) / 2.35;
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -196,7 +196,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         }
         bestScore = standPat;
     }
-
+    ss->threat = board->threat();
     MovePicker picker(thread, ss, ttMove, inCheck ? PICK_QSEARCH_CHECK : PICK_QSEARCH);
     int        movesSeen = 0;
 
@@ -291,10 +291,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         return board->eval();
     }
-    //calculate opponent threats
-    ss->threat = board->threat();
-    //find we are in check or not by using opponent threat
-    bool inCheck = board->inCheck(ss->threat);
+
+    bool inCheck = board->inCheck();
 
     //check Extension
     if (!rootNode && inCheck)
@@ -325,6 +323,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     }
     const bool ttCapture = isTactical(ttMove);
 
+     ss->threat = board->threat();
     // Probe tablebases
     uint32_t tbResult = (rootNode || ss->excludedMove) ? TB_RESULT_FAILED : probeTB(*board);
 
@@ -400,7 +399,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         eval = ttScore;
 
     //IIR
-    if (!ttHit && depth >= 3)
+    if (!ttHit && depth >= 2)
         depth -= 1;
     else if (!PVNode && depth >= 8 && ttMove != NO_MOVE && ttDepth + 4 <= depth)
         depth -= 1;
@@ -409,14 +408,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 8 && std::abs(eval) < MIN_TB_SCORE)
     {
         const int rfpDepth  = std::max(0, depth - improving);
-        const int rfpMargin = 107  * rfpDepth ;
+        const int rfpMargin = 115 * rfpDepth;
 
         if (eval - rfpMargin >= beta)
             return (eval + beta) / 2;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 408 * depth < alpha)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 4 && eval + 441 * depth < alpha)
     {
         int score = qsearch(alpha, beta, thread, ss);
         if (score < alpha)
@@ -430,9 +429,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 2 && eval > beta && board->hasNonPawnPieces())
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 3 && eval > beta && board->hasNonPawnPieces())
     {
-        int R = 4 + depth / 4 + std::min(3, (eval - beta) / 177);
+        int R = 5 + depth / 3 + std::min(4, (eval - beta) / 155);
 
         ss->move                = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -471,14 +470,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             // late move pruning. Both this and the futility margin below only get
             // stricter as moveCount grows, so the picker can drop every quiet
             // move still to come instead of generating and scoring them.
-            if (depth <= 6 && moveCount > 6 + (2 + 2 * improving) * depth)
+            if (depth <= 7 && moveCount > 6 + (3 + 3 * improving) * depth)
             {
                 picker.skipQuiets();
                 continue;
             }
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(192, -moveCount * 10 + 192 + depth * 109) < alpha)
+            if (depth <= 10 && eval + std::max(180, -moveCount * 10 + 180 + depth * 110) < alpha)
             {
                 picker.skipQuiets();
                 continue;
@@ -486,10 +485,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
-            if (depth <= 3 && contHist < -3633)
+            if (depth <= 4 && contHist < -3410)
                 continue;
         }
-        if (moveCount > 3 && !PVNode && depth <= 5 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (moveCount > 1 && !PVNode && depth <= 6 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
@@ -498,7 +497,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         int history = 0;
         lmr         = 0;
-        if (moveCount > 2 && depth > 2)
+        if (moveCount > 3 && depth > 2)
         {
             lmr = LMR_TABLE[depth][moveCount];
             lmr -= PVNode;  //reduce less for PV nodes
@@ -509,10 +508,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread, ss, move);
 
-            lmr -= std::clamp(history / 8474, -2, 2);
+            lmr -= std::clamp(history / 8078, -2, 2);
             lmr += cutNode;
             lmr += ttMove && ttCapture;
-            lmr -= std::abs(ss->staticEval - rawEval) > 350;
+            lmr -= std::abs(ss->staticEval - rawEval) > 329;
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
@@ -568,7 +567,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (score > alpha && d < newDepth)
             {
 
-                const bool doDeeperSearch    = score > (bestScore + 35 + 2 * newDepth);
+                const bool doDeeperSearch    = score > (bestScore + 39 + 3 * newDepth);
                 const bool doShallowerSearch = score < bestScore + newDepth;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -693,7 +692,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         // aspiration window search
         if (i > 4)
         {
-            int windowSize  = 20;
+            int windowSize  = 30;
             int alpha       = score - windowSize;
             int beta        = score + windowSize;
             int failHighCnt = 0;
@@ -716,7 +715,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
                     failHighCnt++;
                 }
 
-                windowSize += windowSize / 3;
+                windowSize += windowSize;
             }
         }
         else
