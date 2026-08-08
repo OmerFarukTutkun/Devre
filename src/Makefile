@@ -2,7 +2,7 @@
 CXX      = g++
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
-NETWORK ?= devre-c3a7d0321623.bin
+NETWORK ?= devre-63f2cfde8c5d.bin
 
 M64     = -m64 -mpopcnt
 MSSE2   = $(M64) -msse -msse2

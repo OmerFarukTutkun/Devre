@@ -14,8 +14,8 @@
 //     inputs, per perspective, one index space of NNUE_FT_IN:
 //         [0, PSQ_FEATURES)      12 mirrored king buckets x 768
 //         [PSQ_FEATURES, FT_IN)  4560 unordered pairs of 96 pawn ids
-//     FT:        NNUE_FT_IN -> NNUE_FT_OUT, int16 accumulator at QA
-//     pairwise:  (crelu(lo) * crelu(hi)) >> INPUT_SHIFT, in [0, 127]
+//     FT:        NNUE_FT_IN -> NNUE_FT_OUT, int8 weights, int16 accumulator
+//     pairwise:  (crelu(lo) * crelu(hi)) >> INPUT_SHIFT, in [0, 126]
 //     head, per material bucket:
 //         2*PW -> L1_SIZE        int8 at L1_QUANT, float bias
 //         [crelu | screlu]       -> 2*L1_SIZE
@@ -34,8 +34,11 @@ class NNUE {
     static constexpr int HEAD_SIZE      = L2_SIZE + 2 * L1_SIZE;         // 64, [L2 act | L1 act]
     static constexpr int OUTPUT_BUCKETS = 8;
 
-    static constexpr int QA          = 255;  // FT / accumulator scale
-    static constexpr int INPUT_SHIFT = 9;    // pairwise right shift
+    // QA is 127 rather than 255 so every FT weight fits int8 without clipping.
+    // Clipping instead was measured at 71 cp against 25; the largest weights are
+    // worth far more than their share of the weight mass suggests.
+    static constexpr int QA          = 127;  // FT / accumulator scale
+    static constexpr int INPUT_SHIFT = 7;    // pairwise right shift
     static constexpr int L1_QUANT    = 64;   // int8 L1 weight scale
 
     static_assert(NNUE_FT_IN == PSQ_FEATURES + PAWN_PAIRS, "input space must be psq + pawn pairs");
@@ -43,9 +46,12 @@ class NNUE {
 
    private:
     struct NetworkData {
-        alignas(64) int16_t ftWeights[static_cast<size_t>(NNUE_FT_IN) * NNUE_FT_OUT];
+        alignas(64) int8_t  ftWeights[static_cast<size_t>(NNUE_FT_IN) * NNUE_FT_OUT];
         alignas(64) int16_t ftBiases[NNUE_FT_OUT];
         alignas(64) int8_t  l1Weights[OUTPUT_BUCKETS * L1_SIZE][2 * PW];
+        // Dequantisation factor per output neuron: each row is quantised against
+        // its own largest weight, so rows with small weights stop wasting range.
+        alignas(64) float   l1Norm[OUTPUT_BUCKETS * L1_SIZE];
         alignas(64) float   l1Biases[OUTPUT_BUCKETS * L1_SIZE];
         // Input-major; see the L2 loop in finishHead.
         alignas(64) float   l2Weights[OUTPUT_BUCKETS][2 * L1_SIZE][L2_SIZE];
@@ -81,7 +87,7 @@ class NNUE {
     /// Rows turning one pawn placement into another. With R removed, A added
     /// and K kept, pairs(K) cancels, so only rows touching a moved pawn change.
     void pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curPawns[N_COLORS], Color perspective,
-                       PerspectiveKey key, const int16_t** addRows, int& nAdd, const int16_t** subRows,
+                       PerspectiveKey key, const int8_t** addRows, int& nAdd, const int8_t** subRows,
                        int& nSub) const;
 
     static void computePairwise(const int16_t* stm, const int16_t* nstm, uint8_t* out);
