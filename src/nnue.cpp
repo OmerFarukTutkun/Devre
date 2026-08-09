@@ -445,7 +445,7 @@ int NNUE::finishHead(const int32_t* l1Dots, int bucket) const {
 void NNUE::computePairwise(const int16_t* stm, const int16_t* nstm, uint8_t* out) {
     const SIMD::vecType zero      = SIMD::vecZero();
     const SIMD::vecType clip      = SIMD::vecSet1Epi16(static_cast<int16_t>(QA));
-    const SIMD::vecType roundBias = SIMD::vecSet1Epi16( static_cast<int16_t>(QA+1)/2);
+    const SIMD::vecType roundBias = SIMD::vecSet1Epi16(1 << (INPUT_SHIFT - 1));
 
     for (int perspective = 0; perspective < 2; perspective++)
     {
