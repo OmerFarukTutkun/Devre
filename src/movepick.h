@@ -15,8 +15,8 @@ constexpr int GOOD_TACTICAL_THRESHOLD = 9500000;
 
 enum PickMode : uint8_t {
     PICK_MAIN,           // alphaBeta
-    PICK_QSEARCH,        // qsearch, not in check
-    PICK_QSEARCH_CHECK,  // qsearch in check: generate everything at once
+    PICK_QSEARCH,        // qsearch, not in check: tacticals only
+    PICK_QSEARCH_CHECK,  // qsearch in check: every evasion, same stages as alphaBeta
 };
 
 enum PickStage : uint8_t {
@@ -26,8 +26,6 @@ enum PickStage : uint8_t {
     STAGE_REFUTATION,
     STAGE_GEN_QUIET,
     STAGE_REST,
-    STAGE_LEGACY_INIT,
-    STAGE_LEGACY_PICK,
     STAGE_DONE,
 };
 

@@ -1,6 +1,5 @@
 #include "move.h"
 #include "attack.h"
-#include "history.h"
 #include "movegen.h"
 #include "uciOptions.h"
 #include <sstream>
@@ -152,92 +151,6 @@ bool SEE(Board& board, uint16_t move, int threshold) {
     return side != board.sideToMove;
 }
 
-MoveList::MoveList(uint16_t ttMove, bool qsearch) {
-    this->qsearch = qsearch;
-    this->ttMove  = ttMove;
-    numMove       = 0;
-    isSorted      = false;
-}
+MoveList::MoveList() { numMove = 0; }
 
 void MoveList::addMove(uint16_t move) { moves[numMove++] = move; }
-
-void MoveList::scoreMoves(ThreadData& thread, Stack* ss) {
-    Board* board       = &thread.board;
-    auto   counterMove = thread.counterMoves[board->sideToMove][moveFrom((ss - 1)->move)][moveTo((ss - 1)->move)];
-    for (int i = 0; i < numMove; i++)
-    {
-        auto move = moves[i];
-        if (move == ttMove)
-        {
-            scores[i] = 30 * MIL;
-        }
-        else
-        {
-            auto type = moveType(move);
-            scores[i] = moveTypeScores[type];
-            if (ss->killers[0] == move)
-            {
-                scores[i] = 9 * MIL;
-            }
-            else if (ss->killers[1] == move)
-            {
-                scores[i] = 8.5 * MIL;
-            }
-            else if (counterMove == move)
-            {
-                scores[i] = 8 * MIL;
-            }
-            else if (type < 2)  //history heuristic
-            {
-                scores[i] += getQuietHistory(thread, ss, move);
-            }
-            else if (type == CAPTURE)
-            {
-                if (qsearch)
-                {
-                    scores[i] += getCaptureHistory(thread, ss, move);
-                }
-                else
-                {
-                    if (SEE(*board, move))
-                        scores[i] += getCaptureHistory(thread, ss, move);
-                    else
-                        scores[i] = MIL + getCaptureHistory(thread, ss, move);
-                }
-            }
-        }
-    }
-}
-
-uint16_t MoveList::pickMove(ThreadData& thread, Stack* ss, int skipThreshold) {
-    if (!isSorted)
-    {
-        scoreMoves(thread, ss);
-        isSorted = true;
-    }
-    if (numMove <= 0)
-    {
-        return NO_MOVE;
-    }
-    int maxScoreIndex = 0;
-    for (int i = 1; i < numMove; i++)
-    {
-        if (scores[i] > scores[maxScoreIndex])
-        {
-            maxScoreIndex = i;
-        }
-    }
-
-    //skip remaining moves
-    if (scores[maxScoreIndex] < skipThreshold)
-    {
-        return NO_MOVE;
-    }
-
-    uint16_t move         = moves[maxScoreIndex];
-    scores[maxScoreIndex] = scores[numMove - 1];
-    moves[maxScoreIndex]  = moves[numMove - 1];
-    numMove--;
-
-    return move;
-}

@@ -59,19 +59,12 @@ class MoveList {
    public:
     uint16_t moves[256];
     int      scores[256];
-    uint16_t ttMove;
 
-    int  numMove;
-    bool isSorted;
-    bool qsearch;
+    int numMove;
 
-    MoveList(uint16_t ttMove = NO_MOVE, bool qsearch = false);
+    MoveList();
 
     void addMove(uint16_t move);
-
-    void scoreMoves(ThreadData& thread, Stack* ss);
-
-    uint16_t pickMove(ThreadData& thread, Stack* ss, int skipThreshold = -50 * MIL);
 };
 
 std::string moveToUci(uint16_t move, Board& board);
