@@ -210,12 +210,13 @@ bool isLegal(const Board& board, uint16_t move)
     return !attackedWith(board, kingSq, them, occ, themBB);
 }
 
-MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode) :
+MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int seeThreshold) :
     m_thread(thread),
     m_ss(ss),
     m_board(&thread.board),
     m_ttMove(ttMove),
     m_refutationIndex(0),
+    m_seeThreshold(seeThreshold),
     m_skipQuiets(false),
     m_mode(mode)
 {
@@ -362,7 +363,8 @@ uint16_t MovePicker::next()
     {
     case STAGE_TT :
         m_stage = STAGE_GEN_TACTICAL;
-        if (m_ttMove != NO_MOVE && (m_mode != PICK_QSEARCH || isQsearchTactical(m_ttMove)) && isPseudoLegal(*m_board, m_ttMove) && isLegal(*m_board, m_ttMove))
+        if (m_ttMove != NO_MOVE && (m_mode != PICK_QSEARCH || isQsearchTactical(m_ttMove)) && (m_mode != PICK_PROBCUT || (isTactical(m_ttMove) && SEE(*m_board, m_ttMove, m_seeThreshold)))
+            && isPseudoLegal(*m_board, m_ttMove) && isLegal(*m_board, m_ttMove))
             return m_ttMove;
         [[fallthrough]];
 
@@ -372,6 +374,19 @@ uint16_t MovePicker::next()
         [[fallthrough]];
 
     case STAGE_GOOD_TACTICAL :
+        if (m_mode == PICK_PROBCUT)
+        {
+            while (m_list.numMove > 0)
+            {
+                const int       index = bestIndex();
+                const uint16_t  move  = m_list.moves[index];
+                removeAt(index);
+                if (SEE(*m_board, move, m_seeThreshold))
+                    return move;
+            }
+            m_stage = STAGE_DONE;
+            return NO_MOVE;
+        }
         while (true)
         {
             const int index = bestIndex();

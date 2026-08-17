@@ -17,6 +17,7 @@ enum PickMode : uint8_t {
     PICK_MAIN,           // alphaBeta
     PICK_QSEARCH,        // qsearch, not in check: tacticals only
     PICK_QSEARCH_CHECK,  // qsearch in check: every evasion, same stages as alphaBeta
+    PICK_PROBCUT,        // tacticals that pass the ProbCut SEE threshold
 };
 
 enum PickStage : uint8_t {
@@ -34,7 +35,7 @@ enum PickStage : uint8_t {
 // must not be called between makeMove() and unmakeMove().
 class MovePicker {
    public:
-    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode);
+    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int seeThreshold = 0);
 
     uint16_t next();
 
@@ -55,6 +56,7 @@ class MovePicker {
     uint16_t    m_ttMove;
     uint16_t    m_refutations[3];
     int         m_refutationIndex;
+    int         m_seeThreshold;
     bool        m_skipQuiets;
     PickMode    m_mode;
     PickStage   m_stage;

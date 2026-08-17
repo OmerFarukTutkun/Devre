@@ -20,6 +20,13 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+constexpr int ProbCutMinDepth        = 5;
+constexpr int ProbCutReduction       = 4;
+constexpr int ProbCutMargin          = 254;
+constexpr int ProbCutImprovingMargin = 62;
+constexpr int ProbCutSeeMultiplier   = 1003;
+constexpr int ProbCutFailMedium      = 559;
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -444,6 +451,52 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
+
+    // ProbCut searches tactical moves at a reduced depth against a raised beta.
+    // Restricting this to cut nodes avoids spending the extra search at every
+    // null-window node and mirrors the move picker used by the normal search.
+    const int  probCutBeta     = beta + ProbCutMargin - ProbCutImprovingMargin * improving;
+    const bool ttScoreValid    = ttHit && ttBound != TT_NONE && ttScore != SCORE_NONE;
+    const bool ttMoveTactical  = ttMove != NO_MOVE && isTactical(ttMove);
+    if (cutNode && !PVNode && !rootNode && !inCheck && ss->excludedMove == NO_MOVE && depth >= ProbCutMinDepth && std::abs(beta) < MIN_MATE_SCORE
+        && (ttMove == NO_MOVE || ttMoveTactical) && (!ttScoreValid || ttScore >= probCutBeta))
+    {
+        const int probCutSee = (probCutBeta - eval) * ProbCutSeeMultiplier / 1024;
+        MovePicker probCutPicker(thread, ss, ttMove, PICK_PROBCUT, probCutSee);
+        const uint16_t savedMove = ss->move;
+        PieceTo*       savedContHistory = ss->continuationHistory;
+        PieceTo*       savedContCorrHist = ss->contCorrHist;
+        uint16_t       probCutMove;
+
+        while ((probCutMove = probCutPicker.next()) != NO_MOVE)
+        {
+            ss->move                = probCutMove;
+            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(probCutMove)]][moveTo(probCutMove)];
+            ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(probCutMove)]][moveTo(probCutMove)];
+            board->makeMove(probCutMove);
+
+            score = -qsearch(-probCutBeta, -probCutBeta + 1, thread, ss + 1);
+            if (score >= probCutBeta)
+                score = -alphaBeta(-probCutBeta, -probCutBeta + 1, depth - ProbCutReduction, false, thread, ss + 1);
+
+            board->unmakeMove(probCutMove);
+            ss->move                = savedMove;
+            ss->continuationHistory = savedContHistory;
+            ss->contCorrHist        = savedContCorrHist;
+
+            if (stopped)
+                return 0;
+
+            if (score >= probCutBeta)
+            {
+                TT::Instance()->ttSave(board->key, ss->ply, score, rawEval, TT_LOWERBOUND, depth - ProbCutReduction + 1, probCutMove);
+                if (score < MIN_MATE_SCORE)
+                    return score - (score - beta) * ProbCutFailMedium / 1024;
+                return score;
+            }
+        }
+    }
+
     MovePicker picker(thread, ss, ttMove, PICK_MAIN);
     uint64_t   beforeNodes = 0;
     int        lmr;
