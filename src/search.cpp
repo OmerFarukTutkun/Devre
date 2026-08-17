@@ -434,7 +434,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         int R = 5 + depth / 4 + std::min(4, (eval - beta) / 188);
 
         ss->move                = NULL_MOVE;
-        ss->continuationHistory = &thread.contHist[PAWN][A1];
+        ss->continuationHistory = &thread.contHist[0][0][PAWN][A1];
         ss->contCorrHist        = &thread.contCorrHist[PAWN][A1];
         board->makeNullMove();
 
@@ -515,7 +515,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
-        ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+        ss->continuationHistory = &thread.contHist[inCheck][isTactical(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
         ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
@@ -554,7 +554,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->played              = 1;
             ss->move                = move;
             ss->playedMoves[0]      = move;
-            ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->continuationHistory = &thread.contHist[inCheck][isTactical(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
             ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
@@ -679,7 +679,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
     for (int i = 0; i < MAX_PLY + 10; i++)
     {
         (ss + i)->ply                 = i - 6;
-        (ss + i)->continuationHistory = &threads.at(ThreadID)->contHist[0][0];
+        (ss + i)->continuationHistory = &threads.at(ThreadID)->contHist[0][0][0][0];
         (ss + i)->contCorrHist        = &threads.at(ThreadID)->contCorrHist[0][0];
     }
 
@@ -813,7 +813,7 @@ SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNod
     {
         ss[i]                     = Stack();
         ss[i].ply                 = i - 6;
-        ss[i].continuationHistory = &td->contHist[0][0];
+        ss[i].continuationHistory = &td->contHist[0][0][0][0];
         ss[i].contCorrHist        = &td->contCorrHist[0][0];
     }
 
