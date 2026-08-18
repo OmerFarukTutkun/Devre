@@ -24,6 +24,26 @@ inline void updateContHistoryScore(int16_t* current, int depth, bool good) {
     updateHistScore(current, delta);
 }
 
+inline void updateContinuationHistory(Stack* ss, int piece, int to, int depth, bool good) {
+    if ((ss - 1)->move)
+        updateContHistoryScore(&(*(ss - 1)->continuationHistory)[piece][to], depth, good);
+    if ((ss - 2)->move)
+        updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], depth, good);
+    if ((ss - 4)->move)
+        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], std::max(1, depth / 2), good);
+}
+
+inline int continuationHistoryScore(Stack* ss, int piece, int to) {
+    int score = 0;
+    if ((ss - 1)->move)
+        score += (*(ss - 1)->continuationHistory)[piece][to];
+    if ((ss - 2)->move)
+        score += (*(ss - 2)->continuationHistory)[piece][to];
+    if ((ss - 4)->move)
+        score += (*(ss - 4)->continuationHistory)[piece][to] / 2;
+    return score;
+}
+
 // When a node fails low, the opponent's previous quiet move "worked":
 // give it a continuation-history bonus.
 void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
@@ -39,7 +59,7 @@ void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
     if ((ss - 2)->move)
         updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], depth, true);
     if ((ss - 4)->move)
-        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], depth, true);
+        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], std::max(1, depth / 2), true);
 }
 
 void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bestMove) {
@@ -72,21 +92,7 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             current = &thread.pawnHistory[pawnBucket][piece][to];
             updateHistory(current, depth, isGood);
 
-            if ((ss - 1)->move)
-            {
-                current = &(*(ss - 1)->continuationHistory)[piece][to];
-                updateContHistoryScore(current, depth, isGood);
-            }
-            if ((ss - 2)->move)
-            {
-                current = &(*(ss - 2)->continuationHistory)[piece][to];
-                updateContHistoryScore(current, depth, isGood);
-            }
-            if ((ss - 4)->move)
-            {
-                current = &(*(ss - 4)->continuationHistory)[piece][to];
-                updateContHistoryScore(current, depth, isGood);
-            }
+            updateContinuationHistory(ss, piece, to, depth, isGood);
         }
     }
 }
@@ -132,18 +138,7 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
     score += thread.pawnHistory[pawnBucket][piece][to];
 
-    if ((ss - 1)->move)
-    {
-        score += (*(ss - 1)->continuationHistory)[piece][to];
-    }
-    if ((ss - 2)->move)
-    {
-        score += (*(ss - 2)->continuationHistory)[piece][to];
-    }
-    if ((ss - 4)->move)
-    {
-        score += (*(ss - 4)->continuationHistory)[piece][to];
-    }
+    score += continuationHistoryScore(ss, piece, to);
     return score;
 }
 
@@ -155,18 +150,7 @@ int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     int    piece = board->pieceBoard[from];
     auto   score = 0;
 
-    if ((ss - 1)->move)
-    {
-        score += (*(ss - 1)->continuationHistory)[piece][to];
-    }
-    if ((ss - 2)->move)
-    {
-        score += (*(ss - 2)->continuationHistory)[piece][to];
-    }
-    if ((ss - 4)->move)
-    {
-        score += (*(ss - 4)->continuationHistory)[piece][to];
-    }
+    score += continuationHistoryScore(ss, piece, to);
     return score;
 }
 

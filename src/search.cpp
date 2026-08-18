@@ -515,7 +515,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
-        ss->continuationHistory = &thread.contHist[inCheck][isTactical(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
+        ss->continuationHistory = &thread.contHist[inCheck][isCapture(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
         ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
@@ -554,7 +554,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->played              = 1;
             ss->move                = move;
             ss->playedMoves[0]      = move;
-            ss->continuationHistory = &thread.contHist[inCheck][isTactical(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
+            ss->continuationHistory = &thread.contHist[inCheck][isCapture(move)][board->pieceBoard[moveFrom(move)]][moveTo(move)];
             ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
         int newDepth = depth - 1 + extension;
