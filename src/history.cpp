@@ -7,8 +7,8 @@ const int HistoryDivisor = 16728;
 inline int statBonus(int depth) { return std::min(488 * depth - 73, 1367); }
 inline int statMalus(int depth) { return std::min(380 * depth - 50, 1100); }
 
-inline int contBonus(int depth) { return std::min(350 * depth - 50, 1200); }
-inline int contMalus(int depth) { return std::min(280 * depth + 50, 900); }
+inline int contBonus(int depth) { return std::min(288 * depth - 28, 600); }
+inline int contMalus(int depth) { return std::min(188 * depth - 18, 400); }
 
 inline void updateHistScore(int16_t* current, int delta) {
     *current += delta - *current * std::abs(delta) / HistoryDivisor;
