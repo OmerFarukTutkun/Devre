@@ -20,6 +20,11 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+DEFINE_PARAM_B(contHistPruneMargin, 3720, 1800, 5500);
+DEFINE_PARAM_B(contHistPruneMaxDepth, 3, 1, 6);
+DEFINE_PARAM_B(historyLmrDivisor, 8024, 4000, 13000);
+DEFINE_PARAM_B(historyLmrClamp, 2, 1, 4);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -485,7 +490,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
-            if (depth <= 3 && contHist < -3720)
+            if (depth <= contHistPruneMaxDepth && contHist < -contHistPruneMargin)
                 continue;
         }
         if (moveCount > 2 && !PVNode && depth <= 6 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
@@ -508,7 +513,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             else
                 history = getCaptureHistory(thread, ss, move);
 
-            lmr -= std::clamp(history / 8024, -2, 2);
+            lmr -= std::clamp<int>(history / static_cast<int>(historyLmrDivisor), -static_cast<int>(historyLmrClamp), static_cast<int>(historyLmrClamp));
             lmr += cutNode;
             lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 341;

@@ -2,20 +2,59 @@
 #include "tuning.h"
 #include "nnue.h"
 
-const int HistoryDivisor = 16728;
+DEFINE_PARAM_B(historyDivisor, 16728, 8000, 26000);
 
-inline int statBonus(int depth) { return std::min(488 * depth - 73, 1367); }
-inline int statMalus(int depth) { return std::min(380 * depth - 50, 1100); }
+DEFINE_PARAM_B(quietHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(quietHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(quietHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(quietHistoryMalusScale, 380, 150, 600);
+DEFINE_PARAM_B(quietHistoryMalusOffset, -50, -200, 0);
+DEFINE_PARAM_B(quietHistoryMalusMax, 1100, 600, 2000);
 
-inline int contBonus(int depth) { return std::min(288 * depth - 28, 600); }
-inline int contMalus(int depth) { return std::min(188 * depth - 18, 400); }
+DEFINE_PARAM_B(pawnHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(pawnHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(pawnHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(pawnHistoryMalusScale, 380, 150, 600);
+DEFINE_PARAM_B(pawnHistoryMalusOffset, -50, -200, 0);
+DEFINE_PARAM_B(pawnHistoryMalusMax, 1100, 600, 2000);
 
-inline void updateHistScore(int16_t* current, int delta) {
-    *current += delta - *current * std::abs(delta) / HistoryDivisor;
+DEFINE_PARAM_B(captureHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(captureHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(captureHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(captureHistoryMalusScale, 380, 150, 600);
+DEFINE_PARAM_B(captureHistoryMalusOffset, -50, -200, 0);
+DEFINE_PARAM_B(captureHistoryMalusMax, 1100, 600, 2000);
+
+DEFINE_PARAM_B(contHistoryBonusScale, 350, 150, 600);
+DEFINE_PARAM_B(contHistoryBonusOffset, -50, -200, 100);
+DEFINE_PARAM_B(contHistoryBonusMax, 1200, 600, 2000);
+DEFINE_PARAM_B(contHistoryMalusScale, 280, 100, 500);
+DEFINE_PARAM_B(contHistoryMalusOffset, 50, -100, 200);
+DEFINE_PARAM_B(contHistoryMalusMax, 900, 400, 1600);
+
+DEFINE_PARAM_B(contHistWeight1, 100, 0, 200);
+DEFINE_PARAM_B(contHistWeight2, 100, 0, 200);
+DEFINE_PARAM_B(contHistWeight4, 50, 0, 150);
+
+inline int historyValue(int scale, int offset, int max, int depth) {
+    return std::min<int>(scale * depth + offset, max);
 }
 
-inline void updateHistory(int16_t* current, int depth, bool good) {
-    const int delta = good ? statBonus(depth) : -statMalus(depth);
+inline int quietHistoryBonus(int depth) { return historyValue(quietHistoryBonusScale, quietHistoryBonusOffset, quietHistoryBonusMax, depth); }
+inline int quietHistoryMalus(int depth) { return historyValue(quietHistoryMalusScale, quietHistoryMalusOffset, quietHistoryMalusMax, depth); }
+inline int pawnHistoryBonus(int depth) { return historyValue(pawnHistoryBonusScale, pawnHistoryBonusOffset, pawnHistoryBonusMax, depth); }
+inline int pawnHistoryMalus(int depth) { return historyValue(pawnHistoryMalusScale, pawnHistoryMalusOffset, pawnHistoryMalusMax, depth); }
+inline int captureHistoryBonus(int depth) { return historyValue(captureHistoryBonusScale, captureHistoryBonusOffset, captureHistoryBonusMax, depth); }
+inline int captureHistoryMalus(int depth) { return historyValue(captureHistoryMalusScale, captureHistoryMalusOffset, captureHistoryMalusMax, depth); }
+inline int contBonus(int depth) { return historyValue(contHistoryBonusScale, contHistoryBonusOffset, contHistoryBonusMax, depth); }
+inline int contMalus(int depth) { return historyValue(contHistoryMalusScale, contHistoryMalusOffset, contHistoryMalusMax, depth); }
+
+inline void updateHistScore(int16_t* current, int delta) {
+    *current += delta - *current * std::abs(delta) / historyDivisor;
+}
+
+inline void updateHistory(int16_t* current, bool good, int bonus, int malus) {
+    const int delta = good ? bonus : -malus;
     updateHistScore(current, delta);
 }
 
@@ -24,24 +63,28 @@ inline void updateContHistoryScore(int16_t* current, int depth, bool good) {
     updateHistScore(current, delta);
 }
 
+inline int continuationUpdateDepth(int depth, int weight) {
+    return std::max(1, depth * weight / 100);
+}
+
 inline void updateContinuationHistory(Stack* ss, int piece, int to, int depth, bool good) {
-    if ((ss - 1)->move)
-        updateContHistoryScore(&(*(ss - 1)->continuationHistory)[piece][to], depth, good);
-    if ((ss - 2)->move)
-        updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], depth, good);
-    if ((ss - 4)->move)
-        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], std::max(1, depth / 2), good);
+    if ((ss - 1)->move && contHistWeight1 > 0)
+        updateContHistoryScore(&(*(ss - 1)->continuationHistory)[piece][to], continuationUpdateDepth(depth, contHistWeight1), good);
+    if ((ss - 2)->move && contHistWeight2 > 0)
+        updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], continuationUpdateDepth(depth, contHistWeight2), good);
+    if ((ss - 4)->move && contHistWeight4 > 0)
+        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], continuationUpdateDepth(depth, contHistWeight4), good);
 }
 
 inline int continuationHistoryScore(Stack* ss, int piece, int to) {
     int score = 0;
     if ((ss - 1)->move)
-        score += (*(ss - 1)->continuationHistory)[piece][to];
+        score += (*(ss - 1)->continuationHistory)[piece][to] * contHistWeight1;
     if ((ss - 2)->move)
-        score += (*(ss - 2)->continuationHistory)[piece][to];
+        score += (*(ss - 2)->continuationHistory)[piece][to] * contHistWeight2;
     if ((ss - 4)->move)
-        score += (*(ss - 4)->continuationHistory)[piece][to] / 2;
-    return score;
+        score += (*(ss - 4)->continuationHistory)[piece][to] * contHistWeight4;
+    return score / 100;
 }
 
 // When a node fails low, the opponent's previous quiet move "worked":
@@ -56,10 +99,10 @@ void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
     int to    = moveTo(prev);
     int piece = board->pieceBoard[to];
 
-    if ((ss - 2)->move)
-        updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], depth, true);
-    if ((ss - 4)->move)
-        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], std::max(1, depth / 2), true);
+    if ((ss - 2)->move && contHistWeight2 > 0)
+        updateContHistoryScore(&(*(ss - 2)->continuationHistory)[piece][to], continuationUpdateDepth(depth, contHistWeight2), true);
+    if ((ss - 4)->move && contHistWeight4 > 0)
+        updateContHistoryScore(&(*(ss - 4)->continuationHistory)[piece][to], continuationUpdateDepth(depth, contHistWeight4), true);
 }
 
 void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bestMove) {
@@ -75,6 +118,10 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
         ss->killers[0] = bestMove;
     }
     int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
+    const int quietBonus = quietHistoryBonus(depth);
+    const int quietMalus = quietHistoryMalus(depth);
+    const int pawnBonus  = pawnHistoryBonus(depth);
+    const int pawnMalus  = pawnHistoryMalus(depth);
     for (int i = 0; i < ss->played; i++)
     {
         uint16_t move = ss->playedMoves[i];
@@ -86,11 +133,11 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             bool isGood = (i == ss->played - 1);
 
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, isGood, quietBonus, quietMalus);
 
             // pawn history
             current = &thread.pawnHistory[pawnBucket][piece][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, isGood, pawnBonus, pawnMalus);
 
             updateContinuationHistory(ss, piece, to, depth, isGood);
         }
@@ -99,6 +146,8 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
 
 void updateCaptureHistories(ThreadData& thread, Stack* ss, int depth) {
     Board* board = &thread.board;
+    const int captureBonus = captureHistoryBonus(depth);
+    const int captureMalus = captureHistoryMalus(depth);
     for (int i = 0; i < ss->played; i++)
     {
         auto move = ss->playedMoves[i];
@@ -107,7 +156,7 @@ void updateCaptureHistories(ThreadData& thread, Stack* ss, int depth) {
             int      from    = moveFrom(move);
             int      to      = moveTo(move);
             int16_t* current = &thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
-            updateHistory(current, depth, i == ss->played - 1);
+            updateHistory(current, i == ss->played - 1, captureBonus, captureMalus);
         }
     }
 }
