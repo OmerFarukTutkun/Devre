@@ -21,6 +21,7 @@ class ThreadData {
 
     int     corrHist[2][16384][4]{0};
     int16_t corrHistVariance[2][16384]{0};
+    int     corrHistVariance[2][16384]{0};
     int16_t contCorrHist[N_PIECES][N_SQUARES][N_PIECES][N_SQUARES]{0};
     int16_t threatLastMoveCorrHist[2][2][2][64][64]{0};
     Board   board;
