@@ -143,6 +143,26 @@ int getContHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     return score;
 }
 
+constexpr uint64_t DARK_SQ_MASK  = 0xAA55AA55AA55AA55ULL;
+constexpr uint64_t LIGHT_SQ_MASK = 0x55AA55AA55AA55AAULL;
+
+static inline int getColorComplexKey(Board* board) {
+    uint64_t wPawns  = board->bitboards[WHITE_PAWN];
+    uint64_t bPawns  = board->bitboards[BLACK_PAWN];
+    int      wDarkP  = popcount64(wPawns & DARK_SQ_MASK);
+    int      wLightP = popcount64(wPawns & LIGHT_SQ_MASK);
+    int      bDarkP  = popcount64(bPawns & DARK_SQ_MASK);
+    int      bLightP = popcount64(bPawns & LIGHT_SQ_MASK);
+
+    int wBishops = (popcount64(board->bitboards[WHITE_BISHOP] & DARK_SQ_MASK) > 0 ? 1 : 0) |
+                   (popcount64(board->bitboards[WHITE_BISHOP] & LIGHT_SQ_MASK) > 0 ? 2 : 0);
+    int bBishops = (popcount64(board->bitboards[BLACK_BISHOP] & DARK_SQ_MASK) > 0 ? 1 : 0) |
+                   (popcount64(board->bitboards[BLACK_BISHOP] & LIGHT_SQ_MASK) > 0 ? 2 : 0);
+
+    int key = (wDarkP & 7) | ((wLightP & 7) << 3) | ((bDarkP & 7) << 6) | (wBishops << 9) | (bBishops << 11) ^ (bLightP << 1);
+    return key & 1023;
+}
+
 void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const int diff) {
 
     auto* board = &thread.board;
@@ -155,6 +175,7 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int& colorComplexEntry         = thread.colorComplexCorrHist[board->sideToMove][getColorComplexKey(board)];
 
     const int bonus        = diff * depth / 8;
     const int D            = 1031;
@@ -164,6 +185,7 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
     majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
+    colorComplexEntry += clampedBonus - colorComplexEntry * std::abs(clampedBonus) / D;
 
     if (isMoveOk)
     {
@@ -189,6 +211,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int  majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int  colorComplexEntry         = thread.colorComplexCorrHist[board->sideToMove][getColorComplexKey(board)];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
@@ -207,7 +230,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     }
 
     const int average =
-      (54 * pawnCorrHistEntry + 55 * nonPawnCorrHistEntryWhite + 73 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 67 + threatLastMoveCorrHistEntry * 42 + majorCorrHistEntry * 38) / 512;
+      (48 * pawnCorrHistEntry + 50 * nonPawnCorrHistEntryWhite + 66 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 60 + threatLastMoveCorrHistEntry * 38 + majorCorrHistEntry * 34 + 32 * colorComplexEntry) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);
