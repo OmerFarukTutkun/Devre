@@ -123,16 +123,12 @@ void TT::ttFree() {
 #endif
 }
 
-void TT::ttPrefetch(uint64_t hash) { __builtin_prefetch(&table[hash & ttMask]); }
-
 TT TT::instance;
 
 void TT::updateAge() {
     //6 bit for age
     age = (age + 1) & 63;
 }
-
-uint8_t TT::getAge(TTentry* entry) { return (entry->ageBound >> 2); }
 
 int TT::getHashfull() {
     int hit = 0;

@@ -236,22 +236,28 @@ MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode 
 
 int MovePicker::bestIndex() const
 {
-    if (m_list.numMove <= 0)
+    const int n = m_list.numMove;
+    if (n <= 0)
         return -1;
     int best = 0;
-    for (int i = 1; i < m_list.numMove; i++)
+    int bestScore = m_list.scores[0];
+    const int* scores = m_list.scores;
+    for (int i = 1; i < n; i++)
     {
-        if (m_list.scores[i] > m_list.scores[best])
+        if (scores[i] > bestScore)
+        {
+            bestScore = scores[i];
             best = i;
+        }
     }
     return best;
 }
 
 void MovePicker::removeAt(int index)
 {
-    m_list.moves[index]  = m_list.moves[m_list.numMove - 1];
-    m_list.scores[index] = m_list.scores[m_list.numMove - 1];
-    m_list.numMove--;
+    --m_list.numMove;
+    m_list.moves[index]  = m_list.moves[m_list.numMove];
+    m_list.scores[index] = m_list.scores[m_list.numMove];
 }
 
 void MovePicker::skipQuiets()

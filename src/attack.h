@@ -112,6 +112,7 @@ class AttackTables {
 
     ~AttackTables();
 
+   public:
     static AttackTables instance;
 
    public:
@@ -123,15 +124,25 @@ class AttackTables {
     static AttackTables* Instance() { return &instance; }
 };
 
+#ifdef USE_PEXT
 inline uint64_t rookAttacks(uint64_t occ, int sq) {
-    auto table = &AttackTables::Instance()->RookTable[sq];
+    return AttackTables::instance.RookTable[sq].offset[_pext_u64(occ, rookMasks[sq])];
+}
+
+inline uint64_t bishopAttacks(uint64_t occ, int sq) {
+    return AttackTables::instance.BishopTable[sq].offset[_pext_u64(occ, bishopMasks[sq])];
+}
+#else
+inline uint64_t rookAttacks(uint64_t occ, int sq) {
+    auto table = &AttackTables::instance.RookTable[sq];
     return table->offset[slider_index(occ, table)];
 }
 
 inline uint64_t bishopAttacks(uint64_t occ, int sq) {
-    auto table = &AttackTables::Instance()->BishopTable[sq];
+    auto table = &AttackTables::instance.BishopTable[sq];
     return table->offset[slider_index(occ, table)];
 }
+#endif
 
 template<Color c>
 uint64_t pawnLeftAttacks(const uint64_t pawns) {

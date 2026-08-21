@@ -13,7 +13,7 @@ MAVX512 = $(MAVX2) -mavx512f -mavx512bw
 FILES = *.cpp datagen/*.cpp fathom/src/tbprobe.c
 
 # -I. lets sources under datagen/ include the engine headers that live in src/.
-CXX_FLAGS  = -I. -static -pthread -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -O3 -flto -std=c++17 -D TB_NO_HELPER_API
+CXX_FLAGS  = -I. -static -pthread -fno-rtti -funroll-loops --param max-unroll-times=100 -Wall -Wformat=0 -Wno-coverage-mismatch -O3 -flto=auto -std=c++17 -D TB_NO_HELPER_API
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
@@ -60,6 +60,11 @@ endif
 COMMAND = $(CXX) $(CXX_FLAGS) $(FILES) $(LIBS) -DNET=\"$(NETWORK)\" -o $(EXE)
 
 default: network
+ifeq ($(OS),Windows_NT)
+	-if not exist devre_pgo mkdir devre_pgo 2>nul
+else
+	mkdir -p devre_pgo
+endif
 	$(COMMAND) -fprofile-generate="devre_pgo"
 ifeq ($(OS),Windows_NT)
 	$(EXE) bench
@@ -68,7 +73,7 @@ else
 endif
 	$(COMMAND) -fprofile-use="devre_pgo"
 ifeq ($(OS),Windows_NT)
-	rmdir /s /q devre_pgo
+	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
 else
 	rm -rf devre_pgo
 endif
@@ -79,4 +84,12 @@ nopgo: network
 network:
 ifeq (,$(wildcard ./$(NETWORK)))
 	$(DOWNLOAD_NETWORK)
+endif
+
+clean:
+ifeq ($(OS),Windows_NT)
+	-del /q /f $(EXE) 2>nul
+	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
+else
+	rm -rf $(EXE) devre_pgo
 endif

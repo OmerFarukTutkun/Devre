@@ -8,9 +8,8 @@ class Zobrist {
    private:
     Zobrist();
 
-    static Zobrist instance;
-
    public:
+    static Zobrist instance;
     static Zobrist* Instance() { return &instance; }
 
     uint64_t PieceKeys[N_PIECES][64];

@@ -9,8 +9,6 @@ class TT {
 
     ~TT();
 
-    static TT instance;
-
     int       age;
     uint64_t  ttMask;
     TTBucket* table;
@@ -18,6 +16,7 @@ class TT {
     void ttFree();
 
    public:
+    static TT instance;
     void ttSave(uint64_t key, int ply, int16_t score, int16_t staticEval, char bound, uint8_t depth, uint16_t move);
 
     bool ttProbe(uint64_t key, int ply, int& ttDepth, int& ttScore, int& ttBound, int& ttStaticEval, uint16_t& ttMove);
@@ -26,13 +25,13 @@ class TT {
 
     void ttClear();
 
-    void ttPrefetch(uint64_t hash);
+    inline void ttPrefetch(uint64_t hash) { __builtin_prefetch(&table[hash & ttMask]); }
 
     int getHashfull();
 
     void updateAge();
 
-    static uint8_t getAge(TTentry* entry);
+    static inline uint8_t getAge(TTentry* entry) { return entry->ageBound >> 2; }
 
     static TT* Instance() { return &instance; }
 };

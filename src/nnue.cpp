@@ -75,6 +75,46 @@ accumulateRows(int16_t* out, const int16_t* base, const int8_t* const* addRows, 
                const int8_t* const* subRows, int nSub) {
     constexpr uint32_t chunkBlocks = (numBlocks < 8) ? numBlocks : 8;
 
+    if (nAdd == 1 && nSub == 1)
+    {
+        const int8_t* add = addRows[0];
+        const int8_t* sub = subRows[0];
+        for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks)
+        {
+            const uint32_t offset = chunk * SIMD::vecSize;
+            for (uint32_t b = 0; b < chunkBlocks; b++)
+            {
+                const uint32_t idx = offset + b * SIMD::vecSize;
+                SIMD::vecType acc = SIMD::vecLoad(base + idx);
+                acc = SIMD::vecAddEpi16(acc, SIMD::vecLoadI8ToI16(add + idx));
+                acc = SIMD::vecSubEpi16(acc, SIMD::vecLoadI8ToI16(sub + idx));
+                SIMD::vecStore(out + idx, acc);
+            }
+        }
+        return;
+    }
+
+    if (nAdd == 1 && nSub == 2)
+    {
+        const int8_t* add  = addRows[0];
+        const int8_t* sub0 = subRows[0];
+        const int8_t* sub1 = subRows[1];
+        for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks)
+        {
+            const uint32_t offset = chunk * SIMD::vecSize;
+            for (uint32_t b = 0; b < chunkBlocks; b++)
+            {
+                const uint32_t idx = offset + b * SIMD::vecSize;
+                SIMD::vecType acc = SIMD::vecLoad(base + idx);
+                acc = SIMD::vecAddEpi16(acc, SIMD::vecLoadI8ToI16(add + idx));
+                acc = SIMD::vecSubEpi16(acc, SIMD::vecLoadI8ToI16(sub0 + idx));
+                acc = SIMD::vecSubEpi16(acc, SIMD::vecLoadI8ToI16(sub1 + idx));
+                SIMD::vecStore(out + idx, acc);
+            }
+        }
+        return;
+    }
+
     for (uint32_t chunk = 0; chunk < numBlocks; chunk += chunkBlocks)
     {
         const uint32_t offset = chunk * SIMD::vecSize;
@@ -312,7 +352,7 @@ void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curP
 void NNUE::refreshFromCache(Board& board, Color perspective, PerspectiveKey key, int16_t* accumulator) const {
     const NetworkData& net   = *network;
     auto&              entry = board.nnueData.refreshCache[(perspective * KING_BUCKETS + key.bucket) * 2
-                                              + (key.flip & 7 ? 1 : 0)];
+                                               + (key.flip & 7 ? 1 : 0)];
 
     if (!entry.initialised)
     {
@@ -347,8 +387,8 @@ void NNUE::refreshFromCache(Board& board, Color perspective, PerspectiveKey key,
     const uint64_t currentPawns[N_COLORS] = {board.bitboards[WHITE_PAWN], board.bitboards[BLACK_PAWN]};
     pawnPairDelta(cachedPawns, currentPawns, perspective, key, addRows, nAdd, subRows, nSub);
 
-
-    accumulateRows(entry.data, entry.data, addRows, nAdd, subRows, nSub);
+    if (nAdd != 0 || nSub != 0)
+        accumulateRows(entry.data, entry.data, addRows, nAdd, subRows, nSub);
     std::memcpy(entry.pieces, board.bitboards, sizeof(entry.pieces));
     std::memcpy(accumulator, entry.data, NNUE_FT_OUT * sizeof(int16_t));
 }
@@ -422,7 +462,6 @@ int NNUE::finishHead(const int32_t* l1Dots, int bucket) const {
     // Skip connection: the output layer sees the L1 activations as well.
     std::memcpy(head + L2_SIZE, l1Activations, sizeof(l1Activations));
 
-    
     constexpr int LANES = 8;
     static_assert(HEAD_SIZE % LANES == 0);
 
@@ -578,7 +617,7 @@ bool NNUE::loadFromBuffer(const uint8_t* data, size_t size, const std::string& s
         return fail("shorter than the header");
 
     if (std::memcmp(data, MAGIC, sizeof(MAGIC)) != 0)
-        return fail("bad magic (expected DVNNUE3)");
+        return fail("bad magic (expected DVNNUE4)");
 
     auto expect = [&](const char* field, uint64_t got, uint64_t want, bool& ok) {
         if (got != want)
