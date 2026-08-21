@@ -159,7 +159,7 @@ static inline int getColorComplexKey(Board* board) {
     int bBishops = (popcount64(board->bitboards[BLACK_BISHOP] & DARK_SQ_MASK) > 0 ? 1 : 0) |
                    (popcount64(board->bitboards[BLACK_BISHOP] & LIGHT_SQ_MASK) > 0 ? 2 : 0);
 
-    int key = (wDarkP & 7) | ((wLightP & 7) << 3) | ((bDarkP & 7) << 6) | (wBishops << 9) | (bBishops << 11) ^ (bLightP << 1);
+    int key = ((wDarkP & 7) | ((wLightP & 7) << 3) | ((bDarkP & 7) << 6) | (wBishops << 9) | (bBishops << 11)) ^ (bLightP << 1);
     return key & 1023;
 }
 
