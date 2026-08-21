@@ -408,7 +408,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 7 && std::abs(eval) < MIN_TB_SCORE)
     {
         const int rfpDepth  = std::max(0, depth - improving);
-        const int rfpMargin = 113 * rfpDepth;
         const int variance  = getCorrHistVariance(thread, ss);
         const int rfpMargin = 113 * rfpDepth + (variance / 8);
 
