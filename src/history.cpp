@@ -171,6 +171,10 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
         int to    = moveTo((ss - 1)->move);
         int piece = board->pieceBoard[to];
 
+        int   tacticalContext = (isCapture((ss - 1)->move) ? 1 : 0) | (((ss - 1)->threat != 0) ? 2 : 0);
+        auto& tacEntry        = thread.tacticalStateCorrHist[board->sideToMove][tacticalContext][piece][to];
+        tacEntry += clampedBonus - tacEntry * std::abs(clampedBonus) / D;
+
         auto& contcorrHistEntry           = (*(ss - 2)->contCorrHist)[piece][to];
         auto& contcorrHistEntryPly3       = (*(ss - 3)->contCorrHist)[piece][to];
         auto& threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
@@ -194,12 +198,16 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
 
     auto contcorrHistEntry           = 0;
     auto threatLastMoveCorrHistEntry = 0;
+    auto tacticalEntry               = 0;
 
     if (isMoveOk)
     {
         int from  = moveFrom((ss - 1)->move);
         int to    = moveTo((ss - 1)->move);
         int piece = board->pieceBoard[to];
+
+        int tacticalContext = (isCapture((ss - 1)->move) ? 1 : 0) | (((ss - 1)->threat != 0) ? 2 : 0);
+        tacticalEntry       = thread.tacticalStateCorrHist[board->sideToMove][tacticalContext][piece][to];
 
         contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
         contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
@@ -208,6 +216,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
 
     const int average =
       (54 * pawnCorrHistEntry + 55 * nonPawnCorrHistEntryWhite + 73 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 67 + threatLastMoveCorrHistEntry * 42 + majorCorrHistEntry * 38) / 512;
+      (48 * pawnCorrHistEntry + 50 * nonPawnCorrHistEntryWhite + 66 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 58 + threatLastMoveCorrHistEntry * 36 + majorCorrHistEntry * 34 + 32 * tacticalEntry) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);
