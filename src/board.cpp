@@ -8,9 +8,11 @@
 #include "tt.h"
 
 Board::Board(const std::string& fen) {
-    key           = 0;
-    pawnKey       = 0;
-    majorKey      = 0;
+    key              = 0;
+    pawnKey          = 0;
+    queensidePawnKey = 0;
+    kingsidePawnKey  = 0;
+    majorKey         = 0;
     nonPawnKey[0] = 0;
     nonPawnKey[1] = 0;
     enPassant     = NO_SQ;
@@ -143,7 +145,13 @@ void Board::addPiece(int piece, int sq) {
 
     auto type = pieceType(piece);
     if (type == PAWN)
+    {
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        if ((sq & 7) <= 3)
+            queensidePawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        else
+            kingsidePawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    }
     else
     {
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];
@@ -164,7 +172,13 @@ void Board::removePiece(int piece, int sq) {
 
     auto type = pieceType(piece);
     if (type == PAWN)
+    {
         pawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        if ((sq & 7) <= 3)
+            queensidePawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+        else
+            kingsidePawnKey ^= Zobrist::Instance()->PieceKeys[piece][sq];
+    }
     else
     {
         nonPawnKey[pieceColor(piece)] ^= Zobrist::Instance()->PieceKeys[piece][sq];

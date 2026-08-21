@@ -155,6 +155,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int& qsEntry                   = thread.flankPawnCorrHist[board->sideToMove][board->queensidePawnKey % 4096][0];
+    int& ksEntry                   = thread.flankPawnCorrHist[board->sideToMove][board->kingsidePawnKey % 4096][1];
 
     const int bonus        = diff * depth / 8;
     const int D            = 1031;
@@ -164,6 +166,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
     majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
+    qsEntry += clampedBonus - qsEntry * std::abs(clampedBonus) / D;
+    ksEntry += clampedBonus - ksEntry * std::abs(clampedBonus) / D;
 
     if (isMoveOk)
     {
@@ -189,6 +193,8 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int  majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
+    int  qsEntry                   = thread.flankPawnCorrHist[board->sideToMove][board->queensidePawnKey % 4096][0];
+    int  ksEntry                   = thread.flankPawnCorrHist[board->sideToMove][board->kingsidePawnKey % 4096][1];
 
     bool isMoveOk = (ss - 1)->move != NO_MOVE && (ss - 1)->move != NULL_MOVE;
 
@@ -207,7 +213,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     }
 
     const int average =
-      (54 * pawnCorrHistEntry + 55 * nonPawnCorrHistEntryWhite + 73 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 67 + threatLastMoveCorrHistEntry * 42 + majorCorrHistEntry * 38) / 512;
+      (46 * pawnCorrHistEntry + 48 * nonPawnCorrHistEntryWhite + 64 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 58 + threatLastMoveCorrHistEntry * 36 + majorCorrHistEntry * 32 + 28 * qsEntry + 28 * ksEntry) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);
