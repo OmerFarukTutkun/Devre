@@ -152,7 +152,6 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
 
 
     int& pawnCorrHistEntry         = thread.corrHist[board->sideToMove][board->pawnKey % 16384][0];
-    int& pawnVariance              = thread.corrHistVariance[board->sideToMove][board->pawnKey % 16384];
     int& nonPawnCorrHistEntryWhite = thread.corrHist[board->sideToMove][board->nonPawnKey[WHITE] % 16384][1];
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
@@ -165,9 +164,6 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     nonPawnCorrHistEntryWhite += clampedBonus - nonPawnCorrHistEntryWhite * std::abs(clampedBonus) / D;
     nonPawnCorrHistEntryBlack += clampedBonus - nonPawnCorrHistEntryBlack * std::abs(clampedBonus) / D;
     majorCorrHistEntry += clampedBonus - majorCorrHistEntry * std::abs(clampedBonus) / D;
-
-    int errorResidual = std::abs(diff);
-    pawnVariance += (errorResidual - pawnVariance) / 16;
 
     if (isMoveOk)
     {
@@ -213,11 +209,12 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     const int average =
       (54 * pawnCorrHistEntry + 55 * nonPawnCorrHistEntryWhite + 73 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 67 + threatLastMoveCorrHistEntry * 42 + majorCorrHistEntry * 38) / 512;
 
-    auto eval = rawEval + average;
+    const int64_t r2            = static_cast<int64_t>(rawEval) * rawEval;
+    int           wdlScale      = 1024 - static_cast<int>((r2 * 1024) / (1200 * 1200));
+    wdlScale                    = std::clamp(wdlScale, 128, 1024);
+    const int     scaledAverage = (average * wdlScale) / 1024;
+
+    auto eval = rawEval + scaledAverage;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);
     return std::clamp(eval, -MIN_MATE_SCORE + 1, MIN_MATE_SCORE - 1);
-}
-
-int getCorrHistVariance(ThreadData& thread, Stack* ss) {
-    return thread.corrHistVariance[thread.board.sideToMove][thread.board.pawnKey % 16384];
 }
