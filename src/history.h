@@ -21,4 +21,6 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, int depth, int diff);
 
 int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, int rawEval);
 
+int getCorrHistVariance(ThreadData& thread, Stack* ss);
+
 #endif  //DEVRE_HISTORY_H

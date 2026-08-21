@@ -409,6 +409,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     {
         const int rfpDepth  = std::max(0, depth - improving);
         const int rfpMargin = 113 * rfpDepth;
+        const int variance  = getCorrHistVariance(thread, ss);
+        const int rfpMargin = 113 * rfpDepth + (variance / 8);
 
         if (eval - rfpMargin >= beta)
             return (eval + beta) / 2;
