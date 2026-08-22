@@ -763,7 +763,11 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int   stabPercent     = std::max<int>(bmStabMin, bmStabBase - bmStabScale * bmStability);
             float stabilityFactor = stabPercent / 100.0f;
 
-            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor)
+            int   rootRawEval       = threads.at(0)->board.eval();
+            int   rootCorr          = std::abs(adjustEvalWithCorrHist(*threads.at(0), ss + 6, rootRawEval) - rootRawEval);
+            float instabilityFactor = 1.0f + std::min(0.25f, rootCorr / 400.0f);
+
+            if (elapsed > timeManager->softTime * nodeTm * stabilityFactor * instabilityFactor)
                 break;
         }
     }
