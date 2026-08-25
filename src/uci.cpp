@@ -225,9 +225,16 @@ void Uci::setoption(std::vector<std::string>& commands) {
         auto value = popFront(commands);
         if (param)
         {
-            param->value = std::stoi(value);
-            search.initSearchParameters();
-            return;
+            try
+            {
+                if (param->setValue(std::stoi(value)))
+                {
+                    search.initSearchParameters();
+                    return;
+                }
+            }
+            catch (...)
+            {}
         }
     }
 

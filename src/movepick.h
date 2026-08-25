@@ -11,8 +11,6 @@ bool isPseudoLegal(const Board& board, uint16_t move);
 bool isLegal(const Board& board, uint16_t move);
 
 
-constexpr int GOOD_TACTICAL_THRESHOLD = 9500000;
-
 enum PickMode : uint8_t {
     PICK_MAIN,           // alphaBeta
     PICK_QSEARCH,        // qsearch, not in check: tacticals only

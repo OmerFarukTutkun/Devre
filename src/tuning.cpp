@@ -1,18 +1,25 @@
 #include "tuning.h"
 
+#include <algorithm>
 #include <sstream>
 #include <vector>
 
+namespace {
 
-std::vector<EngineParam*> tuningParams;
+std::vector<EngineParam*>& tuningParams() {
+    static std::vector<EngineParam*> params;
+    return params;
+}
 
-void registerParam(EngineParam* param) { tuningParams.push_back(param); }
+}  // namespace
+
+void registerParam(EngineParam* param) { tuningParams().push_back(param); }
 
 EngineParam* findParam(std::string name) {
-    for (int i = 0; i < tuningParams.size(); i++)
+    for (auto* param : tuningParams())
     {
-        if (tuningParams.at(i)->name == name)
-            return tuningParams.at(i);
+        if (param->name == name)
+            return param;
     }
     return nullptr;
 }
@@ -20,11 +27,9 @@ EngineParam* findParam(std::string name) {
 std::string paramsToUci() {
     std::ostringstream ss;
 
-    for (int i = 0; i < tuningParams.size(); i++)
+    for (auto* param : tuningParams())
     {
-        EngineParam* p = tuningParams.at(i);
-
-        ss << "option name " << p->name << " type spin default " << p->value << " min -999999999 max 999999999\n";
+        ss << "option name " << param->name << " type spin default " << param->value << " min " << param->min << " max " << param->max << "\n";
     }
 
     return ss.str();
@@ -33,13 +38,11 @@ std::string paramsToUci() {
 std::string paramsToSpsaInput() {
     std::ostringstream ss;
 
-    for (int i = 0; i < tuningParams.size(); i++)
+    for (auto* param : tuningParams())
     {
-        EngineParam* p = tuningParams.at(i);
-
-        ss << p->name << ", "
+        ss << param->name << ", "
            << "int"
-           << ", " << double(p->value) << ", " << double(p->min) << ", " << double(p->max) << ", " << std::max(0.5, double(p->max - p->min) / 20.0) << ", " << 0.002 << "\n";
+           << ", " << double(param->value) << ", " << double(param->min) << ", " << double(param->max) << ", " << std::max(0.5, double(param->max - param->min) / 20.0) << ", " << 0.002 << "\n";
     }
 
     return ss.str();

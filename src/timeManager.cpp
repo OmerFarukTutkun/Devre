@@ -5,6 +5,7 @@
 
 DEFINE_PARAM_B(hardTimePercentage, 40, 0, 100);
 DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
+DEFINE_PARAM_B(timeHardMaxPercentage, 80, 50, 100);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
@@ -45,7 +46,7 @@ void TimeManager::start() {
     const int64_t overhead = std::stoi(option.currentValue);
 
     hardTime = remainingTime * hardTimePercentage / 100 + inc - overhead;
-    hardTime = std::min(hardTime, 80 * remainingTime / 100);
+    hardTime = std::min(hardTime, timeHardMaxPercentage * remainingTime / 100);
 
     hardTime = std::min(hardTime, remainingTime - overhead);
     hardTime = std::max<int64_t>(hardTime, 1);

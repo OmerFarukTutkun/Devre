@@ -1,6 +1,10 @@
 #include "movepick.h"
 #include "attack.h"
 #include "history.h"
+#include "tuning.h"
+
+DEFINE_PARAM_B(goodTacticalThreshold, 9500000, 5000000, 15000000);
+DEFINE_PARAM_B(badCapturePenalty, 9, 1, 15);
 
 namespace {
 
@@ -381,7 +385,7 @@ uint16_t MovePicker::next()
         while (true)
         {
             const int index = bestIndex();
-            if (index < 0 || m_list.scores[index] < GOOD_TACTICAL_THRESHOLD)
+            if (index < 0 || m_list.scores[index] < goodTacticalThreshold)
                 break;
 
             const uint16_t move = m_list.moves[index];
@@ -389,7 +393,7 @@ uint16_t MovePicker::next()
             //qsearch does not use SEE for ordering
             if (m_mode == PICK_MAIN && moveType(move) == CAPTURE && !SEE(*m_board, move))
             {
-                m_list.scores[index] -= 9 * MIL;  // 10M + capthist -> 1M + capthist
+                m_list.scores[index] -= badCapturePenalty * MIL;
                 continue;                         //stays in the list for STAGE_REST
             }
             removeAt(index);

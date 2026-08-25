@@ -2,14 +2,62 @@
 #include "tuning.h"
 #include "nnue.h"
 
-const int HistoryDivisor = 16728;
+DEFINE_PARAM_B(historyDivisor, 16728, 8000, 26000);
 
-int statBonus(int depth) { return std::min(488 * depth - 73, 1367); }
+DEFINE_PARAM_B(quietHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(quietHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(quietHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(quietHistoryMalusScale, 488, 200, 700);
+DEFINE_PARAM_B(quietHistoryMalusOffset, -73, -200, 0);
+DEFINE_PARAM_B(quietHistoryMalusMax, 1367, 700, 2200);
 
-void updateHistory(int16_t* current, int depth, bool good) {
+DEFINE_PARAM_B(pawnHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(pawnHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(pawnHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(pawnHistoryMalusScale, 488, 200, 700);
+DEFINE_PARAM_B(pawnHistoryMalusOffset, -73, -200, 0);
+DEFINE_PARAM_B(pawnHistoryMalusMax, 1367, 700, 2200);
 
-    const int delta = good ? statBonus(depth) : -statBonus(depth);
-    *current += delta - *current * std::abs(delta) / HistoryDivisor;
+DEFINE_PARAM_B(captureHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(captureHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(captureHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(captureHistoryMalusScale, 488, 200, 700);
+DEFINE_PARAM_B(captureHistoryMalusOffset, -73, -200, 0);
+DEFINE_PARAM_B(captureHistoryMalusMax, 1367, 700, 2200);
+
+DEFINE_PARAM_B(contHistoryBonusScale, 488, 200, 700);
+DEFINE_PARAM_B(contHistoryBonusOffset, -73, -200, 0);
+DEFINE_PARAM_B(contHistoryBonusMax, 1367, 700, 2200);
+DEFINE_PARAM_B(contHistoryMalusScale, 488, 200, 700);
+DEFINE_PARAM_B(contHistoryMalusOffset, -73, -200, 0);
+DEFINE_PARAM_B(contHistoryMalusMax, 1367, 700, 2200);
+
+DEFINE_PARAM_B(corrHistBonusDepthDiv, 8, 1, 16);
+DEFINE_PARAM_B(corrHistClamp, 1031, 400, 2000);
+DEFINE_PARAM_B(corrHistPawnWeight, 54, 0, 150);
+DEFINE_PARAM_B(corrHistNonPawnWhiteWeight, 55, 0, 150);
+DEFINE_PARAM_B(corrHistNonPawnBlackWeight, 73, 0, 150);
+DEFINE_PARAM_B(corrHistContWeight, 67, 0, 150);
+DEFINE_PARAM_B(corrHistThreatWeight, 42, 0, 150);
+DEFINE_PARAM_B(corrHistMajorWeight, 38, 0, 150);
+
+int historyValue(int scale, int offset, int max, int depth) {
+    return std::min(scale * depth + offset, max);
+}
+
+int quietHistoryBonus(int depth) { return historyValue(quietHistoryBonusScale, quietHistoryBonusOffset, quietHistoryBonusMax, depth); }
+int quietHistoryMalus(int depth) { return historyValue(quietHistoryMalusScale, quietHistoryMalusOffset, quietHistoryMalusMax, depth); }
+int pawnHistoryBonus(int depth) { return historyValue(pawnHistoryBonusScale, pawnHistoryBonusOffset, pawnHistoryBonusMax, depth); }
+int pawnHistoryMalus(int depth) { return historyValue(pawnHistoryMalusScale, pawnHistoryMalusOffset, pawnHistoryMalusMax, depth); }
+int captureHistoryBonus(int depth) { return historyValue(captureHistoryBonusScale, captureHistoryBonusOffset, captureHistoryBonusMax, depth); }
+int captureHistoryMalus(int depth) { return historyValue(captureHistoryMalusScale, captureHistoryMalusOffset, captureHistoryMalusMax, depth); }
+int contHistoryBonus(int depth) { return historyValue(contHistoryBonusScale, contHistoryBonusOffset, contHistoryBonusMax, depth); }
+int contHistoryMalus(int depth) { return historyValue(contHistoryMalusScale, contHistoryMalusOffset, contHistoryMalusMax, depth); }
+
+void updateHistory(int16_t* current, bool good, int bonus, int malus) {
+
+    const int delta = good ? bonus : -malus;
+    *current += delta - *current * std::abs(delta) / historyDivisor;
 }
 // When a node fails low, the opponent's previous quiet move "worked":
 // give it a continuation-history bonus.
@@ -24,7 +72,7 @@ void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
     int piece = board->pieceBoard[to];
 
     if ((ss - 2)->move)
-        updateHistory(&(*(ss - 2)->continuationHistory)[piece][to], depth, true);
+        updateHistory(&(*(ss - 2)->continuationHistory)[piece][to], true, contHistoryBonus(depth), contHistoryMalus(depth));
 }
 
 void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bestMove) {
@@ -40,6 +88,12 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
         ss->killers[0] = bestMove;
     }
     int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
+    const int quietBonus = quietHistoryBonus(depth);
+    const int quietMalus = quietHistoryMalus(depth);
+    const int pawnBonus  = pawnHistoryBonus(depth);
+    const int pawnMalus  = pawnHistoryMalus(depth);
+    const int contBonus  = contHistoryBonus(depth);
+    const int contMalus  = contHistoryMalus(depth);
     for (int i = 0; i < ss->played; i++)
     {
         uint16_t move = ss->playedMoves[i];
@@ -51,21 +105,21 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             bool isGood = (i == ss->played - 1);
 
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, isGood, quietBonus, quietMalus);
 
             // pawn history
             current = &thread.pawnHistory[pawnBucket][piece][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, isGood, pawnBonus, pawnMalus);
 
             if ((ss - 1)->move)
             {
                 current = &(*(ss - 1)->continuationHistory)[piece][to];
-                updateHistory(current, depth, isGood);
+                updateHistory(current, isGood, contBonus, contMalus);
             }
             if ((ss - 2)->move)
             {
                 current = &(*(ss - 2)->continuationHistory)[piece][to];
-                updateHistory(current, depth, isGood);
+                updateHistory(current, isGood, contBonus, contMalus);
             }
         }
     }
@@ -73,6 +127,8 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
 
 void updateCaptureHistories(ThreadData& thread, Stack* ss, int depth) {
     Board* board = &thread.board;
+    const int captureBonus = captureHistoryBonus(depth);
+    const int captureMalus  = captureHistoryMalus(depth);
     for (int i = 0; i < ss->played; i++)
     {
         auto move = ss->playedMoves[i];
@@ -81,7 +137,7 @@ void updateCaptureHistories(ThreadData& thread, Stack* ss, int depth) {
             int      from    = moveFrom(move);
             int      to      = moveTo(move);
             int16_t* current = &thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
-            updateHistory(current, depth, i == ss->played - 1);
+            updateHistory(current, i == ss->played - 1, captureBonus, captureMalus);
         }
     }
 }
@@ -156,8 +212,8 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
     int& nonPawnCorrHistEntryBlack = thread.corrHist[board->sideToMove][board->nonPawnKey[BLACK] % 16384][2];
     int& majorCorrHistEntry        = thread.corrHist[board->sideToMove][board->majorKey % 16384][3];
 
-    const int bonus        = diff * depth / 8;
-    const int D            = 1031;
+    const int bonus        = diff * depth / corrHistBonusDepthDiv;
+    const int D            = corrHistClamp;
     int       clampedBonus = std::clamp(bonus, -D, D);
 
     pawnCorrHistEntry += clampedBonus - pawnCorrHistEntry * std::abs(clampedBonus) / D;
@@ -207,7 +263,7 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
     }
 
     const int average =
-      (54 * pawnCorrHistEntry + 55 * nonPawnCorrHistEntryWhite + 73 * nonPawnCorrHistEntryBlack + contcorrHistEntry * 67 + threatLastMoveCorrHistEntry * 42 + majorCorrHistEntry * 38) / 512;
+      (corrHistPawnWeight * pawnCorrHistEntry + corrHistNonPawnWhiteWeight * nonPawnCorrHistEntryWhite + corrHistNonPawnBlackWeight * nonPawnCorrHistEntryBlack + contcorrHistEntry * corrHistContWeight + threatLastMoveCorrHistEntry * corrHistThreatWeight + majorCorrHistEntry * corrHistMajorWeight) / 512;
 
     auto eval = rawEval + average;
     eval      = eval * NNUE::halfMoveScale(thread.board) * NNUE::materialScale(thread.board);

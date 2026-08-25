@@ -45,7 +45,7 @@ class Option {
                 {
                     currentValue = value;
                 }
-            } catch (int e)
+            } catch (...)
             {}
         }
         else if (type == "check")

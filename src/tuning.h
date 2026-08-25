@@ -3,6 +3,7 @@
 //taken from https://github.com/gab8192/Obsidian
 
 #include <iostream>
+#include <string>
 
 struct EngineParam;
 
@@ -41,10 +42,17 @@ struct EngineParam {
         registerParam(this);
     }
 
+    bool setValue(int newValue) {
+        if (newValue < min || newValue > max)
+            return false;
+        value = newValue;
+        return true;
+    }
+
     inline operator int() const { return value; }
 };
 
-//#define DO_TUNING
+#define DO_TUNING
 
 #ifdef DO_TUNING
 
