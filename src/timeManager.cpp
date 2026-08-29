@@ -3,8 +3,8 @@
 #include "util.h"
 #include "tuning.h"
 
-DEFINE_PARAM_B(hardTimePercentage, 40, 0, 100);
-DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
+DEFINE_PARAM_B(hardTimePercentage, 45, 0, 100);
+DEFINE_PARAM_B(softTimePercentage, 6, 0, 100);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
