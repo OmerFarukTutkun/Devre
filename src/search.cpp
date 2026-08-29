@@ -11,24 +11,120 @@
 #include "tuning.h"
 #include "fathom/src/tbprobe.h"
 
-DEFINE_PARAM_B(nodeTmBase, 150, 0, 350);
-DEFINE_PARAM_B(nodeTmMultp, -100, -300, 0);
+DEFINE_PARAM_B(nodeTmBase, 159, 0, 350);
+DEFINE_PARAM_B(nodeTmMultp, -99, -300, 0);
 
 // Best-move stability soft-time scaling (percent). When the best root move keeps
 // changing between iterations we spend more time; when it is stable we stop earlier.
-DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
-DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
-DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
+DEFINE_PARAM_B(bmStabBase, 124, 80, 200);
+DEFINE_PARAM_B(bmStabScale, 4, 0, 25);
+DEFINE_PARAM_B(bmStabMin, 67, 40, 120);
+
+DEFINE_PARAM_B(seeQuietMargin, -118, -500, 0);
+DEFINE_PARAM_B(seeCaptureMargin, -284, -500, 0);
+DEFINE_PARAM_B(lmrBase, 5, 0, 20);
+DEFINE_PARAM_B(lmrDiv, 277, 1, 1000);
+DEFINE_PARAM_B(lmrMoveCount, 3, 0, 10);
+DEFINE_PARAM_B(lmrMinDepth, 3, 0, 20);
+DEFINE_PARAM_B(lmrHistoryDiv, 7960, 100, 20000);
+DEFINE_PARAM_B(lmrHistoryClamp, 3, 0, 20);
+DEFINE_PARAM_B(lmrPvReduction, 1, 0, 5);
+DEFINE_PARAM_B(lmrNotImprovingBonus, 1, 0, 10);
+DEFINE_PARAM_B(lmrCutNodeBonus, 1, 0, 10);
+DEFINE_PARAM_B(lmrTtCaptureBonus, 2, 0, 10);
+DEFINE_PARAM_B(lmrEvalDiffThreshold, 322, 0, 1000);
+DEFINE_PARAM_B(lmrEvalDiffReduction, 0, -10, 10);
+DEFINE_PARAM_B(iirNoTtMinDepth, 3, 0, 20);
+DEFINE_PARAM_B(iirTtMinDepth, 9, 0, 20);
+DEFINE_PARAM_B(iirTtDepthMargin, 4, 0, 20);
+DEFINE_PARAM_B(rfpMaxDepth, 7, 0, 20);
+DEFINE_PARAM_B(rfpMargin, 95, 0, 500);
+DEFINE_PARAM_B(razoringMaxDepth, 5, 0, 20);
+DEFINE_PARAM_B(razoringMargin, 423, 0, 1000);
+DEFINE_PARAM_B(nmpMinDepth, 4, 0, 20);
+DEFINE_PARAM_B(nmpBase, 4, 0, 20);
+DEFINE_PARAM_B(nmpDepthDiv, 4, 1, 20);
+DEFINE_PARAM_B(nmpEvalDiv, 191, 1, 500);
+DEFINE_PARAM_B(nmpMaxReduction, 5, 0, 20);
+DEFINE_PARAM_B(lmpMaxDepth, 6, 0, 20);
+DEFINE_PARAM_B(lmpBase, 5, 0, 20);
+DEFINE_PARAM_B(lmpMargin, 1, 0, 10);
+DEFINE_PARAM_B(lmpImprovingMargin, 3, 0, 10);
+DEFINE_PARAM_B(fpMaxDepth, 11, 0, 20);
+DEFINE_PARAM_B(fpBase, 179, 0, 500);
+DEFINE_PARAM_B(fpMovePenalty, 14, 0, 100);
+DEFINE_PARAM_B(fpMargin, 106, 0, 500);
+DEFINE_PARAM_B(contHistPruningMaxDepth, 3, 0, 20);
+DEFINE_PARAM_B(contHistPruningMargin, -3498, -20000, 0);
+DEFINE_PARAM_B(seePruningMoveCount, 2, 0, 10);
+DEFINE_PARAM_B(seePruningMaxDepth, 6, 0, 20);
+DEFINE_PARAM_B(singularMinDepth, 7, 0, 20);
+DEFINE_PARAM_B(singularTtDepthMargin, 3, 0, 10);
+DEFINE_PARAM_B(singularBetaMargin, 4, 0, 20);
+DEFINE_PARAM_B(singularSearchDepthDiv, 3, 1, 20);
+DEFINE_PARAM_B(singularMaxDoubleExtensions, 5, 0, 20);
+DEFINE_PARAM_B(singularPvMargin, 336, 0, 1000);
+DEFINE_PARAM_B(singularQuietMargin, 190, 0, 500);
+DEFINE_PARAM_B(lmrDeeperMargin, 35, 0, 200);
+DEFINE_PARAM_B(lmrDeeperDepthScale, 2, 0, 20);
+DEFINE_PARAM_B(lmrShallowerDepthScale, 0, -10, 10);
+DEFINE_PARAM_B(aspirationMinDepth, 4, 0, 20);
+DEFINE_PARAM_B(aspirationWindow, 27, 0, 100);
+DEFINE_PARAM_B(datagenAspirationWindow, 17, 0, 100);
+DEFINE_PARAM_B(aspirationGrowthDiv, 2, 1, 20);
+DEFINE_PARAM_B(bmStabilityMax, 8, 0, 20);
+DEFINE_PARAM_B(corrHistInstabilityCap, 28, 0, 100);
+DEFINE_PARAM_B(corrHistInstabilityDiv, 405, 1, 1000);
+DEFINE_PARAM_B(evalStabilityBase, 88, 0, 200);
+DEFINE_PARAM_B(evalStabilityMin, 85, 0, 200);
+DEFINE_PARAM_B(evalStabilityMax, 119, 0, 200);
+DEFINE_PARAM_B(evalStabilityScale, 79, 0, 200);
+DEFINE_PARAM_B(evalStabilityMinDepth, 2, 0, 20);
+DEFINE_PARAM_B(goodTacticalThreshold, 8125493, 0, 20000000);
+DEFINE_PARAM_B(badCapturePenalty, 10, 0, 100);
+DEFINE_PARAM_B(historyDivisor, 16389, 1000, 50000);
+DEFINE_PARAM_B(quietHistoryBonusScale, 484, 0, 2000);
+DEFINE_PARAM_B(quietHistoryBonusOffset, -79, -1000, 1000);
+DEFINE_PARAM_B(quietHistoryBonusMax, 1409, 0, 5000);
+DEFINE_PARAM_B(quietHistoryMalusScale, 504, 0, 2000);
+DEFINE_PARAM_B(quietHistoryMalusOffset, -43, -1000, 1000);
+DEFINE_PARAM_B(quietHistoryMalusMax, 1304, 0, 5000);
+DEFINE_PARAM_B(pawnHistoryBonusScale, 486, 0, 2000);
+DEFINE_PARAM_B(pawnHistoryBonusOffset, -77, -1000, 1000);
+DEFINE_PARAM_B(pawnHistoryBonusMax, 1348, 0, 5000);
+DEFINE_PARAM_B(pawnHistoryMalusScale, 510, 0, 2000);
+DEFINE_PARAM_B(pawnHistoryMalusOffset, -57, -1000, 1000);
+DEFINE_PARAM_B(pawnHistoryMalusMax, 1431, 0, 5000);
+DEFINE_PARAM_B(captureHistoryBonusScale, 480, 0, 2000);
+DEFINE_PARAM_B(captureHistoryBonusOffset, -98, -1000, 1000);
+DEFINE_PARAM_B(captureHistoryBonusMax, 1327, 0, 5000);
+DEFINE_PARAM_B(captureHistoryMalusScale, 443, 0, 2000);
+DEFINE_PARAM_B(captureHistoryMalusOffset, -60, -1000, 1000);
+DEFINE_PARAM_B(captureHistoryMalusMax, 1382, 0, 5000);
+DEFINE_PARAM_B(contHistoryBonusScale, 419, 0, 2000);
+DEFINE_PARAM_B(contHistoryBonusOffset, -47, -1000, 1000);
+DEFINE_PARAM_B(contHistoryBonusMax, 1220, 0, 5000);
+DEFINE_PARAM_B(contHistoryMalusScale, 498, 0, 2000);
+DEFINE_PARAM_B(contHistoryMalusOffset, -60, -1000, 1000);
+DEFINE_PARAM_B(contHistoryMalusMax, 1233, 0, 5000);
+DEFINE_PARAM_B(corrHistBonusDepthDiv, 6, 1, 20);
+DEFINE_PARAM_B(corrHistClamp, 1075, 0, 5000);
+DEFINE_PARAM_B(corrHistPawnWeight, 49, 0, 100);
+DEFINE_PARAM_B(corrHistNonPawnWhiteWeight, 59, 0, 100);
+DEFINE_PARAM_B(corrHistNonPawnBlackWeight, 85, 0, 100);
+DEFINE_PARAM_B(corrHistContWeight, 65, 0, 100);
+DEFINE_PARAM_B(corrHistThreatWeight, 25, 0, 100);
+DEFINE_PARAM_B(corrHistMajorWeight, 46, 0, 100);
 
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
     if (quiet)
     {
-        return -89 * depth;
+        return seeQuietMargin * depth;
     }
     else
-        return -271 * depth;
+        return seeCaptureMargin * depth;
 }
 
 void Search::initSearchParameters() {
@@ -37,7 +133,7 @@ void Search::initSearchParameters() {
         for (int j = 0; j < 256; j++)
         {
             if (i >= 1 && j >= 2)
-                LMR_TABLE[i][j] = 0.08 + log(i) * log(j - 1) / 2.49;
+                LMR_TABLE[i][j] = std::max(0, lmrBase + static_cast<int>(std::round(log(i) * log(j - 1) / lmrDiv)));
             else
                 LMR_TABLE[i][j] = 0;
         }
@@ -405,17 +501,17 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
 
-    if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 7 && std::abs(eval) < MIN_TB_SCORE)
+    if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= rfpMaxDepth && std::abs(eval) < MIN_TB_SCORE)
     {
-        const int rfpDepth  = std::max(0, depth - improving);
-        const int rfpMargin = 113 * rfpDepth;
+        const int rfpDepth = std::max(0, depth - improving);
+        const int margin   = rfpMargin * rfpDepth;
 
-        if (eval - rfpMargin >= beta)
+        if (eval - margin >= beta)
             return (eval + beta) / 2;
     }
 
     //Razoring
-    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 430 * depth < alpha)
+    if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= razoringMaxDepth && eval + razoringMargin * depth < alpha)
     {
         int score = qsearch(alpha, beta, thread, ss);
         if (score < alpha)
@@ -429,9 +525,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     int score;
 
     //Null Move pruning
-    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 4 && eval > beta && board->hasNonPawnPieces())
+    if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= nmpMinDepth && eval > beta && board->hasNonPawnPieces())
     {
-        int R = 5 + depth / 4 + std::min(4, (eval - beta) / 188);
+        int R = nmpBase + depth / nmpDepthDiv + std::min<int>(nmpMaxReduction, (eval - beta) / nmpEvalDiv);
 
         ss->move                = NULL_MOVE;
         ss->continuationHistory = &thread.contHist[PAWN][A1];
@@ -470,14 +566,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             // late move pruning. Both this and the futility margin below only get
             // stricter as moveCount grows, so the picker can drop every quiet
             // move still to come instead of generating and scoring them.
-            if (depth <= 6 && moveCount > 6 + (1 + 3 * improving) * depth)
+            if (depth <= lmpMaxDepth && moveCount > lmpBase + (lmpMargin + lmpImprovingMargin * improving) * depth)
             {
                 picker.skipQuiets();
                 continue;
             }
 
             // futility pruning
-            if (depth <= 10 && eval + std::max(172, -moveCount * 10 + 172 + depth * 101) < alpha)
+            if (depth <= fpMaxDepth && eval + std::max<int>(fpBase, -moveCount * fpMovePenalty + fpBase + depth * fpMargin) < alpha)
             {
                 picker.skipQuiets();
                 continue;
@@ -485,10 +581,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
-            if (depth <= 3 && contHist < -3720)
+            if (depth <= contHistPruningMaxDepth && contHist < contHistPruningMargin)
                 continue;
         }
-        if (moveCount > 2 && !PVNode && depth <= 6 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
+        if (moveCount > seePruningMoveCount && !PVNode && depth <= seePruningMaxDepth && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
@@ -497,21 +593,21 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         int history = 0;
         lmr         = 0;
-        if (moveCount > 2 && depth > 3)
+        if (moveCount > lmrMoveCount && depth > lmrMinDepth)
         {
             lmr = LMR_TABLE[depth][moveCount];
-            lmr -= PVNode;  //reduce less for PV nodes
-            lmr += !improving;
+            lmr -= PVNode * lmrPvReduction;  //reduce less for PV nodes
+            lmr += !improving * lmrNotImprovingBonus;
 
             if (isQuiet(move))
                 history = getQuietHistory(thread, ss, move);
             else
                 history = getCaptureHistory(thread, ss, move);
 
-            lmr -= std::clamp(history / 8024, -2, 2);
-            lmr += cutNode;
-            lmr += ttMove && ttCapture;
-            lmr -= std::abs(ss->staticEval - rawEval) > 341;
+            lmr -= std::clamp(history / lmrHistoryDiv, -int(lmrHistoryClamp), int(lmrHistoryClamp));
+            lmr += cutNode * lmrCutNodeBonus;
+            lmr += ttMove && ttCapture ? lmrTtCaptureBonus : 0;
+            lmr -= std::abs(ss->staticEval - rawEval) > lmrEvalDiffThreshold ? lmrEvalDiffReduction + 1 : 0;
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));

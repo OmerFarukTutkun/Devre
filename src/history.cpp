@@ -2,7 +2,7 @@
 #include "tuning.h"
 #include "nnue.h"
 
-const int HistoryDivisor = 16728;
+const int HistoryDivisor = 16389;
 
 int statBonus(int depth) { return std::min(488 * depth - 73, 1367); }
 
