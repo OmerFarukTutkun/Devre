@@ -32,6 +32,13 @@ class NNUE {
     static constexpr int QA          = 127;  // FT / accumulator scale (int8 weights)
     static constexpr int INPUT_SHIFT = 7;    // pairwise right shift (127*127 >> 7 = 126)
 
+    // --- Policy Head. 768 -> 512 -> 1860. --------------------------------------
+    static constexpr int POLICY_L1_IN        = 2 * PW;                  // 768
+    static constexpr int POLICY_HIDDEN       = 512;
+    static constexpr int POLICY_OUTPUTS      = 1860;
+    static constexpr int BASE_POLICY_OUTPUTS = 1792;
+    static constexpr int POLICY_L1_GROUPS    = POLICY_L1_IN / 4;        // 192
+
     static constexpr int MAX_PSQ_ACTIVE    = 32;
     static constexpr int MAX_PAIR_ACTIVE   = 96;
     static constexpr int MAX_THREAT_ACTIVE = 128;
@@ -56,6 +63,14 @@ class NNUE {
         alignas(64) float   l2Biases[L2_SIZE];
         alignas(64) float   l3Weights[HEAD_SIZE];
         alignas(64) float   l3Biases;
+
+        // Policy head weights & biases
+        alignas(64) int8_t  polL1Weights[POLICY_L1_GROUPS][4 * POLICY_HIDDEN];
+        alignas(64) float   polL1Norm[POLICY_HIDDEN];
+        alignas(64) float   polL1Biases[POLICY_HIDDEN];
+        alignas(64) int8_t  polL2Weights[POLICY_OUTPUTS * POLICY_HIDDEN];
+        alignas(64) float   polL2Norm[POLICY_OUTPUTS];
+        alignas(64) float   polL2Biases[POLICY_OUTPUTS];
     };
 
     struct PerspectiveKey {
@@ -70,6 +85,7 @@ class NNUE {
 
     std::unique_ptr<NetworkData> network;
     bool                         loaded = false;
+    bool                         policyLoaded = false;
 
     static PerspectiveKey perspectiveKey(int kingSquare, Color perspective);
 
@@ -91,6 +107,8 @@ class NNUE {
     int         runHead(const int16_t* stmPsq, const int16_t* stmTac, const int16_t* ntmPsq,
                         const int16_t* ntmTac) const;
 
+    void        runPolicyL1(const uint8_t* pairwise, uint8_t* hidden) const;
+
     bool loadFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel);
 
    public:
@@ -110,6 +128,10 @@ class NNUE {
     void calculateInputLayer(Board& board, int idx, bool fromScratch = false);
     int evaluate(Board& board);
     bool isLoaded() const { return loaded; }
+    bool hasPolicy() const { return policyLoaded; }
+
+    void computePolicyHidden(Board& board, uint8_t* hidden) const;
+    float runPolicyL2(const uint8_t* hidden, int moveIdx) const;
 
     static NNUE  instance;
     static NNUE* Instance() { return &instance; }

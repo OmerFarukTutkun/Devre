@@ -863,6 +863,109 @@ int NNUE::runHead(const int16_t* stmPsq, const int16_t* stmTac, const int16_t* n
     return finishHead(dots);
 }
 
+void NNUE::runPolicyL1(const uint8_t* pairwise, uint8_t* hidden) const {
+    const NetworkData& net = *network;
+
+    // 16 lanes on AVX-512, 8 on AVX2, 4 on SSE.
+    constexpr int groupsPerVec = SIMD::vecSize / 2;
+    constexpr int maskBytes    = (groupsPerVec + 7) / 8;
+    static_assert(POLICY_HIDDEN % groupsPerVec == 0, "Policy hidden must tile accumulator vectors");
+
+    uint16_t nonZero[POLICY_L1_GROUPS + 8];
+    int      count = 0;
+
+    for (int group = 0; group < POLICY_L1_GROUPS; group += groupsPerVec)
+    {
+        uint32_t mask = SIMD::nonZeroMaskEpi32(SIMD::vecLoadRaw(pairwise + 4 * group));
+        for (int b = 0; b < maskBytes; b++)
+        {
+            const uint8_t byte = static_cast<uint8_t>(mask >> (8 * b));
+            const __m128i base = _mm_set1_epi16(static_cast<int16_t>(group + 8 * b));
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(nonZero + count),
+                             _mm_add_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(NNZ_POSITIONS[byte].data())), base));
+            count += __builtin_popcount(byte);
+        }
+    }
+
+    constexpr int TILE  = 256;
+    constexpr int nVecs = TILE / groupsPerVec;
+
+    for (int t = 0; t < POLICY_HIDDEN; t += TILE)
+    {
+        SIMD::vecType acc[nVecs];
+        for (int v = 0; v < nVecs; v++)
+            acc[v] = SIMD::vecZero();
+
+        for (int i = 0; i < count; i++)
+        {
+            const int           g = nonZero[i];
+            int32_t             bytes;
+            std::memcpy(&bytes, pairwise + 4 * g, sizeof(bytes));
+            const SIMD::vecType inputs = SIMD::vecBroadcastEpi32(bytes);
+            for (int v = 0; v < nVecs; v++)
+            {
+                const int neuron = t + v * groupsPerVec;
+                acc[v]           = SIMD::vecDpbusdEpi32(acc[v], inputs,
+                                                        SIMD::vecLoadRaw(net.polL1Weights[g] + 4 * neuron));
+            }
+        }
+
+        alignas(64) int32_t dots[TILE];
+        for (int v = 0; v < nVecs; v++)
+            SIMD::vecStoreEpi32(dots + v * groupsPerVec, acc[v]);
+
+        for (int j = 0; j < TILE; j++)
+        {
+            const int   neuron = t + j;
+            const float val    = static_cast<float>(dots[j]) * net.polL1Norm[neuron] + net.polL1Biases[neuron];
+            hidden[neuron]     = static_cast<uint8_t>(std::clamp(static_cast<int>(val * 16.0f), 0, 127));
+        }
+    }
+}
+
+float NNUE::runPolicyL2(const uint8_t* hidden, int moveIdx) const {
+    const NetworkData& net = *network;
+    const int8_t*      w   = net.polL2Weights + static_cast<size_t>(moveIdx) * POLICY_HIDDEN;
+
+    constexpr int bytesPerVec = SIMD::vecSize * 2;
+    constexpr int nChunks     = POLICY_HIDDEN / bytesPerVec;
+
+    SIMD::vecType acc = SIMD::vecZero();
+    for (int c = 0; c < nChunks; c++)
+    {
+        const SIMD::vecType hVec = SIMD::vecLoadRaw(hidden + c * bytesPerVec);
+        const SIMD::vecType wVec = SIMD::vecLoadRaw(w + c * bytesPerVec);
+        acc                      = SIMD::vecDpbusdEpi32(acc, hVec, wVec);
+    }
+
+    const int32_t dot = SIMD::vecReduceAddEpi32(acc);
+    return static_cast<float>(dot) * net.polL2Norm[moveIdx] + net.polL2Biases[moveIdx];
+}
+
+void NNUE::computePolicyHidden(Board& board, uint8_t* hidden) const {
+    if (!policyLoaded)
+        return;
+
+    auto& acc = board.nnueData.accumulator[board.nnueData.size];
+    if (!acc.stateValid)
+    {
+        acc.pawns[WHITE]  = board.bitboards[WHITE_PAWN];
+        acc.pawns[BLACK]  = board.bitboards[BLACK_PAWN];
+        acc.kingSq[WHITE] = static_cast<uint8_t>(bitScanForward(board.bitboards[WHITE_KING]));
+        acc.kingSq[BLACK] = static_cast<uint8_t>(bitScanForward(board.bitboards[BLACK_KING]));
+        acc.stateValid    = true;
+    }
+
+    updatePerspective(board, WHITE);
+    updatePerspective(board, BLACK);
+
+    const Color stm = board.sideToMove;
+    const Color ntm = ~stm;
+    alignas(64) uint8_t pairwise[2 * PW];
+    computePairwise(acc.psq[stm], acc.tac[stm], acc.psq[ntm], acc.tac[ntm], pairwise);
+    runPolicyL1(pairwise, hidden);
+}
+
 // --- Evaluation -------------------------------------------------------------
 
 void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
@@ -951,7 +1054,10 @@ bool NNUE::loadFromBuffer(const uint8_t* data, size_t size, const std::string& s
     };
 
     bool ok = true;
-    expect("version", readU32(data, 8), NET_VERSION, ok);
+    const uint32_t rawVersion = readU32(data, 8);
+    const uint16_t version    = rawVersion & 0xFFFF;
+    const uint16_t flags      = rawVersion >> 16;
+    expect("version", version, NET_VERSION, ok);
     expect("kingBuckets", readU32(data, 12), KING_BUCKETS, ok);
     expect("ftSize", readU32(data, 16), NNUE_FT_OUT, ok);
     expect("outputBuckets", readU32(data, 20), OUTPUT_BUCKETS, ok);
@@ -1016,11 +1122,31 @@ bool NNUE::loadFromBuffer(const uint8_t* data, size_t size, const std::string& s
                 net.l2Weights[in][out] = raw[out][in];
     }
 
+    constexpr size_t polPayload = sizeof(NetworkData::polL1Weights) + sizeof(NetworkData::polL1Norm)
+                                + sizeof(NetworkData::polL1Biases) + sizeof(NetworkData::polL2Weights)
+                                + sizeof(NetworkData::polL2Norm) + sizeof(NetworkData::polL2Biases);
+
+    const bool hasPolicyFlag = (flags & 1) != 0;
+    if (hasPolicyFlag && (size - HEADER_LEN >= payload + polPayload))
+    {
+        read(net.polL1Weights, sizeof(net.polL1Weights));
+        read(net.polL1Norm, sizeof(net.polL1Norm));
+        read(net.polL1Biases, sizeof(net.polL1Biases));
+        read(net.polL2Weights, sizeof(net.polL2Weights));
+        read(net.polL2Norm, sizeof(net.polL2Norm));
+        read(net.polL2Biases, sizeof(net.polL2Biases));
+        policyLoaded = true;
+    }
+    else
+    {
+        policyLoaded = false;
+    }
+
     loaded = true;
 
     std::cout << "info string Loaded net from " << sourceLabel << " (" << FT_IN << " -> " << NNUE_FT_OUT
               << ", " << KING_BUCKETS << " king buckets, " << NUM_TAC_FEATURES << " tactical features, " << OUTPUT_BUCKETS
-              << " output buckets)" << std::endl;
+              << " output buckets" << (policyLoaded ? ", with policy head)" : ")") << std::endl;
     return true;
 }
 

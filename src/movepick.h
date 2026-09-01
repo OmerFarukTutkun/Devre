@@ -11,6 +11,8 @@ bool isPseudoLegal(const Board& board, uint16_t move);
 bool isLegal(const Board& board, uint16_t move);
 
 
+int getPolicyIndex(const Board& board, uint16_t move);
+
 constexpr int GOOD_TACTICAL_THRESHOLD = 9500000;
 
 enum PickMode : uint8_t {
@@ -34,7 +36,7 @@ enum PickStage : uint8_t {
 // must not be called between makeMove() and unmakeMove().
 class MovePicker {
    public:
-    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode);
+    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int depth = 0);
 
     uint16_t next();
 
@@ -58,6 +60,7 @@ class MovePicker {
     bool        m_skipQuiets;
     PickMode    m_mode;
     PickStage   m_stage;
+    int         m_depth;
 };
 
 #endif  //DEVRE_MOVEPICK_H

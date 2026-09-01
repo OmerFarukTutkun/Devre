@@ -1,8 +1,48 @@
 #include "movepick.h"
 #include "attack.h"
 #include "history.h"
+#include "nnue.h"
+#include "tuning.h"
+
+DEFINE_PARAM_B(PolicyMinDepth, 4, 1, 10);
+DEFINE_PARAM_B(PolicyScale, 30000, 0, 100000);
+DEFINE_PARAM_B(PolicyDepthBase, 4, 1, 20);
+DEFINE_PARAM_B(PolicyDepthMul, 1, 0, 5);
 
 namespace {
+
+constexpr bool isBaseMove(int src, int to) {
+    if (src == to) return false;
+    int src_file = src % 8;
+    int src_rank = src / 8;
+    int to_file = to % 8;
+    int to_rank = to / 8;
+    int file_delta = src_file > to_file ? src_file - to_file : to_file - src_file;
+    int rank_delta = src_rank > to_rank ? src_rank - to_rank : to_rank - src_rank;
+    return (src_file == to_file)
+        || (src_rank == to_rank)
+        || (file_delta == rank_delta)
+        || (file_delta == 1 && rank_delta == 2)
+        || (file_delta == 2 && rank_delta == 1);
+}
+
+struct BasePolicyTable {
+    int16_t table[64][64];
+    constexpr BasePolicyTable() : table{} {
+        for (int s = 0; s < 64; s++)
+            for (int d = 0; d < 64; d++)
+                table[s][d] = -1;
+        int16_t index = 0;
+        for (int src = 0; src < 64; src++) {
+            for (int to = 0; to < 64; to++) {
+                if (isBaseMove(src, to)) {
+                    table[src][to] = index++;
+                }
+            }
+        }
+    }
+};
+constexpr BasePolicyTable BASE_POLICY_TABLE{};
 
 // Is `sq` attacked by `by`, using a caller supplied occupancy? `byOcc` lets the
 // caller pretend a piece was just captured without touching the board.
@@ -210,14 +250,26 @@ bool isLegal(const Board& board, uint16_t move)
     return !attackedWith(board, kingSq, them, occ, themBB);
 }
 
-MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode) :
+int getPolicyIndex(const Board& board, uint16_t move) {
+    const Color us        = board.sideToMove;
+    const int   ourKingSq = bitScanForward(board.bitboards[pieceIndex(us, KING)]);
+    const int   hFlip     = (ourKingSq & 7) > 3 ? 7 : 0;
+    const int   vFlip     = (us == BLACK) ? 56 : 0;
+    const int   flip      = vFlip ^ hFlip;
+    const int   from      = moveFrom(move) ^ flip;
+    const int   to        = moveTo(move) ^ flip;
+    return BASE_POLICY_TABLE.table[from][to];
+}
+
+MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int depth) :
     m_thread(thread),
     m_ss(ss),
     m_board(&thread.board),
     m_ttMove(ttMove),
     m_refutationIndex(0),
     m_skipQuiets(false),
-    m_mode(mode)
+    m_mode(mode),
+    m_depth(depth)
 {
     m_refutations[0] = NO_MOVE;
     m_refutations[1] = NO_MOVE;
@@ -343,6 +395,17 @@ void MovePicker::generateQuiets()
     else
         generateMoves<BLACK, QUIET_MOVES>(*m_board, m_info, m_list);
 
+    const bool policyValid = NNUE::Instance()->hasPolicy() && (m_depth >= PolicyMinDepth);
+    alignas(64) uint8_t hidden[NNUE::POLICY_HIDDEN];
+    int denom = 1;
+    if (policyValid)
+    {
+        NNUE::Instance()->computePolicyHidden(*m_board, hidden);
+        denom = PolicyDepthBase + m_depth * PolicyDepthMul;
+        if (denom <= 0)
+            denom = 1;
+    }
+
     int write = start;
     for (int read = start; read < m_list.numMove; read++)
     {
@@ -353,7 +416,18 @@ void MovePicker::generateQuiets()
         const int type  = moveType(move);
         int       score = moveTypeScores[type];
         if (type < 2)  //castles and under promotions get no history
+        {
             score += getQuietHistory(m_thread, m_ss, move);
+            if (policyValid)
+            {
+                const int pIdx = getPolicyIndex(*m_board, move);
+                if (pIdx >= 0)
+                {
+                    const float logit = NNUE::Instance()->runPolicyL2(hidden, pIdx);
+                    score += static_cast<int>(logit * PolicyScale) / denom;
+                }
+            }
+        }
 
         m_list.moves[write]  = move;
         m_list.scores[write] = score;

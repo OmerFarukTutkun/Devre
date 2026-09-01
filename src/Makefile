@@ -2,7 +2,7 @@
 CXX      = g++
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
-NETWORK ?= devre-a064d8d9d7b6.bin
+NETWORK ?= devre-e123a8e76057.bin
 
 # ISA levels, each a superset of the one above. SSE2 is the floor: simd.h has a
 # full path for it, so every level below builds and evaluates identically -- only
@@ -22,10 +22,10 @@ CXX_FLAGS  = -I. -static -pthread -fno-rtti -funroll-loops --param max-unroll-ti
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
-	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
+	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/policy/$(NETWORK)" > "./$(NETWORK)"
 else
 	EXE := Devre
-	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
+	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/policy/$(NETWORK)
 endif
 
 

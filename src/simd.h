@@ -60,6 +60,7 @@ inline fvecType fvecFmadd(fvecType a, fvecType b, fvecType c) { return _mm512_fm
 inline fvecType fvecMin(fvecType a, fvecType b) { return _mm512_min_ps(a, b); }
 inline fvecType fvecMax(fvecType a, fvecType b) { return _mm512_max_ps(a, b); }
 inline float fvecReduceAdd(fvecType v) { return _mm512_reduce_add_ps(v); }
+inline int32_t vecReduceAddEpi32(vecType v) { return _mm512_reduce_add_epi32(v); }
 
 #elif defined(__AVX2__)
 
@@ -126,6 +127,12 @@ inline float fvecReduceAdd(fvecType v) {
     half = _mm_add_ss(half, _mm_shuffle_ps(half, half, 1));
     return _mm_cvtss_f32(half);
 }
+inline int32_t vecReduceAddEpi32(vecType v) {
+    __m128i half = _mm_add_epi32(_mm256_castsi256_si128(v), _mm256_extracti128_si256(v, 1));
+    half = _mm_add_epi32(half, _mm_srli_si128(half, 8));
+    half = _mm_add_epi32(half, _mm_srli_si128(half, 4));
+    return _mm_cvtsi128_si32(half);
+}
 
 #else
 
@@ -183,6 +190,11 @@ inline float fvecReduceAdd(fvecType v) {
     v = _mm_add_ps(v, _mm_movehl_ps(v, v));
     v = _mm_add_ss(v, _mm_shuffle_ps(v, v, 1));
     return _mm_cvtss_f32(v);
+}
+inline int32_t vecReduceAddEpi32(vecType v) {
+    v = _mm_add_epi32(v, _mm_srli_si128(v, 8));
+    v = _mm_add_epi32(v, _mm_srli_si128(v, 4));
+    return _mm_cvtsi128_si32(v);
 }
 inline vecType vecDpbusdEpi32(vecType acc, vecType a, vecType b) {
 #if defined(__SSSE3__)
