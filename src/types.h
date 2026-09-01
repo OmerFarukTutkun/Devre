@@ -178,7 +178,6 @@ enum RankMask : uint64_t {
     RANK_8_BB = RANK_1_BB << 56,
 };
 
-
 constexpr uint64_t DEFAULT_CHECKMASK = 0xFFFFFFFFFFFFFFFFULL;
 
 constexpr char const* SQUARE_IDENTIFIER[]{"a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2", "a3", "b3", "c3", "d3", "e3", "f3",
@@ -247,7 +246,6 @@ struct __attribute__((__packed__)) TTBucket {
     uint32_t padding{};
 };
 
-
 struct nnueChange {
     int8_t piece;
     int8_t sq;
@@ -261,73 +259,89 @@ struct nnueChange {
 
 using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
-// One sparse index space: 12*768 king-bucketed piece-square features followed
-// by 96*95/2 pawn pairs. NNUE_FT_OUT must match the trainer's FT constant in
-constexpr int NNUE_FT_IN = 12 * 768 + 96 * 95 / 2;  // 13776
-constexpr int NNUE_FT_OUT = 1024;
+/// Feature-transformer width. Lives here because NNUEAccumulator is sized by it;
+/// the rest of the architecture is described in nnue.h.
+constexpr int NNUE_FT_OUT = 768;
+
+struct DirtyThreat {
+    uint8_t p;
+    uint8_t target;
+    uint8_t sq;
+    uint8_t dest;
+
+    DirtyThreat() = default;
+    DirtyThreat(uint8_t _piece, uint8_t _pieceColor, uint8_t _targetPiece, uint8_t _targetColor, uint8_t _sq, uint8_t _dest, int8_t _sign)
+        : p(static_cast<uint8_t>((_piece & 7) | ((_pieceColor & 1) << 3) | ((_sign > 0 ? 0 : 1) << 4))),
+          target(static_cast<uint8_t>((_targetPiece & 7) | ((_targetColor & 1) << 3))),
+          sq(_sq),
+          dest(_dest) {}
+
+    inline int piece() const { return p & 7; }
+    inline int pieceColor() const { return (p >> 3) & 1; }
+    inline int sign() const { return (p & 16) ? -1 : 1; }
+    inline int targetPiece() const { return target & 7; }
+    inline int targetColor() const { return (target >> 3) & 1; }
+};
 
 struct NNUEAccumulator {
-    alignas(64) int16_t data[2][NNUE_FT_OUT]{};
+    // Split because a psq index depends on bucket AND mirror while a tac index
+    // depends on the mirror alone: 90% of bucket changes rebuild psq only.
+    alignas(64) int16_t psq[2][NNUE_FT_OUT]{};
+    alignas(64) int16_t tac[2][NNUE_FT_OUT]{};  // includes the FT bias
 
     // Board state AFTER this ply, needed by the incremental update and filled
-    // by `Board::makeMove`. The pawn bitboards drive the pawn-pair delta, and
-    // the king squares decide whether a perspective can be updated at all: a
-    // king that crosses a bucket or mirror boundary re-indexes every psq
-    // feature and forces that perspective to be rebuilt.
+    // by `Board::makeMove`.
     uint64_t pawns[N_COLORS]{};
     uint8_t  kingSq[N_COLORS]{};
     bool     stateValid{};
 
     nnueChange changes[4]{};
     uint8_t changeCount{};
-    // Per perspective, because one side's king can force a rebuild while the
-    // other side's accumulator stays incrementally reachable.
-    bool computed[N_COLORS]{};
+
+    DirtyThreat threatChanges[64]{};
+    uint8_t threatChangeCount{};
+
+    bool computedPsq[N_COLORS]{};
+    bool computedTac[N_COLORS]{};
 
     void clear() {
-        computed[WHITE] = computed[BLACK] = false;
-        stateValid      = false;
-        changeCount     = 0;
+        computedPsq[WHITE] = computedPsq[BLACK] = false;
+        computedTac[WHITE] = computedTac[BLACK] = false;
+        stateValid         = false;
+        changeCount        = 0;
+        threatChangeCount  = 0;
     }
-
-    void invalidate() { clear(); }
-
-    void clearChanges() { changeCount = 0; }
 
     void addChange(int piece, int sq, int sign) {
         if (changeCount < 4)
             changes[changeCount++] = {piece, sq, sign};
     }
+
+    inline void addThreatChange(int piece, int pieceColor, int targetPiece, int targetColor, int sq, int dest, int sign) {
+        if (targetPiece == KING) return;
+        if (piece == PAWN && targetPiece != KNIGHT && targetPiece != ROOK) return;
+        if ((piece == BISHOP || piece == ROOK) && targetPiece == QUEEN) return;
+        if (threatChangeCount < 64)
+            threatChanges[threatChangeCount++] = {
+                static_cast<uint8_t>(piece),
+                static_cast<uint8_t>(pieceColor),
+                static_cast<uint8_t>(targetPiece),
+                static_cast<uint8_t>(targetColor),
+                static_cast<uint8_t>(sq),
+                static_cast<uint8_t>(dest),
+                static_cast<int8_t>(sign)
+            };
+    }
 };
 
 static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::data");
 
-/// One cached accumulator per (perspective, king bucket, mirror), together with
-/// the piece placement it was built from. A king that changes bucket cannot be
-/// updated with deltas, but it can be rebuilt as a delta from the last position
-/// that used the SAME bucket instead of from the bias, which is normally a
-/// handful of rows rather than all ~68.
-struct NNUERefreshEntry {
-    alignas(64) int16_t data[NNUE_FT_OUT]{};
-    uint64_t pieces[N_PIECES]{};
-    bool     initialised{};
-};
-
 class NNUEData {
    public:
-    static constexpr int REFRESH_BUCKETS = 12;
-    static constexpr int REFRESH_ENTRIES = N_COLORS * REFRESH_BUCKETS * 2;  // x2 for the mirror
+    std::vector<NNUEAccumulator> accumulator;
+    int                          size{};
 
-    std::vector<NNUEAccumulator>  accumulator;
-    std::vector<NNUERefreshEntry> refreshCache;
-    int                           size{};
-
-    NNUEData() : accumulator(MAX_PLY + 10), refreshCache(REFRESH_ENTRIES) {}
-
-    void clearRefreshCache() {
-        for (auto& entry : refreshCache)
-            entry.initialised = false;
-    }
+    NNUEData() : accumulator(MAX_PLY + 10) {}
 };
 
 struct BoardHistory {

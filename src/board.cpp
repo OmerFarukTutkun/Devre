@@ -132,12 +132,179 @@ Board::Board(const std::string& fen) {
     nnueData.accumulator[0].clear();
 }
 
-void Board::addPiece(int piece, int sq) {
+void Board::updateThreatsForPiece(int piece, int sq, int sign) {
+    if (piece == EMPTY) return;
+    auto& acc = nnueData.accumulator[nnueData.size];
+    int pType = pieceType(piece);
+    int pCol  = pieceColor(piece);
+    uint64_t occ = occupied[WHITE] | occupied[BLACK];
+
+    uint64_t bAtt = 0;
+    uint64_t rAtt = 0;
+    bool bAttComputed = false;
+    bool rAttComputed = false;
+
+    auto getBAtt = [&]() -> uint64_t {
+        if (!bAttComputed) {
+            bAtt = bishopAttacks(occ, sq);
+            bAttComputed = true;
+        }
+        return bAtt;
+    };
+
+    auto getRAtt = [&]() -> uint64_t {
+        if (!rAttComputed) {
+            rAtt = rookAttacks(occ, sq);
+            rAttComputed = true;
+        }
+        return rAtt;
+    };
+    
+    if (pType == KING) return; // King is never a threat target
+
+    // 1. Outgoing threats: pieces attacked by this piece. Only the target mask
+    // differs per piece type; the feature space has no threat onto a king, and
+    // none from a bishop or rook onto a queen.
+    const uint64_t kings = bitboards[WHITE_KING] | bitboards[BLACK_KING];
+    uint64_t       attacked = 0;
+    switch (pType)
+    {
+    case PAWN :
+        attacked = PawnAttacks[pCol][sq] & (bitboards[WHITE_KNIGHT] | bitboards[BLACK_KNIGHT]
+                                            | bitboards[WHITE_ROOK] | bitboards[BLACK_ROOK]);
+        break;
+    case KNIGHT :
+        attacked = KnightAttacks[sq] & occ & ~kings;
+        break;
+    case BISHOP :
+        attacked = getBAtt() & occ & ~(kings | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]);
+        break;
+    case ROOK :
+        attacked = getRAtt() & occ & ~(kings | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]);
+        break;
+    case QUEEN :
+        attacked = (getBAtt() | getRAtt()) & occ & ~kings;
+        break;
+    default :
+        break;
+    }
+
+    while (attacked)
+    {
+        const int dest   = poplsb(attacked);
+        const int victim = pieceBoard[dest];
+        acc.addThreatChange(pType, pCol, pieceType(victim), pieceColor(victim), sq, dest, sign);
+    }
+
+    // Pawns attacking sq (only if target is Knight or Rook)
+    if (pType == KNIGHT || pType == ROOK) {
+        uint64_t whitePawnAtt = PawnAttacks[BLACK][sq] & bitboards[WHITE_PAWN];
+        while (whitePawnAtt) {
+            int attSq = poplsb(whitePawnAtt);
+            acc.addThreatChange(
+                PAWN, WHITE, pType, pCol, attSq, sq, sign);
+        }
+        uint64_t blackPawnAtt = PawnAttacks[WHITE][sq] & bitboards[BLACK_PAWN];
+        while (blackPawnAtt) {
+            int attSq = poplsb(blackPawnAtt);
+            acc.addThreatChange(
+                PAWN, BLACK, pType, pCol, attSq, sq, sign);
+        }
+    }
+
+    // Knights attacking sq
+    uint64_t knightAtt = KnightAttacks[sq] & (bitboards[WHITE_KNIGHT] | bitboards[BLACK_KNIGHT]);
+    while (knightAtt) {
+        int attSq = poplsb(knightAtt);
+        int attCol = pieceColor(pieceBoard[attSq]);
+        acc.addThreatChange(
+            KNIGHT, attCol, pType, pCol, attSq, sq, sign);
+    }
+
+    // Diagonal sliders attacking sq. No bishop->queen threat exists, so a queen
+    // victim narrows the attackers to queens.
+    {
+        uint64_t sliders = (pType != QUEEN)
+                             ? bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]
+                             : bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN];
+        sliders &= DIR_RAYS.diag[sq];
+        if (sliders) {
+            uint64_t diagAtt = getBAtt() & sliders;
+            while (diagAtt) {
+                int attSq = poplsb(diagAtt);
+                int attPiece = pieceBoard[attSq];
+                acc.addThreatChange(
+                    pieceType(attPiece), pieceColor(attPiece), pType, pCol, attSq, sq, sign);
+            }
+        }
+    }
+
+    // Straight sliders attacking sq. No rook->queen threat either.
+    {
+        uint64_t sliders = (pType != QUEEN)
+                             ? bitboards[WHITE_ROOK] | bitboards[BLACK_ROOK] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]
+                             : bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN];
+        sliders &= DIR_RAYS.straight[sq];
+        if (sliders) {
+            uint64_t straightAtt = getRAtt() & sliders;
+            while (straightAtt) {
+                int attSq = poplsb(straightAtt);
+                int attPiece = pieceBoard[attSq];
+                acc.addThreatChange(
+                    pieceType(attPiece), pieceColor(attPiece), pType, pCol, attSq, sq, sign);
+            }
+        }
+    }
+}
+
+void Board::updateDiscoveredThreats(int sq, int sign) {
+    auto&          acc = nnueData.accumulator[nnueData.size];
+    const uint64_t occ = (occupied[WHITE] | occupied[BLACK]) & ~(1ULL << sq);
+
+    // Occupying or vacating sq blocks or opens the line between the nearest
+    // piece on each side of it. Only a slider of the matching type, or a queen,
+    // can hold that line.
+    auto line = [&](uint64_t attacks, const uint64_t* rayA, const uint64_t* rayB, int slider) {
+        const uint64_t a = attacks & rayA[sq] & occ;
+        const uint64_t b = attacks & rayB[sq] & occ;
+        if (!a || !b)
+            return;
+
+        const int sqA = bitScanForward(a), sqB = bitScanForward(b);
+        const int pA = pieceBoard[sqA], pB = pieceBoard[sqB];
+        if (pA == EMPTY || pB == EMPTY)
+            return;
+
+        const int tA = pieceType(pA), cA = pieceColor(pA);
+        const int tB = pieceType(pB), cB = pieceColor(pB);
+        if (tA == slider || tA == QUEEN)
+            acc.addThreatChange(tA, cA, tB, cB, sqA, sqB, sign);
+        if (tB == slider || tB == QUEEN)
+            acc.addThreatChange(tB, cB, tA, cA, sqB, sqA, sign);
+    };
+
+    const uint64_t diag = bishopAttacks(occ, sq);
+    line(diag, DIR_RAYS.north_east, DIR_RAYS.south_west, BISHOP);
+    line(diag, DIR_RAYS.north_west, DIR_RAYS.south_east, BISHOP);
+
+    const uint64_t straight = rookAttacks(occ, sq);
+    line(straight, DIR_RAYS.north, DIR_RAYS.south, ROOK);
+    line(straight, DIR_RAYS.east, DIR_RAYS.west, ROOK);
+}
+
+void Board::addPiece(int piece, int sq, bool updateNNUE) {
+    if (updateNNUE) {
+        updateDiscoveredThreats(sq, -1);
+    }
+
     pieceBoard[sq] = piece;
     setBit(bitboards[piece], sq);
     setBit(occupied[pieceColor(piece)], sq);
 
-    nnueData.accumulator[nnueData.size].addChange(piece, sq, 1);
+    if (updateNNUE) {
+        updateThreatsForPiece(piece, sq, 1);
+        nnueData.accumulator[nnueData.size].addChange(piece, sq, 1);
+    }
 
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
@@ -153,12 +320,19 @@ void Board::addPiece(int piece, int sq) {
     }
 }
 
-void Board::removePiece(int piece, int sq) {
+void Board::removePiece(int piece, int sq, bool updateNNUE) {
+    if (updateNNUE) {
+        updateThreatsForPiece(piece, sq, -1);
+    }
+
     pieceBoard[sq] = EMPTY;
     clearBit(bitboards[piece], sq);
     clearBit(occupied[pieceColor(piece)], sq);
 
-    nnueData.accumulator[nnueData.size].addChange(piece, sq, -1);
+    if (updateNNUE) {
+        updateDiscoveredThreats(sq, 1);
+        nnueData.accumulator[nnueData.size].addChange(piece, sq, -1);
+    }
 
     key ^= Zobrist::Instance()->PieceKeys[piece][sq];
 
@@ -174,9 +348,9 @@ void Board::removePiece(int piece, int sq) {
     }
 }
 
-void Board::movePiece(int piece, int from, int to) {
-    addPiece(piece, to);
-    removePiece(piece, from);
+void Board::movePiece(int piece, int from, int to, bool updateNNUE) {
+    removePiece(piece, from, updateNNUE);
+    addPiece(piece, to, updateNNUE);
 }
 
 void Board::print() {
@@ -225,7 +399,7 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     if (updateNNUE)
     {
         nnueData.size++;
-        nnueData.accumulator[nnueData.size].invalidate();
+        nnueData.accumulator[nnueData.size].clear();
     }
 
     //remove enPassant and Castling keys
@@ -285,6 +459,9 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     case ROOK_PROMOTION_CAPTURE :
     case QUEEN_PROMOTION_CAPTURE :
         removePiece(capturedPiece, to);
+        removePiece(piece, from);
+        addPiece(pieceIndex(sideToMove, KNIGHT + (movetype & 3)), to);
+        break;
     case KNIGHT_PROMOTION :
     case BISHOP_PROMOTION :
     case ROOK_PROMOTION :
@@ -314,6 +491,8 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
         acc.kingSq[WHITE]  = static_cast<uint8_t>(bitScanForward(bitboards[WHITE_KING]));
         acc.kingSq[BLACK]  = static_cast<uint8_t>(bitScanForward(bitboards[BLACK_KING]));
         acc.stateValid     = true;
+
+        NNUE::Instance()->refreshOnBucketChange(*this);
     }
 }
 
@@ -334,49 +513,46 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     int capturedPiece = info.capturedPiece;
     int piece         = this->pieceBoard[to];
 
-
     switch (movetype)
     {
     case QUIET :
     case DOUBLE_PAWN_PUSH :
-        movePiece(piece, to, from);
+        movePiece(piece, to, from, false);
         break;
     case CAPTURE :
-        movePiece(piece, to, from);
-        addPiece(capturedPiece, to);
+        movePiece(piece, to, from, false);
+        addPiece(capturedPiece, to, false);
         break;
     case KING_CASTLE :
-        removePiece(piece, to);
-        removePiece(pieceIndex(sideToMove, ROOK), to - 1);
-        addPiece(piece, from);
-        addPiece(pieceIndex(sideToMove, ROOK), castlingRooks[2 * sideToMove]);
-
+        removePiece(piece, to, false);
+        removePiece(pieceIndex(sideToMove, ROOK), to - 1, false);
+        addPiece(piece, from, false);
+        addPiece(pieceIndex(sideToMove, ROOK), castlingRooks[2 * sideToMove], false);
         break;
     case QUEEN_CASTLE :
-        removePiece(piece, to);
-        removePiece(pieceIndex(sideToMove, ROOK), to + 1);
-        addPiece(piece, from);
-        addPiece(pieceIndex(sideToMove, ROOK), castlingRooks[2 * sideToMove + 1]);
-
+        removePiece(piece, to, false);
+        removePiece(pieceIndex(sideToMove, ROOK), to + 1, false);
+        addPiece(piece, from, false);
+        addPiece(pieceIndex(sideToMove, ROOK), castlingRooks[2 * sideToMove + 1], false);
         break;
     case EN_PASSANT :
-        movePiece(piece, to, from);
-        addPiece(capturedPiece, squareIndex(rankIndex(from), fileIndex(to)));
+        movePiece(piece, to, from, false);
+        addPiece(capturedPiece, squareIndex(rankIndex(from), fileIndex(to)), false);
         break;
     case KNIGHT_PROMOTION_CAPTURE :
     case BISHOP_PROMOTION_CAPTURE :
     case ROOK_PROMOTION_CAPTURE :
     case QUEEN_PROMOTION_CAPTURE :
-        removePiece(piece, to);
-        addPiece(pieceIndex(sideToMove, PAWN), from);
-        addPiece(capturedPiece, to);
+        removePiece(piece, to, false);
+        addPiece(pieceIndex(sideToMove, PAWN), from, false);
+        addPiece(capturedPiece, to, false);
         break;
     case KNIGHT_PROMOTION :
     case BISHOP_PROMOTION :
     case ROOK_PROMOTION :
     case QUEEN_PROMOTION :
-        removePiece(piece, to);
-        addPiece(pieceIndex(sideToMove, PAWN), from);
+        removePiece(piece, to, false);
+        addPiece(pieceIndex(sideToMove, PAWN), from, false);
         break;
     default :
         break;
@@ -384,7 +560,7 @@ void Board::unmakeMove(uint16_t move, bool updateNNUE) {
     key = info.key;
     if (updateNNUE)
     {
-        nnueData.accumulator[nnueData.size].invalidate();
+        nnueData.accumulator[nnueData.size].clear();
         nnueData.size = std::max(0, nnueData.size - 1);
     }
 }
@@ -466,7 +642,6 @@ bool Board::hasNonPawnPieces() {
         && (bitboards[BLACK_KNIGHT] || bitboards[BLACK_BISHOP] || bitboards[BLACK_ROOK] || bitboards[BLACK_QUEEN]);
 }
 
-
 bool Board::isMaterialDraw() {
     if (bitboards[WHITE_PAWN] || bitboards[BLACK_PAWN] || bitboards[WHITE_ROOK] || bitboards[BLACK_ROOK] || bitboards[WHITE_QUEEN] || bitboards[BLACK_QUEEN])
         return false;
@@ -528,5 +703,4 @@ bool Board::inCheck(uint64_t threat) {
         return true;
     return false;
 }
-
 

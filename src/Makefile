@@ -2,13 +2,18 @@
 CXX      = g++
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
-NETWORK ?= devre-6e8b27f4e26d.bin
+NETWORK ?= devre-a064d8d9d7b6.bin
 
-M64     = -m64 -mpopcnt
-MSSE2   = $(M64) -msse -msse2
-MSSSE3  = $(MSSE2) -mssse3
-MAVX2   = $(MSSSE3) -msse4.1 -mbmi -mfma -mavx2
-MAVX512 = $(MAVX2) -mavx512f -mavx512bw
+# ISA levels, each a superset of the one above. SSE2 is the floor: simd.h has a
+# full path for it, so every level below builds and evaluates identically -- only
+# the speed changes. VNNI folds the NNUE head's maddubs+madd+add into one
+# instruction and is worth having on Zen 4 / Ice Lake and later.
+M64        = -m64 -mpopcnt
+MSSE2      = $(M64) -msse -msse2
+MSSSE3     = $(MSSE2) -mssse3
+MAVX2      = $(MSSSE3) -msse4.1 -mbmi -mfma -mavx2
+MAVX512    = $(MAVX2) -mavx512f -mavx512bw
+MVNNI512   = $(MAVX512) -mavx512dq -mavx512vl -mavx512vnni
 
 FILES = *.cpp datagen/*.cpp fathom/src/tbprobe.c
 
@@ -29,15 +34,21 @@ ifeq ($(build),)
 endif
 
 ifeq ($(build), native)
-    CXX_FLAGS += -march=native
-else ifeq ($(findstring sse2, $(build)), sse2)
-	CXX_FLAGS += $(MSSE2)
-else ifeq ($(findstring ssse3, $(build)), ssse3)
-	CXX_FLAGS += $(MSSSE3)
-else ifeq ($(findstring avx2, $(build)), avx2)
-	CXX_FLAGS += $(MAVX2)
+	CXX_FLAGS += -march=native
+else ifeq ($(findstring vnni512, $(build)), vnni512)
+	CXX_FLAGS += $(MVNNI512)
 else ifeq ($(findstring avx512, $(build)), avx512)
 	CXX_FLAGS += $(MAVX512)
+else ifeq ($(findstring avx2, $(build)), avx2)
+	CXX_FLAGS += $(MAVX2)
+else ifeq ($(findstring ssse3, $(build)), ssse3)
+	CXX_FLAGS += $(MSSSE3)
+else ifeq ($(findstring sse2, $(build)), sse2)
+	CXX_FLAGS += $(MSSE2)
+else
+	# Still builds and plays identically, just at the slowest ISA level.
+	$(warning unrecognised build=$(build); falling back to sse2. Known: native, vnni512, avx512, avx2, ssse3, sse2, each optionally suffixed -pext)
+	CXX_FLAGS += $(MSSE2)
 endif
 
 ifeq ($(build), native)
