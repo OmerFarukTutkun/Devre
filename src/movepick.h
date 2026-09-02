@@ -41,6 +41,7 @@ class MovePicker {
     uint16_t next();
 
     void skipQuiets();
+    float currentPolicyLogit() const { return m_currentPolicyLogit; }
 
    private:
     int  bestIndex() const;
@@ -53,6 +54,8 @@ class MovePicker {
     Stack*      m_ss;
     Board*      m_board;
     MoveList    m_list;
+    float       m_policyLogits[256];
+    float       m_currentPolicyLogit = -999.0f;
     MoveGenInfo m_info;
     uint16_t    m_ttMove;
     uint16_t    m_refutations[3];

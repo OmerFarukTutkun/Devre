@@ -8,6 +8,9 @@ DEFINE_PARAM_B(PolicyMinDepth, 4, 1, 10);
 DEFINE_PARAM_B(PolicyScale, 30000, 0, 100000);
 DEFINE_PARAM_B(PolicyDepthBase, 4, 1, 20);
 DEFINE_PARAM_B(PolicyDepthMul, 1, 0, 5);
+DEFINE_PARAM_B(PolicyClamp, 24000, 5000, 60000);
+DEFINE_PARAM_B(PolicyEliteThresh, 250, 100, 600);
+DEFINE_PARAM_B(PolicyEliteBonus, 30000, 0, 100000);
 
 namespace {
 
@@ -308,8 +311,9 @@ int MovePicker::bestIndex() const
 void MovePicker::removeAt(int index)
 {
     --m_list.numMove;
-    m_list.moves[index]  = m_list.moves[m_list.numMove];
-    m_list.scores[index] = m_list.scores[m_list.numMove];
+    m_list.moves[index]   = m_list.moves[m_list.numMove];
+    m_list.scores[index]  = m_list.scores[m_list.numMove];
+    m_policyLogits[index] = m_policyLogits[m_list.numMove];
 }
 
 void MovePicker::skipQuiets()
@@ -327,8 +331,9 @@ void MovePicker::skipQuiets()
     {
         if (isQuiet(m_list.moves[i]))
             continue;
-        m_list.moves[write]  = m_list.moves[i];
-        m_list.scores[write] = m_list.scores[i];
+        m_list.moves[write]   = m_list.moves[i];
+        m_list.scores[write]  = m_list.scores[i];
+        m_policyLogits[write] = m_policyLogits[i];
         write++;
     }
     m_list.numMove = write;
@@ -376,8 +381,9 @@ void MovePicker::generateTacticals()
         if (type == CAPTURE)
             score += getCaptureHistory(m_thread, m_ss, move);
 
-        m_list.moves[write]  = move;
-        m_list.scores[write] = score;
+        m_list.moves[write]   = move;
+        m_list.scores[write]  = score;
+        m_policyLogits[write] = -999.0f;
         write++;
     }
     m_list.numMove = write;
@@ -415,6 +421,7 @@ void MovePicker::generateQuiets()
 
         const int type  = moveType(move);
         int       score = moveTypeScores[type];
+        float     logit = -999.0f;
         if (type < 2)  //castles and under promotions get no history
         {
             score += getQuietHistory(m_thread, m_ss, move);
@@ -423,14 +430,20 @@ void MovePicker::generateQuiets()
                 const int pIdx = getPolicyIndex(*m_board, move);
                 if (pIdx >= 0)
                 {
-                    const float logit = NNUE::Instance()->runPolicyL2(hidden, pIdx);
-                    score += static_cast<int>(logit * PolicyScale) / denom;
+                    logit = NNUE::Instance()->runPolicyL2(hidden, pIdx);
+                    const int polBonus = static_cast<int>(logit * PolicyScale) / denom;
+                    score += std::clamp(polBonus, -static_cast<int>(PolicyClamp), static_cast<int>(PolicyClamp));
+
+                    const int logit100 = static_cast<int>(logit * 100.0f);
+                    if (logit100 >= PolicyEliteThresh)
+                        score += PolicyEliteBonus;
                 }
             }
         }
 
-        m_list.moves[write]  = move;
-        m_list.scores[write] = score;
+        m_list.moves[write]   = move;
+        m_list.scores[write]  = score;
+        m_policyLogits[write] = logit;
         write++;
     }
     m_list.numMove = write;
@@ -443,7 +456,10 @@ uint16_t MovePicker::next()
     case STAGE_TT :
         m_stage = STAGE_GEN_TACTICAL;
         if (m_ttMove != NO_MOVE && (m_mode != PICK_QSEARCH || isQsearchTactical(m_ttMove)) && isPseudoLegal(*m_board, m_ttMove) && isLegal(*m_board, m_ttMove))
+        {
+            m_currentPolicyLogit = -999.0f;
             return m_ttMove;
+        }
         [[fallthrough]];
 
     case STAGE_GEN_TACTICAL :
@@ -466,6 +482,7 @@ uint16_t MovePicker::next()
                 m_list.scores[index] -= 9 * MIL;  // 10M + capthist -> 1M + capthist
                 continue;                         //stays in the list for STAGE_REST
             }
+            m_currentPolicyLogit = -999.0f;
             removeAt(index);
             return move;
         }
@@ -473,6 +490,7 @@ uint16_t MovePicker::next()
         if (m_mode == PICK_QSEARCH)
         {
             m_stage = STAGE_DONE;
+            m_currentPolicyLogit = -999.0f;
             return NO_MOVE;
         }
         m_stage = STAGE_REFUTATION;
@@ -483,7 +501,10 @@ uint16_t MovePicker::next()
         {
             const uint16_t move = m_refutations[m_refutationIndex++];
             if (refutationOk(move, m_refutationIndex - 1))
+            {
+                m_currentPolicyLogit = -999.0f;
                 return move;
+            }
         }
         m_stage = STAGE_GEN_QUIET;
         [[fallthrough]];
@@ -499,15 +520,18 @@ uint16_t MovePicker::next()
         if (index < 0)
         {
             m_stage = STAGE_DONE;
+            m_currentPolicyLogit = -999.0f;
             return NO_MOVE;
         }
         const uint16_t move = m_list.moves[index];
+        m_currentPolicyLogit = m_policyLogits[index];
         removeAt(index);
         return move;
     }
 
     case STAGE_DONE :
     default :
+        m_currentPolicyLogit = -999.0f;
         return NO_MOVE;
     }
 }

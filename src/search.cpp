@@ -20,6 +20,12 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+// Policy Search Knobs
+DEFINE_PARAM_B(PolicyLmrHighThresh, 180, 50, 500);  // logit >= +1.8 -> lmr - 1
+DEFINE_PARAM_B(PolicyLmrLowThresh, -180, -500, 0);  // logit <= -1.8 -> lmr + 1
+DEFINE_PARAM_B(PolicyLmpExempt, 200, 100, 600);     // logit >= +2.0 -> exempt from LMP
+DEFINE_PARAM_B(PolicySurpriseBonus, 20, 0, 100);    // Surprise history: cutoff on negative logit gets extra depth bonus
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -465,6 +471,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             beforeNodes = thread.nodes;
         ss->move = move;
 
+        const float polLogit = picker.currentPolicyLogit();
+        const int   polLogit100 = (polLogit > -500.0f) ? static_cast<int>(polLogit * 100.0f) : -99999;
+
         if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
             // late move pruning. Both this and the futility margin below only get
@@ -472,8 +481,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             // move still to come instead of generating and scoring them.
             if (depth <= 6 && moveCount > 6 + (1 + 3 * improving) * depth)
             {
-                picker.skipQuiets();
-                continue;
+                // Exempt quiet moves that policy strongly favors from LMP
+                if (polLogit100 < PolicyLmpExempt)
+                {
+                    picker.skipQuiets();
+                    continue;
+                }
             }
 
             // futility pruning
@@ -512,6 +525,12 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             lmr += cutNode;
             lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 341;
+
+            if (isQuiet(move) && polLogit100 > -50000)
+            {
+                lmr -= (polLogit100 >= PolicyLmrHighThresh);
+                lmr += (polLogit100 <= PolicyLmrLowThresh);
+            }
         }
 
         lmr                     = std::max(0, std::min(depth - 1, lmr));
@@ -609,7 +628,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
             if (bestScore >= beta)
             {
-                updateHistories(thread, ss, depth, bestMove);
+                int histDepth = depth;
+                if (PolicySurpriseBonus > 0 && isQuiet(bestMove) && polLogit100 < 0 && polLogit100 > -50000)
+                    histDepth += (-polLogit100 * static_cast<int>(PolicySurpriseBonus)) / 200;
+                updateHistories(thread, ss, histDepth, bestMove);
                 break;
             }
         }
