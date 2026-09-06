@@ -51,7 +51,7 @@ static const uint64_t rookMagics[] = {
   0x00FFFCDDFCED714AULL, 0x007FFCDDFCED714AULL, 0x003FFFCDFFD88096ULL, 0x0000040810002101ULL, 0x0001000204080011ULL, 0x0001000204000801ULL, 0x0001000082000401ULL, 0x0001FFFAABFAD1A2ULL};
 
 //pre-calculated attacks for pawns, knight and king
-static const uint64_t KingAttacks[64] = {
+inline constexpr uint64_t KingAttacks[64] = {
   0x0000000000000302ULL, 0x0000000000000705ULL, 0x0000000000000e0aULL, 0x0000000000001c14ULL, 0x0000000000003828ULL, 0x0000000000007050ULL, 0x000000000000e0a0ULL, 0x000000000000c040ULL,
   0x0000000000030203ULL, 0x0000000000070507ULL, 0x00000000000e0a0eULL, 0x00000000001c141cULL, 0x0000000000382838ULL, 0x0000000000705070ULL, 0x0000000000e0a0e0ULL, 0x0000000000c040c0ULL,
   0x0000000003020300ULL, 0x0000000007050700ULL, 0x000000000e0a0e00ULL, 0x000000001c141c00ULL, 0x0000000038283800ULL, 0x0000000070507000ULL, 0x00000000e0a0e000ULL, 0x00000000c040c000ULL,
@@ -61,7 +61,7 @@ static const uint64_t KingAttacks[64] = {
   0x0302030000000000ULL, 0x0705070000000000ULL, 0x0e0a0e0000000000ULL, 0x1c141c0000000000ULL, 0x3828380000000000ULL, 0x7050700000000000ULL, 0xe0a0e00000000000ULL, 0xc040c00000000000ULL,
   0x0203000000000000ULL, 0x0507000000000000ULL, 0x0a0e000000000000ULL, 0x141c000000000000ULL, 0x2838000000000000ULL, 0x5070000000000000ULL, 0xa0e0000000000000ULL, 0x40c0000000000000ULL};
 
-static const uint64_t KnightAttacks[64] = {
+inline constexpr uint64_t KnightAttacks[64] = {
   0x0000000000020400ULL, 0x0000000000050800ULL, 0x00000000000a1100ULL, 0x0000000000142200ULL, 0x0000000000284400ULL, 0x0000000000508800ULL, 0x0000000000a01000ULL, 0x0000000000402000ULL,
   0x0000000002040004ULL, 0x0000000005080008ULL, 0x000000000a110011ULL, 0x0000000014220022ULL, 0x0000000028440044ULL, 0x0000000050880088ULL, 0x00000000a0100010ULL, 0x0000000040200020ULL,
   0x0000000204000402ULL, 0x0000000508000805ULL, 0x0000000a1100110aULL, 0x0000001422002214ULL, 0x0000002844004428ULL, 0x0000005088008850ULL, 0x000000a0100010a0ULL, 0x0000004020002040ULL,
@@ -70,7 +70,7 @@ static const uint64_t KnightAttacks[64] = {
   0x0204000402000000ULL, 0x0508000805000000ULL, 0x0a1100110a000000ULL, 0x1422002214000000ULL, 0x2844004428000000ULL, 0x5088008850000000ULL, 0xa0100010a0000000ULL, 0x4020002040000000ULL,
   0x0400040200000000ULL, 0x0800080500000000ULL, 0x1100110a00000000ULL, 0x2200221400000000ULL, 0x4400442800000000ULL, 0x8800885000000000ULL, 0x100010a000000000ULL, 0x2000204000000000ULL,
   0x0004020000000000ULL, 0x0008050000000000ULL, 0x00110a0000000000ULL, 0x0022140000000000ULL, 0x0044280000000000ULL, 0x0088500000000000ULL, 0x0010a00000000000ULL, 0x0020400000000000ULL};
-static const uint64_t PawnAttacks[2][64] = {
+inline constexpr uint64_t PawnAttacks[2][64] = {
   {0x0000000000000200ULL, 0x0000000000000500ULL, 0x0000000000000a00ULL, 0x0000000000001400ULL, 0x0000000000002800ULL, 0x0000000000005000ULL, 0x000000000000a000ULL, 0x0000000000004000ULL,
    0x0000000000020000ULL, 0x0000000000050000ULL, 0x00000000000a0000ULL, 0x0000000000140000ULL, 0x0000000000280000ULL, 0x0000000000500000ULL, 0x0000000000a00000ULL, 0x0000000000400000ULL,
    0x0000000002000000ULL, 0x0000000005000000ULL, 0x000000000a000000ULL, 0x0000000014000000ULL, 0x0000000028000000ULL, 0x0000000050000000ULL, 0x00000000a0000000ULL, 0x0000000040000000ULL,
@@ -201,5 +201,49 @@ bool isSquareAttacked(Board& board, int sq, int side);
 uint64_t squareAttackedBy(Board& board, int square);
 
 int getLeastValuableAttacker(Board& board, uint64_t attackers, int side);
+
+struct DirectionRays {
+    uint64_t north[64]{};
+    uint64_t south[64]{};
+    uint64_t east[64]{};
+    uint64_t west[64]{};
+    uint64_t north_east[64]{};
+    uint64_t south_west[64]{};
+    uint64_t north_west[64]{};
+    uint64_t south_east[64]{};
+    // Empty-board rays: a slider can only reach sq from one of these.
+    uint64_t diag[64]{};
+    uint64_t straight[64]{};
+
+    constexpr DirectionRays() {
+        for (int sq = 0; sq < 64; sq++) {
+            int r = sq / 8;
+            int f = sq % 8;
+            for (int s2 = 0; s2 < 64; s2++) {
+                if (sq == s2) continue;
+                int r2 = s2 / 8;
+                int f2 = s2 % 8;
+                uint64_t bit = 1ULL << s2;
+                if (f == f2) {
+                    if (r2 > r) north[sq] |= bit;
+                    else south[sq] |= bit;
+                } else if (r == r2) {
+                    if (f2 > f) east[sq] |= bit;
+                    else west[sq] |= bit;
+                } else if (r2 - r == f2 - f) {
+                    if (r2 > r) north_east[sq] |= bit;
+                    else south_west[sq] |= bit;
+                } else if (r2 - r == -(f2 - f)) {
+                    if (r2 > r) north_west[sq] |= bit;
+                    else south_east[sq] |= bit;
+                }
+            }
+            diag[sq]     = north_east[sq] | south_west[sq] | north_west[sq] | south_east[sq];
+            straight[sq] = north[sq] | south[sq] | east[sq] | west[sq];
+        }
+    }
+};
+
+inline constexpr DirectionRays DIR_RAYS{};
 
 #endif  //DEVRE_ATTACK_H

@@ -12,11 +12,11 @@ class Board {
 
     std::string getFen();
 
-    void addPiece(int piece, int sq);
+    void addPiece(int piece, int sq, bool updateNNUE = true);
 
-    void removePiece(int piece, int sq);
+    void removePiece(int piece, int sq, bool updateNNUE = true);
 
-    void movePiece(int piece, int from, int to);
+    void movePiece(int piece, int from, int to, bool updateNNUE = true);
 
     int eval();
 
@@ -39,6 +39,10 @@ class Board {
     bool inCheck();
 
     bool inCheck(uint64_t threat);
+
+    void updateThreatsForPiece(int piece, int sq, int sign);
+
+    void updateDiscoveredThreats(int sq, int sign);
 
     uint64_t threat();
 
