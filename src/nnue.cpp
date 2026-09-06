@@ -21,7 +21,6 @@ INCBIN(EmbeddedNet, NET);
 namespace {
 
 // clang-format off
-// MUST match devre_threat.rs's expand_mirrored(KING_BUCKET_HALF).
 constexpr uint8_t KING_BUCKET_LAYOUT[64] = {
      0,  1,  2,  3,  3,  2,  1,  0,
      4,  5,  6,  7,  7,  6,  5,  4,
@@ -51,8 +50,6 @@ constexpr std::array<uint64_t, 8> ADJACENT_FILES = [] {
     return table;
 }();
 
-// --- Tactical Threat Tables (constexpr) -------------------------------------
-
 struct ThreatTables {
     int8_t   pawn_map[12];
     struct NonPkData {
@@ -71,33 +68,29 @@ struct ThreatTables {
             for (int p = 0; p < 4; p++) non_pk[p].targets[i] = -1;
         }
 
-        // Relative targets: 0..5 Friendly, 6..11 Enemy
-        // Pawn targets: Knight (1), Rook (3) -> Friendly 0, 1; Enemy 2, 3
+        // Relative targets: 0..5 friendly, 6..11 enemy; each piece maps its
+        // allowed victims onto a dense 0..N-1 id.
         pawn_map[1] = 0;
         pawn_map[3] = 1;
         pawn_map[7] = 2;
         pawn_map[9] = 3;
 
-        // Knight targets: PAWN(0), KNIGHT(1), BISHOP(2), ROOK(3), QUEEN(4) (N=5)
         non_pk[0].targets[0] = 0; non_pk[0].targets[6]  = 5;
         non_pk[0].targets[1] = 1; non_pk[0].targets[7]  = 6;
         non_pk[0].targets[2] = 2; non_pk[0].targets[8]  = 7;
         non_pk[0].targets[3] = 3; non_pk[0].targets[9]  = 8;
         non_pk[0].targets[4] = 4; non_pk[0].targets[10] = 9;
 
-        // Bishop targets: PAWN(0), KNIGHT(1), BISHOP(2), ROOK(3) (N=4)
         non_pk[1].targets[0] = 0; non_pk[1].targets[6]  = 4;
         non_pk[1].targets[1] = 1; non_pk[1].targets[7]  = 5;
         non_pk[1].targets[2] = 2; non_pk[1].targets[8]  = 6;
         non_pk[1].targets[3] = 3; non_pk[1].targets[9]  = 7;
 
-        // Rook targets: PAWN(0), KNIGHT(1), BISHOP(2), ROOK(3) (N=4)
         non_pk[2].targets[0] = 0; non_pk[2].targets[6]  = 4;
         non_pk[2].targets[1] = 1; non_pk[2].targets[7]  = 5;
         non_pk[2].targets[2] = 2; non_pk[2].targets[8]  = 6;
         non_pk[2].targets[3] = 3; non_pk[2].targets[9]  = 7;
 
-        // Queen targets: PAWN(0), KNIGHT(1), BISHOP(2), ROOK(3), QUEEN(4) (N=5)
         non_pk[3].targets[0] = 0; non_pk[3].targets[6]  = 5;
         non_pk[3].targets[1] = 1; non_pk[3].targets[7]  = 6;
         non_pk[3].targets[2] = 2; non_pk[3].targets[8]  = 7;
@@ -201,13 +194,29 @@ struct FlatThreatTable {
 };
 constexpr FlatThreatTable FLAT_THREAT_TABLE{};
 
+constexpr bool threatFeatureExists(int piece, int victim) {
+    for (int rel = 0; rel < 12; rel += 6)  // friendly, then enemy
+        for (int src = 0; src < 64; src++)
+            for (int dest = 0; dest < 64; dest++)
+                if (mapThreatSingle(THREAT_TABLES, piece, src, dest, victim + rel) >= 0)
+                    return true;
+    return false;
+}
+
+constexpr bool threatVictimsMatch() {
+    for (int p = 0; p < N_PIECE_TYPES; p++)
+        for (int v = 0; v < N_PIECE_TYPES; v++)
+            if (threatFeatureExists(p, v) != (((THREAT_VICTIMS[p] >> v) & 1) != 0))
+                return false;
+    return true;
+}
+static_assert(threatVictimsMatch(), "THREAT_VICTIMS disagrees with the threat index tables");
+
 // 480 KB, against 40 KB for computing the index on the fly; measured 5.7% faster.
 inline int mapThreatFast(int piece, int src, int dest, int target) {
     if (static_cast<unsigned>(piece) >= 5 || static_cast<unsigned>(target) >= 12) return -1;
     return FLAT_THREAT_TABLE.map[piece][src][dest][target];
 }
-
-// --- Accumulator arithmetic -------------------------------------------------
 
 // The psq half has no bias of its own; the FT bias lives in the tac half.
 alignas(64) constexpr int16_t ZERO_ACC[NNUE_FT_OUT] = {};
@@ -259,8 +268,6 @@ inline float screlu(float x) {
     return c * c;
 }
 
-// --- File format ------------------------------------------------------------
-
 constexpr char     MAGIC[8]    = {'D', 'V', 'N', 'N', 'U', 'E', '5', '\0'};
 constexpr uint32_t NET_VERSION = 1;
 constexpr size_t   HEADER_LEN  = 48;
@@ -279,8 +286,6 @@ NNUE::NNUE() {
     if (!loadFromBuffer(gEmbeddedNetData, gEmbeddedNetSize, "<embedded>"))
         std::cout << "info string No usable embedded net; set EvalFile" << std::endl;
 }
-
-// --- Feature indexing -------------------------------------------------------
 
 NNUE::PerspectiveKey NNUE::perspectiveKey(int kingSquare, Color perspective) {
     const int mirrored = (kingSquare & 7) > 3 ? 7 : 0;
@@ -305,22 +310,16 @@ int NNUE::pawnPairIndex(int idA, int idB) {
     return hi * (hi - 1) / 2 + lo;
 }
 
-// --- Full refresh -----------------------------------------------------------
-
 /// Rebuilds one or both halves; a nullptr skips that half, and skipping tac
 /// skips the threat generation, which is what a refresh actually costs.
-/// Rebuilds one or both halves; a nullptr skips that half, and skipping tac
-/// skips the threat generation, which is what a refresh actually costs.
-void NNUE::refresh(const Board& board, Color perspective, int16_t* psqOut, int16_t* tacOut) const {
-    const PerspectiveKey key = perspectiveKey(bitScanForward(board.bitboards[pieceIndex(perspective, KING)]),
-                                              perspective);
+void NNUE::refresh(const Board& board, Color perspective, PerspectiveKey key, int16_t* psqOut,
+                   int16_t* tacOut) const {
     if (psqOut)
         refreshPsq(board, perspective, key, psqOut);
     if (tacOut)
         refreshTac(board, perspective, key, tacOut);
 }
 
-/// One row per piece on the board.
 void NNUE::refreshPsq(const Board& board, Color perspective, PerspectiveKey key, int16_t* out) const {
     const NetworkData& net = *network;
 
@@ -346,44 +345,35 @@ void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key,
     const int8_t* tacRows[MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE];
     int           nTac = 0;
 
-    int pawnIds[16];
-    int pawnFiles[16];
-    int pawns = 0;
+    const Color    us   = perspective;
+    const int      flip = key.flip;
+    const uint64_t occ  = board.occupied[WHITE] | board.occupied[BLACK];
+    // Nothing threatens a king, so kings are never victims.
+    const uint64_t victims = occ & ~(board.bitboards[WHITE_KING] | board.bitboards[BLACK_KING]);
 
+    auto idOf = [&](int sq) {
+        return pawnId(sq, static_cast<Color>(pieceColor(board.pieceBoard[sq])), us, flip);
+    };
+
+    // Popping as we go leaves only the later pawns, so each pair is seen once.
     uint64_t pawnBB = board.bitboards[WHITE_PAWN] | board.bitboards[BLACK_PAWN];
     while (pawnBB)
     {
-        const int sq     = poplsb(pawnBB);
-        pawnIds[pawns]   = pawnId(sq, static_cast<Color>(pieceColor(board.pieceBoard[sq])), perspective, key.flip);
-        pawnFiles[pawns] = sq & 7;
-        pawns++;
+        const int sq  = poplsb(pawnBB);
+        const int idA = idOf(sq);
+
+        uint64_t partners = pawnBB & ADJACENT_FILES[fileIndex(sq)];
+        while (partners && nTac < MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE)
+        {
+            tacRows[nTac++] = net.ftTacWeights
+                            + static_cast<size_t>(pawnPairIndex(idA, idOf(poplsb(partners)))) * NNUE_FT_OUT;
+        }
     }
 
-    const uint64_t occ = board.occupied[WHITE] | board.occupied[BLACK];
-
-    // Pawn pairs
-    for (int i = 0; i < pawns; i++)
-        for (int j = i + 1; j < pawns; j++)
-            if (std::abs(pawnFiles[i] - pawnFiles[j]) <= 1)
-                if (nTac < MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE)
-                {
-                    tacRows[nTac++] = net.ftTacWeights
-                                    + static_cast<size_t>(pawnPairIndex(pawnIds[i], pawnIds[j]))
-                                          * NNUE_FT_OUT;
-                }
-
-    // Every (attacker, victim) pair on the board. Pairs the feature space does
+    // Every (attacker, victim) pair on the board; pairs the feature space does
     // not cover come back as -1 and are dropped.
-    const Color us        = perspective;
-    const int   ourKingSq = bitScanForward(board.bitboards[pieceIndex(us, KING)]);
-    const int   hFlip     = (ourKingSq % 8 > 3) ? 7 : 0;
-    const int   flip      = (us == WHITE) ? hFlip : (56 ^ hFlip);
-
-    /// Records the threat from `sq` onto whatever occupies `dest`.
     auto addThreat = [&](int piece, int sq, int dest, int offset) {
         const int victim = board.pieceBoard[dest];
-        if (victim >= N_PIECES)  // EMPTY, i.e. pieceBoard disagreeing with occupied
-            return;
         const int target = pieceType(victim) + (pieceColor(victim) == us ? 0 : 6);
         const int index  = mapThreatFast(piece, sq ^ flip, dest ^ flip, target);
         if (index >= 0 && nTac < MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE)
@@ -393,9 +383,8 @@ void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key,
         }
     };
 
-    /// Every occupied square `piece` on `sq` attacks.
     auto addThreatsFrom = [&](int piece, int sq, uint64_t attacks, int offset) {
-        uint64_t targets = attacks & occ;
+        uint64_t targets = attacks & victims;
         while (targets)
             addThreat(piece, sq, poplsb(targets), offset);
     };
@@ -411,8 +400,8 @@ void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key,
         const int      up    = (c == WHITE) ? 8 : -8;
         uint64_t       east  = pawns & ~FILE_H_BB;
         uint64_t       west  = pawns & ~FILE_A_BB;
-        east = ((c == WHITE) ? east << 9 : east >> 7) & occ;
-        west = ((c == WHITE) ? west << 7 : west >> 9) & occ;
+        east = ((c == WHITE) ? east << 9 : east >> 7) & victims;
+        west = ((c == WHITE) ? west << 7 : west >> 9) & victims;
         while (east)
         {
             const int dest = poplsb(east);
@@ -455,8 +444,6 @@ void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key,
 
     accumulateRows(out, net.ftTacBiases, tacRows, nTac, nullptr, 0);
 }
-
-// --- Incremental update -----------------------------------------------------
 
 /// doPsq / doTac are independent: the psq chain breaks on any king-key change,
 /// the tac chain only when the mirror flips.
@@ -535,54 +522,89 @@ void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curP
         return row;
     };
 
-    int removed[16], added[16];
-    int nRemoved = 0, nAdded = 0;
+    struct MovedPawn {
+        uint8_t id;
+        uint8_t file;
+    };
+
+    MovedPawn removed[16], added[16];
+    int       nRemoved = 0, nAdded = 0;
 
     for (int c = 0; c < N_COLORS; c++)
     {
+        const uint64_t diff = prevPawns[c] ^ curPawns[c];
+        if (!diff)
+            continue;
+
         const auto colour = static_cast<Color>(c);
 
-        uint64_t gone = prevPawns[c] & ~curPawns[c];
+        uint64_t gone = prevPawns[c] & diff;
         while (gone)
         {
             const int sq        = poplsb(gone);
-            removed[nRemoved++] = pawnId(sq, colour, perspective, key.flip) | ((sq & 7) << 8);
+            removed[nRemoved++] = {
+                static_cast<uint8_t>(pawnId(sq, colour, perspective, key.flip)),
+                static_cast<uint8_t>(fileIndex(sq))
+            };
         }
 
-        uint64_t fresh = curPawns[c] & ~prevPawns[c];
+        uint64_t fresh = curPawns[c] & diff;
         while (fresh)
         {
             const int sq    = poplsb(fresh);
-            added[nAdded++] = pawnId(sq, colour, perspective, key.flip) | ((sq & 7) << 8);
+            added[nAdded++] = {
+                static_cast<uint8_t>(pawnId(sq, colour, perspective, key.flip)),
+                static_cast<uint8_t>(fileIndex(sq))
+            };
         }
     }
 
-    const uint64_t keptWhite = prevPawns[WHITE] & curPawns[WHITE];
-    const uint64_t keptBlack = prevPawns[BLACK] & curPawns[BLACK];
+    const uint64_t keptPawns[N_COLORS] = {
+        prevPawns[WHITE] & curPawns[WHITE],
+        prevPawns[BLACK] & curPawns[BLACK]
+    };
 
-    auto pairsWithKept = [&](const int* moved, int count, const int8_t** rows, int& n) {
+    if (nRemoved == 1 && nAdded == 1 && removed[0].file == added[0].file)
+    {
+        const int      file  = removed[0].file;
+        const uint64_t adj   = ADJACENT_FILES[file];
+        const int      remId = removed[0].id;
+        const int      addId = added[0].id;
+
+        for (int c = 0; c < N_COLORS; c++)
+        {
+            uint64_t partners = keptPawns[c] & adj;
+            while (partners)
+            {
+                const int sq    = poplsb(partners);
+                const int pId   = pawnId(sq, static_cast<Color>(c), perspective, key.flip);
+                subRows[nSub++] = rowTac(pawnPairIndex(remId, pId));
+                addRows[nAdd++] = rowTac(pawnPairIndex(addId, pId));
+            }
+        }
+
+        return;
+    }
+
+    auto pairsWithKept = [&](const MovedPawn* moved, int count, const int8_t** rows, int& n) {
         for (int i = 0; i < count; i++)
         {
-            const int id   = moved[i] & 0xFF;
-            const int file = moved[i] >> 8;
+            const int id   = moved[i].id;
+            const int file = moved[i].file;
 
-            uint64_t partners = keptWhite & ADJACENT_FILES[file];
-            while (partners)
+            for (int c = 0; c < N_COLORS; c++)
             {
-                const int sq = poplsb(partners);
-                rows[n++]    = rowTac(pawnPairIndex(id, pawnId(sq, WHITE, perspective, key.flip)));
-            }
-
-            partners = keptBlack & ADJACENT_FILES[file];
-            while (partners)
-            {
-                const int sq = poplsb(partners);
-                rows[n++]    = rowTac(pawnPairIndex(id, pawnId(sq, BLACK, perspective, key.flip)));
+                uint64_t partners = keptPawns[c] & ADJACENT_FILES[file];
+                while (partners)
+                {
+                    const int sq = poplsb(partners);
+                    rows[n++]    = rowTac(pawnPairIndex(id, pawnId(sq, static_cast<Color>(c), perspective, key.flip)));
+                }
             }
 
             for (int j = i + 1; j < count; j++)
-                if (std::abs(file - (moved[j] >> 8)) <= 1)
-                    rows[n++] = rowTac(pawnPairIndex(id, moved[j] & 0xFF));
+                if (std::abs(file - moved[j].file) <= 1)
+                    rows[n++] = rowTac(pawnPairIndex(id, moved[j].id));
         }
     };
 
@@ -590,7 +612,9 @@ void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curP
     pairsWithKept(added, nAdded, addRows, nAdd);
 }
 
-void NNUE::refreshOnBucketChange(Board& board) const {
+/// `moved` is the side whose king may have changed square; the other side's
+/// key cannot have moved, so it stays on the incremental path.
+void NNUE::refreshOnBucketChange(Board& board, Color moved) const {
     if (!loaded)
         return;
 
@@ -599,26 +623,24 @@ void NNUE::refreshOnBucketChange(Board& board) const {
     if (cur == 0 || !stack[cur - 1].stateValid)
         return;
 
-    for (const Color p : {WHITE, BLACK})
+    const PerspectiveKey kNow  = perspectiveKey(stack[cur].kingSq[moved], moved);
+    const PerspectiveKey kPrev = perspectiveKey(stack[cur - 1].kingSq[moved], moved);
+    if (kNow == kPrev)
+        return;
+
+    if (kNow.flip != kPrev.flip)
     {
-        const PerspectiveKey kNow  = perspectiveKey(stack[cur].kingSq[p], p);
-        const PerspectiveKey kPrev = perspectiveKey(stack[cur - 1].kingSq[p], p);
-        if (kNow == kPrev)
-            continue;
-        if (kNow.flip != kPrev.flip)
-        {
-            // Mirror crossed: every feature index changes, both halves go.
-            refresh(board, p, stack[cur].psq[p], stack[cur].tac[p]);
-            stack[cur].computedTac[p] = true;
-        }
-        else
-        {
-            // Bucket only: tac indices depend on the mirror alone, so that half
-            // stays reachable. 90% of bucket changes land here.
-            refresh(board, p, stack[cur].psq[p], nullptr);
-        }
-        stack[cur].computedPsq[p] = true;
+        // Mirror crossed: every feature index changes, both halves go.
+        refresh(board, moved, kNow, stack[cur].psq[moved], stack[cur].tac[moved]);
+        stack[cur].computedTac[moved] = true;
     }
+    else
+    {
+        // Bucket only: tac indices depend on the mirror alone, so that half
+        // stays reachable. 90% of bucket changes land here.
+        refresh(board, moved, kNow, stack[cur].psq[moved], nullptr);
+    }
+    stack[cur].computedPsq[moved] = true;
 }
 
 void NNUE::updatePerspective(Board& board, Color perspective) const {
@@ -630,8 +652,7 @@ void NNUE::updatePerspective(Board& board, Color perspective) const {
     if (!needPsq && !needTac)
         return;
 
-    const PerspectiveKey key = perspectiveKey(bitScanForward(board.bitboards[pieceIndex(perspective, KING)]),
-                                              perspective);
+    const PerspectiveKey key = perspectiveKey(stack[cur].kingSq[perspective], perspective);
 
     int basePsq = -1;
     if (needPsq)
@@ -662,12 +683,12 @@ void NNUE::updatePerspective(Board& board, Color perspective) const {
 
     if (needPsq && basePsq < 0)
     {
-        refresh(board, perspective, stack[cur].psq[perspective], nullptr);
+        refresh(board, perspective, key, stack[cur].psq[perspective], nullptr);
         stack[cur].computedPsq[perspective] = true;
     }
     if (needTac && baseTac < 0)
     {
-        refresh(board, perspective, nullptr, stack[cur].tac[perspective]);
+        refresh(board, perspective, key, nullptr, stack[cur].tac[perspective]);
         stack[cur].computedTac[perspective] = true;
     }
 
@@ -678,8 +699,6 @@ void NNUE::updatePerspective(Board& board, Color perspective) const {
     for (int i = std::min(fromPsq, fromTac); i <= cur; i++)
         applyPly(board, perspective, i, key, i >= fromPsq, i >= fromTac);
 }
-
-// --- Head -------------------------------------------------------------------
 
 int NNUE::finishHead(const int32_t* l1Dots) const {
     const NetworkData& net = *network;
@@ -863,8 +882,6 @@ int NNUE::runHead(const int16_t* stmPsq, const int16_t* stmTac, const int16_t* n
     return finishHead(dots);
 }
 
-// --- Evaluation -------------------------------------------------------------
-
 void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
     if (!loaded)
         return;
@@ -874,8 +891,9 @@ void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
     if (fromScratch || !acc.computedPsq[WHITE] || !acc.computedPsq[BLACK] || !acc.computedTac[WHITE]
         || !acc.computedTac[BLACK])
     {
-        refresh(board, WHITE, acc.psq[WHITE], acc.tac[WHITE]);
-        refresh(board, BLACK, acc.psq[BLACK], acc.tac[BLACK]);
+        for (const Color p : {WHITE, BLACK})
+            refresh(board, p, perspectiveKey(bitScanForward(board.bitboards[pieceIndex(p, KING)]), p),
+                    acc.psq[p], acc.tac[p]);
         acc.computedPsq[WHITE] = acc.computedPsq[BLACK] = true;
         acc.computedTac[WHITE] = acc.computedTac[BLACK] = true;
     }
@@ -926,8 +944,6 @@ float NNUE::materialScale(Board& board) {
 
     return a + (b - a) * gamePhase / 64.0f;
 }
-
-// --- Loading ----------------------------------------------------------------
 
 bool NNUE::loadFromBuffer(const uint8_t* data, size_t size, const std::string& sourceLabel) {
     auto fail = [&](const std::string& message) {

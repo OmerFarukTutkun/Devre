@@ -19,11 +19,8 @@
 constexpr auto MAX_PLY   = 100;
 constexpr auto START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-// Internal eval units per reported pawn. Fitted on 3.2M positions from 37836
-// self-play games: a position worth this much internally is won half the time,
-// so "score cp 100" means a 50% win probability, as in Stockfish. Only the
-// reported score is scaled; search and datagen keep the internal units.
-constexpr int NORMALIZE_TO_PAWN = 325;
+// "score cp 100" means a 50% win probability, as in Stockfish.
+constexpr int NORMALIZE_TO_PAWN = 290;
 
 enum Score : int16_t {
     MAX_MATE_SCORE = 32000,
@@ -283,7 +280,22 @@ struct DirtyThreat {
     inline int targetColor() const { return (target >> 3) & 1; }
 };
 
+/// Victim types each attacker can threaten; checked against the index tables
+/// in nnue.cpp, which are the trainer's feature space.
+constexpr uint8_t THREAT_VICTIMS[N_PIECE_TYPES] = {
+    (1 << KNIGHT) | (1 << ROOK),                                               // PAWN
+    (1 << PAWN) | (1 << KNIGHT) | (1 << BISHOP) | (1 << ROOK) | (1 << QUEEN),  // KNIGHT
+    (1 << PAWN) | (1 << KNIGHT) | (1 << BISHOP) | (1 << ROOK),                 // BISHOP
+    (1 << PAWN) | (1 << KNIGHT) | (1 << BISHOP) | (1 << ROOK),                 // ROOK
+    (1 << PAWN) | (1 << KNIGHT) | (1 << BISHOP) | (1 << ROOK) | (1 << QUEEN),  // QUEEN
+    0,                                                                         // KING
+};
+
 struct NNUEAccumulator {
+    // A move touches at most 3 non-king squares, each worth at most 36 changes
+    // (28 attackers plus 8 discovered), so this cannot overflow.
+    static constexpr int MAX_THREAT_CHANGES = 128;
+
     // Split because a psq index depends on bucket AND mirror while a tac index
     // depends on the mirror alone: 90% of bucket changes rebuild psq only.
     alignas(64) int16_t psq[2][NNUE_FT_OUT]{};
@@ -298,8 +310,8 @@ struct NNUEAccumulator {
     nnueChange changes[4]{};
     uint8_t changeCount{};
 
-    DirtyThreat threatChanges[64]{};
-    uint8_t threatChangeCount{};
+    DirtyThreat threatChanges[MAX_THREAT_CHANGES]{};
+    uint8_t     threatChangeCount{};
 
     bool computedPsq[N_COLORS]{};
     bool computedTac[N_COLORS]{};
@@ -318,10 +330,8 @@ struct NNUEAccumulator {
     }
 
     inline void addThreatChange(int piece, int pieceColor, int targetPiece, int targetColor, int sq, int dest, int sign) {
-        if (targetPiece == KING) return;
-        if (piece == PAWN && targetPiece != KNIGHT && targetPiece != ROOK) return;
-        if ((piece == BISHOP || piece == ROOK) && targetPiece == QUEEN) return;
-        if (threatChangeCount < 64)
+        if (!((THREAT_VICTIMS[piece] >> targetPiece) & 1)) return;
+        if (threatChangeCount < MAX_THREAT_CHANGES)
             threatChanges[threatChangeCount++] = {
                 static_cast<uint8_t>(piece),
                 static_cast<uint8_t>(pieceColor),
@@ -334,7 +344,7 @@ struct NNUEAccumulator {
     }
 };
 
-static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::data");
+static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::psq/tac");
 
 class NNUEData {
    public:

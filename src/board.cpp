@@ -133,38 +133,19 @@ Board::Board(const std::string& fen) {
 }
 
 void Board::updateThreatsForPiece(int piece, int sq, int sign) {
-    if (piece == EMPTY) return;
+    if (piece == EMPTY || pieceType(piece) == KING) return;
     auto& acc = nnueData.accumulator[nnueData.size];
     int pType = pieceType(piece);
     int pCol  = pieceColor(piece);
     uint64_t occ = occupied[WHITE] | occupied[BLACK];
 
-    uint64_t bAtt = 0;
-    uint64_t rAtt = 0;
-    bool bAttComputed = false;
-    bool rAttComputed = false;
+    uint64_t bAtt = 0, rAtt = 0;
+    bool     haveB = false, haveR = false;
 
-    auto getBAtt = [&]() -> uint64_t {
-        if (!bAttComputed) {
-            bAtt = bishopAttacks(occ, sq);
-            bAttComputed = true;
-        }
-        return bAtt;
-    };
+    auto getBAtt = [&] { if (!haveB) { bAtt = bishopAttacks(occ, sq); haveB = true; } return bAtt; };
+    auto getRAtt = [&] { if (!haveR) { rAtt = rookAttacks(occ, sq); haveR = true; } return rAtt; };
 
-    auto getRAtt = [&]() -> uint64_t {
-        if (!rAttComputed) {
-            rAtt = rookAttacks(occ, sq);
-            rAttComputed = true;
-        }
-        return rAtt;
-    };
-    
-    if (pType == KING) return; // King is never a threat target
-
-    // 1. Outgoing threats: pieces attacked by this piece. Only the target mask
-    // differs per piece type; the feature space has no threat onto a king, and
-    // none from a bishop or rook onto a queen.
+    // Outgoing threats; the masks are the complement form of THREAT_VICTIMS.
     const uint64_t kings = bitboards[WHITE_KING] | bitboards[BLACK_KING];
     uint64_t       attacked = 0;
     switch (pType)
@@ -196,7 +177,6 @@ void Board::updateThreatsForPiece(int piece, int sq, int sign) {
         acc.addThreatChange(pType, pCol, pieceType(victim), pieceColor(victim), sq, dest, sign);
     }
 
-    // Pawns attacking sq (only if target is Knight or Rook)
     if (pType == KNIGHT || pType == ROOK) {
         uint64_t whitePawnAtt = PawnAttacks[BLACK][sq] & bitboards[WHITE_PAWN];
         while (whitePawnAtt) {
@@ -212,7 +192,6 @@ void Board::updateThreatsForPiece(int piece, int sq, int sign) {
         }
     }
 
-    // Knights attacking sq
     uint64_t knightAtt = KnightAttacks[sq] & (bitboards[WHITE_KNIGHT] | bitboards[BLACK_KNIGHT]);
     while (knightAtt) {
         int attSq = poplsb(knightAtt);
@@ -221,8 +200,7 @@ void Board::updateThreatsForPiece(int piece, int sq, int sign) {
             KNIGHT, attCol, pType, pCol, attSq, sq, sign);
     }
 
-    // Diagonal sliders attacking sq. No bishop->queen threat exists, so a queen
-    // victim narrows the attackers to queens.
+    // A queen victim narrows the attackers to queens; nothing else reaches one.
     {
         uint64_t sliders = (pType != QUEEN)
                              ? bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]
@@ -239,7 +217,6 @@ void Board::updateThreatsForPiece(int piece, int sq, int sign) {
         }
     }
 
-    // Straight sliders attacking sq. No rook->queen threat either.
     {
         uint64_t sliders = (pType != QUEEN)
                              ? bitboards[WHITE_ROOK] | bitboards[BLACK_ROOK] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]
@@ -272,9 +249,6 @@ void Board::updateDiscoveredThreats(int sq, int sign) {
 
         const int sqA = bitScanForward(a), sqB = bitScanForward(b);
         const int pA = pieceBoard[sqA], pB = pieceBoard[sqB];
-        if (pA == EMPTY || pB == EMPTY)
-            return;
-
         const int tA = pieceType(pA), cA = pieceColor(pA);
         const int tB = pieceType(pB), cB = pieceColor(pB);
         if (tA == slider || tA == QUEEN)
@@ -283,13 +257,21 @@ void Board::updateDiscoveredThreats(int sq, int sign) {
             acc.addThreatChange(tB, cB, tA, cA, sqB, sqA, sign);
     };
 
-    const uint64_t diag = bishopAttacks(occ, sq);
-    line(diag, DIR_RAYS.north_east, DIR_RAYS.south_west, BISHOP);
-    line(diag, DIR_RAYS.north_west, DIR_RAYS.south_east, BISHOP);
+    const uint64_t diagSliders = (bitboards[WHITE_BISHOP] | bitboards[BLACK_BISHOP] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]) & DIR_RAYS.diag[sq];
+    if (diagSliders)
+    {
+        const uint64_t diag = bishopAttacks(occ, sq);
+        line(diag, DIR_RAYS.north_east, DIR_RAYS.south_west, BISHOP);
+        line(diag, DIR_RAYS.north_west, DIR_RAYS.south_east, BISHOP);
+    }
 
-    const uint64_t straight = rookAttacks(occ, sq);
-    line(straight, DIR_RAYS.north, DIR_RAYS.south, ROOK);
-    line(straight, DIR_RAYS.east, DIR_RAYS.west, ROOK);
+    const uint64_t straightSliders = (bitboards[WHITE_ROOK] | bitboards[BLACK_ROOK] | bitboards[WHITE_QUEEN] | bitboards[BLACK_QUEEN]) & DIR_RAYS.straight[sq];
+    if (straightSliders)
+    {
+        const uint64_t straight = rookAttacks(occ, sq);
+        line(straight, DIR_RAYS.north, DIR_RAYS.south, ROOK);
+        line(straight, DIR_RAYS.east, DIR_RAYS.west, ROOK);
+    }
 }
 
 void Board::addPiece(int piece, int sq, bool updateNNUE) {
@@ -485,14 +467,25 @@ void Board::makeMove(uint16_t move, bool updateNNUE) {
     // updated incrementally at all.
     if (updateNNUE)
     {
-        auto& acc          = nnueData.accumulator[nnueData.size];
-        acc.pawns[WHITE]   = bitboards[WHITE_PAWN];
-        acc.pawns[BLACK]   = bitboards[BLACK_PAWN];
-        acc.kingSq[WHITE]  = static_cast<uint8_t>(bitScanForward(bitboards[WHITE_KING]));
-        acc.kingSq[BLACK]  = static_cast<uint8_t>(bitScanForward(bitboards[BLACK_KING]));
-        acc.stateValid     = true;
+        auto&       acc  = nnueData.accumulator[nnueData.size];
+        const auto& prev = nnueData.accumulator[nnueData.size - 1];
 
-        NNUE::Instance()->refreshOnBucketChange(*this);
+        acc.pawns[WHITE] = bitboards[WHITE_PAWN];
+        acc.pawns[BLACK] = bitboards[BLACK_PAWN];
+        acc.stateValid   = true;
+
+        if (pieceType(piece) == KING || !prev.stateValid)
+        {
+            acc.kingSq[WHITE] = static_cast<uint8_t>(bitScanForward(bitboards[WHITE_KING]));
+            acc.kingSq[BLACK] = static_cast<uint8_t>(bitScanForward(bitboards[BLACK_KING]));
+
+            NNUE::Instance()->refreshOnBucketChange(*this, static_cast<Color>(pieceColor(piece)));
+        }
+        else
+        {
+            acc.kingSq[WHITE] = prev.kingSq[WHITE];
+            acc.kingSq[BLACK] = prev.kingSq[BLACK];
+        }
     }
 }
 

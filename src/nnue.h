@@ -11,7 +11,7 @@
 
 class NNUE {
    public:
-    // --- Input space. Two disjoint blocks feeding one shared accumulator. ------
+    // Input space: two disjoint blocks feeding one shared accumulator.
     static constexpr int KING_BUCKETS     = 12;
     static constexpr int PSQ_FEATURES     = 768 * KING_BUCKETS;              // 9216
     static constexpr int PAWN_IDS         = 96;                              // 48 friendly + 48 enemy
@@ -20,7 +20,7 @@ class NNUE {
     static constexpr int NUM_TAC_FEATURES = PAWN_PAIRS + NUM_THREATS;        // 64368
     static constexpr int FT_IN            = PSQ_FEATURES + NUM_TAC_FEATURES; // 73584
 
-    // --- Head. FT -> pairwise -> L1 -> L2 -> scalar. ---------------------------
+    // Head: FT -> pairwise -> L1 -> L2 -> scalar.
     static constexpr int PW             = NNUE_FT_OUT / 2;         // 384 pairwise outputs
     static constexpr int L1_SIZE        = 16;
     static constexpr int L2_SIZE        = 32;
@@ -47,8 +47,6 @@ class NNUE {
         alignas(64) int8_t  ftPsqWeights[static_cast<size_t>(PSQ_FEATURES) * NNUE_FT_OUT];
         alignas(64) int8_t  ftTacWeights[static_cast<size_t>(NUM_TAC_FEATURES) * NNUE_FT_OUT];
         alignas(64) int16_t ftTacBiases[NNUE_FT_OUT];
-        // Input-group-major: l1Weights[g][4 * out + k] is the weight from input
-        // 4 * g + k to neuron `out`. See l1Dots for why.
         alignas(64) int8_t  l1Weights[L1_GROUPS][4 * L1_SIZE];
         alignas(64) float   l1Norm[L1_SIZE];
         alignas(64) float   l1Biases[L1_SIZE];
@@ -73,7 +71,8 @@ class NNUE {
 
     static PerspectiveKey perspectiveKey(int kingSquare, Color perspective);
 
-    void refresh(const Board& board, Color perspective, int16_t* psqOut, int16_t* tacOut) const;
+    void refresh(const Board& board, Color perspective, PerspectiveKey key, int16_t* psqOut,
+                 int16_t* tacOut) const;
     void refreshPsq(const Board& board, Color perspective, PerspectiveKey key, int16_t* out) const;
     void refreshTac(const Board& board, Color perspective, PerspectiveKey key, int16_t* out) const;
 
@@ -105,7 +104,7 @@ class NNUE {
     // Called from makeMove, the last point where the node's board state exists,
     // so the whole subtree below can delta from here instead of each leaf
     // rebuilding from the bias.
-    void refreshOnBucketChange(Board& board) const;
+    void refreshOnBucketChange(Board& board, Color moved) const;
 
     void calculateInputLayer(Board& board, int idx, bool fromScratch = false);
     int evaluate(Board& board);
