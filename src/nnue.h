@@ -28,7 +28,7 @@ class NNUE {
     // The L1 input is consumed as 4-byte groups, the unit one dpbusd lane eats.
     static constexpr int L1_GROUPS      = 2 * PW / 4;              // 192
     static constexpr int OUTPUT_BUCKETS = 1;
-    static constexpr int EVAL_SCALE     = 373;
+    static constexpr int EVAL_SCALE     = 427;
     static constexpr int QA          = 127;  // FT / accumulator scale (int8 weights)
     static constexpr int INPUT_SHIFT = 7;    // pairwise right shift (127*127 >> 7 = 126)
 
