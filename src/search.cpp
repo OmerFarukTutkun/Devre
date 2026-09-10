@@ -467,9 +467,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
-            // late move pruning. Both this and the futility margin below only get
-            // stricter as moveCount grows, so the picker can drop every quiet
-            // move still to come instead of generating and scoring them.
+            // lmp pruning
             if (depth <= 6 && moveCount > 6 + (1 + 3 * improving) * depth)
             {
                 picker.skipQuiets();
@@ -531,9 +529,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (singularScore < singularBeta)
             {
                 extension  = 1;
-                int margin = 300 * PVNode - 200 * !isTactical(ttMove);
-                if ((singularScore + margin < singularBeta) && ss->doubleExtension <= 5)
-                {
+                const int doubleMargin = 20 + 2 * depth;
+                if (singularScore < singularBeta - doubleMargin && ss->doubleExtension <= 5) {
                     ss->doubleExtension = (ss - 1)->doubleExtension + 1;
                     extension++;
                 }
