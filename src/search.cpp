@@ -300,7 +300,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
     if (depth <= 0)
     {
-        return qsearch<PVNode>(alpha, beta, thread, ss);
+        return adjustEvalWithCorrHist(thread, ss, board->eval());
     }
     thread.nodes++;
 
@@ -413,12 +413,15 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     }
 
     //Razoring
+    //Razoring (disabled: depends on qsearch)
+    /*
     if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 430 * depth < alpha)
     {
         int score = qsearch<false>(alpha, beta, thread, ss);
         if (score < alpha)
             return score;
     }
+    */
     (ss + 1)->excludedMove = NO_MOVE;
     (ss + 1)->killers[0]   = NO_MOVE;
     (ss + 1)->killers[1]   = NO_MOVE;
