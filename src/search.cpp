@@ -483,10 +483,13 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (depth <= 3 && contHist < -3720)
                 continue;
         }
+        // SEE pruning (disabled)
+        /*
         if (moveCount > 2 && !PVNode && depth <= 6 && !SEE(*board, move, seeThreshold(isQuiet(move), depth)))
         {
             continue;
         }
+        */
 
         ss->playedMoves[ss->played++] = move;
 
