@@ -70,24 +70,22 @@ endif
 
 COMMAND = $(CXX) $(CXX_FLAGS) $(FILES) $(LIBS) -DNET=\"$(NETWORK)\" -o $(EXE)
 
+ifneq (,$(findstring sh,$(SHELL)))
+	MKDIR_PGO := mkdir -p devre_pgo
+	RUN_BENCH := ./$(EXE) bench
+	RMDIR_PGO := rm -rf devre_pgo
+else
+	MKDIR_PGO := -if not exist devre_pgo mkdir devre_pgo 2>nul
+	RUN_BENCH := $(EXE) bench
+	RMDIR_PGO := -if exist devre_pgo rmdir /s /q devre_pgo 2>nul
+endif
+
 default: network
-ifeq ($(OS),Windows_NT)
-	-if not exist devre_pgo mkdir devre_pgo 2>nul
-else
-	mkdir -p devre_pgo
-endif
+	$(MKDIR_PGO)
 	$(COMMAND) -fprofile-generate="devre_pgo"
-ifeq ($(OS),Windows_NT)
-	$(EXE) bench
-else
-	./$(EXE) bench
-endif
+	$(RUN_BENCH)
 	$(COMMAND) -fprofile-use="devre_pgo"
-ifeq ($(OS),Windows_NT)
-	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
-else
-	rm -rf devre_pgo
-endif
+	$(RMDIR_PGO)
 
 nopgo: network
 	$(COMMAND)
@@ -98,9 +96,9 @@ ifeq (,$(wildcard ./$(NETWORK)))
 endif
 
 clean:
-ifeq ($(OS),Windows_NT)
-	-del /q /f $(EXE) 2>nul
-	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
+ifneq (,$(findstring sh,$(SHELL)))
+	rm -rf $(EXE) $(EXE).exe devre_pgo
 else
-	rm -rf $(EXE) devre_pgo
+	-del /q /f $(EXE) $(EXE).exe 2>nul
+	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
 endif
