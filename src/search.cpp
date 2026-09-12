@@ -131,10 +131,9 @@ Search::~Search() {
 
 void Search::stop() { stopped = true; }
 
+template <bool PVNode>
 int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
-    int    oldAlpha = alpha;
     Board* board    = &thread.board;
-    int    PVNode   = (alpha != beta - 1);
 
     thread.nodes++;
 
@@ -209,7 +208,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         ss->move = move;
         board->makeMove(move);
 
-        score = -qsearch(-beta, -alpha, thread, ss + 1);
+        score = -qsearch<PVNode>(-beta, -alpha, thread, ss + 1);
 
         board->unmakeMove(move);
 
@@ -238,11 +237,10 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
 }
-
+template <bool PVNode>
 int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, ThreadData& thread, Stack* ss) {
     int oldAlpha  = alpha;
     int bestScore = -VALUE_INFINITE;
-    int PVNode    = (alpha != beta - 1);
     int rootNode  = (0 == ss->ply);
 
     ss->pv[0] = NO_MOVE;
@@ -302,7 +300,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
     if (depth <= 0)
     {
-        return qsearch(alpha, beta, thread, ss);
+        return qsearch<PVNode>(alpha, beta, thread, ss);
     }
     thread.nodes++;
 
@@ -417,7 +415,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
     //Razoring
     if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 430 * depth < alpha)
     {
-        int score = qsearch(alpha, beta, thread, ss);
+        int score = qsearch<false>(alpha, beta, thread, ss);
         if (score < alpha)
             return score;
     }
@@ -438,7 +436,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->contCorrHist        = &thread.contCorrHist[PAWN][A1];
         board->makeNullMove();
 
-        score = -alphaBeta(-beta, -beta + 1, depth - R, !cutNode, thread, ss + 1);
+        score = -alphaBeta<false>(-beta, -beta + 1, depth - R, !cutNode, thread, ss + 1);
 
         board->unmakeNullMove();
         if (score >= beta)
@@ -467,9 +465,6 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
-            // late move pruning. Both this and the futility margin below only get
-            // stricter as moveCount grows, so the picker can drop every quiet
-            // move still to come instead of generating and scoring them.
             if (depth <= 6 && moveCount > 6 + (1 + 3 * improving) * depth)
             {
                 picker.skipQuiets();
@@ -525,7 +520,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             const int singularDepth = (depth - 1) / 2;
 
             ss->excludedMove  = move;
-            int singularScore = alphaBeta(singularBeta - 1, singularBeta, singularDepth, cutNode, thread, ss);
+            int singularScore = alphaBeta<false>(singularBeta - 1, singularBeta, singularDepth, cutNode, thread, ss);
             ss->excludedMove  = NO_MOVE;
 
             if (singularScore < singularBeta)
@@ -563,7 +558,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         board->makeMove(move);
         if (lmr >= 1)
         {
-            score = -alphaBeta(-alpha - 1, -alpha, d, true, thread, ss + 1);
+            score = -alphaBeta<false>(-alpha - 1, -alpha, d, true, thread, ss + 1);
             if (score > alpha && d < newDepth)
             {
 
@@ -573,17 +568,17 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
-                    score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
+                    score = -alphaBeta<false>(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
             }
         }
         else if (!PVNode || ss->played > 1)
         {
-            score = -alphaBeta(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
+            score = -alphaBeta<false>(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
         }
 
         if (PVNode && (ss->played == 1 || score > alpha))
         {
-            score = -alphaBeta(-beta, -alpha, newDepth, false, thread, ss + 1);
+            score = -alphaBeta<true>(-beta, -alpha, newDepth, false, thread, ss + 1);
         }
         board->unmakeMove(move);
 
@@ -701,7 +696,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             {
                 const int adjustedDepth = std::max(1, i - failHighCnt);
 
-                score = alphaBeta(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
+                score = alphaBeta<true>(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -721,7 +716,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         }
         else
         {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
+            score = alphaBeta<true>(-VALUE_INFINITE, VALUE_INFINITE, i, false, *threads.at(ThreadID), ss + 6);
         }
 
         if (stopped)
@@ -848,7 +843,7 @@ SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNod
             int beta       = score + windowSize;
             while (true)
             {
-                score = alphaBeta(alpha, beta, depth, false, *td, ss + 6);
+                score = alphaBeta<true>(alpha, beta, depth, false, *td, ss + 6);
                 if (stopped || (score > alpha && score < beta))
                     break;
                 if (score <= alpha)
@@ -860,7 +855,7 @@ SearchResult Search::datagenSearch(Stack* ss, int64_t softNodes, int64_t hardNod
         }
         else
         {
-            score = alphaBeta(-VALUE_INFINITE, VALUE_INFINITE, depth, false, *td, ss + 6);
+            score = alphaBeta<true>(-VALUE_INFINITE, VALUE_INFINITE, depth, false, *td, ss + 6);
         }
 
         if (stopped)
