@@ -465,11 +465,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (isQuiet(move) && moveCount > 3 && !PVNode)
         {
+            // LMP (disabled)
+            /*
             if (depth <= 6 && moveCount > 6 + (1 + 3 * improving) * depth)
             {
                 picker.skipQuiets();
                 continue;
             }
+            */
 
             // futility pruning
             if (depth <= 10 && eval + std::max(172, -moveCount * 10 + 172 + depth * 101) < alpha)
