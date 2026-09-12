@@ -514,6 +514,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
 
         int extension = 0;
+        // Singular Extensions (disabled)
+        /*
         if (ss->ply < thread.searchDepth && !rootNode && depth >= 8 && move == ttMove && ss->excludedMove == NO_MOVE && (ttBound & TT_LOWERBOUND) && ttDepth >= depth - 3)
         {
             const int singularBeta  = ttScore - 4 * depth;
@@ -552,6 +554,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             ss->continuationHistory = &thread.contHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
             ss->contCorrHist        = &thread.contCorrHist[board->pieceBoard[moveFrom(move)]][moveTo(move)];
         }
+        */
         int newDepth = depth - 1 + extension;
         int d        = newDepth - lmr;
         //make move
