@@ -426,7 +426,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
     int score;
 
-    //Null Move pruning
+    //Null Move pruning (disabled)
+    /*
     if (!PVNode && ss->excludedMove == NO_MOVE && (ss - 1)->move != NULL_MOVE && !inCheck && depth >= 4 && eval > beta && board->hasNonPawnPieces())
     {
         int R = 5 + depth / 4 + std::min(4, (eval - beta) / 188);
@@ -442,6 +443,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
+    */
     MovePicker picker(thread, ss, ttMove, PICK_MAIN);
     uint64_t   beforeNodes = 0;
     int        lmr;
