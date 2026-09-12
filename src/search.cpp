@@ -403,6 +403,8 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         depth -= 1;
 
 
+    // Reverse Futility Pruning (disabled)
+    /*
     if (!rootNode && !PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 7 && std::abs(eval) < MIN_TB_SCORE)
     {
         const int rfpDepth  = std::max(0, depth - improving);
@@ -411,6 +413,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (eval - rfpMargin >= beta)
             return (eval + beta) / 2;
     }
+    */
 
     //Razoring
     if (!PVNode && !inCheck && ss->excludedMove == NO_MOVE && depth <= 5 && eval + 430 * depth < alpha)
