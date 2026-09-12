@@ -471,12 +471,14 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 continue;
             }
 
-            // futility pruning
+            // futility pruning (disabled)
+            /*
             if (depth <= 10 && eval + std::max(172, -moveCount * 10 + 172 + depth * 101) < alpha)
             {
                 picker.skipQuiets();
                 continue;
             }
+            */
 
             //contHist pruning
             int contHist = getContHistory(thread, ss, move);
