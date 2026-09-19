@@ -8,7 +8,7 @@
 
 void updateHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bestmove);
 
-void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth);
+void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth, int failLowGap = -1);
 
 int getCaptureHistory(ThreadData& thread, Stack* ss, uint16_t move);
 

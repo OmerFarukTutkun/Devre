@@ -13,7 +13,7 @@ void updateHistory(int16_t* current, int depth, bool good) {
 }
 // When a node fails low, the opponent's previous quiet move "worked":
 // give it a continuation-history bonus.
-void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
+void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth, int failLowGap) {
     Board*   board = &thread.board;
     uint16_t prev  = (ss - 1)->move;
 
@@ -23,6 +23,9 @@ void updatePrevMoveFailLowBonus(ThreadData& thread, Stack* ss, int depth) {
     int to    = moveTo(prev);
     int piece = board->pieceBoard[to];
 
+    if(failLowGap < 30)
+        updateHistory(&(*(ss - 2)->continuationHistory)[piece][to], depth -2, true);
+    
     if ((ss - 2)->move)
         updateHistory(&(*(ss - 2)->continuationHistory)[piece][to], depth, true);
 }

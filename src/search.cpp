@@ -562,7 +562,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (score > alpha && d < newDepth)
             {
 
-                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth +cutNode * 30); ;
+                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth); ;
                 const bool doShallowerSearch = score < bestScore + newDepth;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -625,7 +625,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         // this node failed low, so the opponent's previous quiet move was good
         if (bound == TT_UPPERBOUND && !rootNode)
-            updatePrevMoveFailLowBonus(thread, ss, depth);
+        {
+            const int gap = std::abs(bestScore) < MIN_TB_SCORE && std::abs(oldAlpha) < MIN_TB_SCORE ? std::max(0, oldAlpha - bestScore) : -1;
+            updatePrevMoveFailLowBonus(thread, ss, depth, gap);
+        }
 
         if (!inCheck && (!bestMove || !isTactical(bestMove)) && !(bound == TT_LOWERBOUND && bestScore <= ss->staticEval) && !(bound == TT_UPPERBOUND && bestScore >= ss->staticEval))
         {
