@@ -562,7 +562,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (score > alpha && d < newDepth)
             {
 
-                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth +cutNode * 30); ;
+                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth); ;
                 const bool doShallowerSearch = score < bestScore + newDepth;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -694,7 +694,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int failHighCnt = 0;
             while (true)
             {
-                const int adjustedDepth = std::max(1, i - failHighCnt);
+                const int adjustedDepth = std::max(1, i - std::min(failHighCnt, int(std::log(i))));
 
                 score = alphaBeta<true>(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
