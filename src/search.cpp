@@ -694,7 +694,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
             int failHighCnt = 0;
             while (true)
             {
-                const int adjustedDepth = std::max(1, i - std::min(failHighCnt, int(std::log(i))));
+                const int adjustedDepth = std::max(1, i - std::min(failHighCnt, 2));
 
                 score = alphaBeta<true>(alpha, beta, adjustedDepth, false, *threads.at(ThreadID), ss + 6);
                 if (stopped || (score > alpha && score < beta))
