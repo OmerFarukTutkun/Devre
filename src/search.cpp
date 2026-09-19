@@ -562,7 +562,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             if (score > alpha && d < newDepth)
             {
 
-                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth);
+                const bool doDeeperSearch    = score > (bestScore + 39 + 2 * newDepth +cutNode * 30); ;
                 const bool doShallowerSearch = score < bestScore + newDepth;
 
                 newDepth += doDeeperSearch - doShallowerSearch;

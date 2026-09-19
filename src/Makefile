@@ -1,5 +1,6 @@
 #thanks for https://github.com/gab8192/Obsidian for Makefile
 CXX      = g++
+CC       ?= gcc
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
 NETWORK ?= devre-a064d8d9d7b6.bin
@@ -22,7 +23,11 @@ CXX_FLAGS  = -I. -static -pthread -fno-rtti -funroll-loops --param max-unroll-ti
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
-	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" > "./$(NETWORK)"
+	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" -o $(NETWORK)
+	# Check if running in cmd.exe (which preserves quotes in echo)
+	ifneq ($(findstring "hello", $(shell echo "hello")),)
+		IS_CMD := 1
+	endif
 else
 	EXE := Devre
 	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
@@ -70,21 +75,22 @@ endif
 
 COMMAND = $(CXX) $(CXX_FLAGS) $(FILES) $(LIBS) -DNET=\"$(NETWORK)\" -o $(EXE)
 
-ifneq (,$(findstring sh,$(SHELL)))
+ifeq ($(IS_CMD),1)
+	MKDIR_PGO := -if not exist devre_pgo mkdir devre_pgo 2>nul
+	RUN_BENCH := .\$(EXE) bench
+	RMDIR_PGO := -if exist devre_pgo rmdir /s /q devre_pgo 2>nul
+else
 	MKDIR_PGO := mkdir -p devre_pgo
 	RUN_BENCH := ./$(EXE) bench
 	RMDIR_PGO := rm -rf devre_pgo
-else
-	MKDIR_PGO := -if not exist devre_pgo mkdir devre_pgo 2>nul
-	RUN_BENCH := $(EXE) bench
-	RMDIR_PGO := -if exist devre_pgo rmdir /s /q devre_pgo 2>nul
 endif
 
 default: network
+	$(RMDIR_PGO)
 	$(MKDIR_PGO)
-	$(COMMAND) -fprofile-generate="devre_pgo"
+	$(COMMAND) -fprofile-generate=devre_pgo
 	$(RUN_BENCH)
-	$(COMMAND) -fprofile-use="devre_pgo"
+	$(COMMAND) -fprofile-use=devre_pgo
 	$(RMDIR_PGO)
 
 nopgo: network
@@ -96,9 +102,10 @@ ifeq (,$(wildcard ./$(NETWORK)))
 endif
 
 clean:
-ifneq (,$(findstring sh,$(SHELL)))
-	rm -rf $(EXE) $(EXE).exe devre_pgo
-else
-	-del /q /f $(EXE) $(EXE).exe 2>nul
+ifeq ($(IS_CMD),1)
+	-if exist $(EXE) del /q /f $(EXE) 2>nul
+	-if exist $(EXE).exe del /q /f $(EXE).exe 2>nul
 	-if exist devre_pgo rmdir /s /q devre_pgo 2>nul
+else
+	rm -rf $(EXE) $(EXE).exe devre_pgo
 endif
