@@ -20,6 +20,8 @@ DEFINE_PARAM_B(bmStabBase, 132, 80, 200);
 DEFINE_PARAM_B(bmStabScale, 8, 0, 25);
 DEFINE_PARAM_B(bmStabMin, 68, 40, 120);
 
+DEFINE_PARAM_B(regretDiv, 4096, 1024, 16384);
+
 int LMR_TABLE[MAX_PLY][256];
 
 int seeThreshold(bool quiet, int depth) {
@@ -504,6 +506,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 history = getCaptureHistory(thread, ss, move);
 
             lmr -= std::clamp(history / 8024, -2, 2);
+            lmr -= std::clamp(getReductionRegret(thread, move) / regretDiv, -1, 2);
             lmr += cutNode;
             lmr += ttMove && ttCapture;
             lmr -= std::abs(ss->staticEval - rawEval) > 341;
@@ -554,6 +557,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         }
         int newDepth = depth - 1 + extension;
         int d        = newDepth - lmr;
+        int regret   = 0;  // +1: reducing was a mistake, -1: the re-search was wasted
         //make move
         board->makeMove(move);
         if (lmr >= 1)
@@ -568,7 +572,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
-                    score = -alphaBeta<false>(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
+                {
+                    score  = -alphaBeta<false>(-alpha - 1, -alpha, newDepth, !cutNode, thread, ss + 1);
+                    regret = score > alpha ? 1 : -1;
+                }
             }
         }
         else if (!PVNode || ss->played > 1)
@@ -584,6 +591,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
 
         if (this->stopped)
             return 0;
+
+        if (regret != 0)
+            updateReductionRegret(thread, move, depth, regret > 0);
 
         if (rootNode && thread.ThreadID == 0)
             moveNodes[move] += thread.nodes - beforeNodes;

@@ -101,6 +101,16 @@ int getCaptureHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     return thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
 }
 
+int getReductionRegret(ThreadData& thread, uint16_t move) {
+    return thread.reductionRegret[thread.board.sideToMove][moveFrom(move)][moveTo(move)];
+}
+
+// Called after the move is unmade, so sideToMove is the side that played it.
+// regret: the reduced search failed high and the full-depth re-search confirmed it.
+void updateReductionRegret(ThreadData& thread, uint16_t move, int depth, bool regret) {
+    updateHistory(&thread.reductionRegret[thread.board.sideToMove][moveFrom(move)][moveTo(move)], depth, regret);
+}
+
 int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     Board* board = &thread.board;
     int    from  = moveFrom(move);

@@ -16,6 +16,10 @@ int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move);
 
 int getContHistory(ThreadData& thread, Stack* ss, uint16_t move);
 
+int getReductionRegret(ThreadData& thread, uint16_t move);
+
+void updateReductionRegret(ThreadData& thread, uint16_t move, int depth, bool regret);
+
 
 void updateCorrHistScore(ThreadData& thread, Stack* ss, int depth, int diff);
 
