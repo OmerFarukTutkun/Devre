@@ -5,6 +5,8 @@
 
 DEFINE_PARAM_B(hardTimePercentage, 40, 0, 100);
 DEFINE_PARAM_B(softTimePercentage, 5, 0, 100);
+DEFINE_PARAM_B(predictHitScale, 85, 50, 100);
+DEFINE_PARAM_B(predictMissScale, 115, 100, 150);
 
 bool TimeManager::checkLimits(uint64_t totalNodes) {
 
@@ -26,17 +28,18 @@ bool TimeManager::checkLimits(uint64_t totalNodes) {
 }
 
 TimeManager::TimeManager() {
-    depthLimit    = MAX_PLY;
-    nodeLimit     = -1;
-    movesToGo     = 20;
-    fixedMoveTime = -1;
-    remainingTime = 1e9;
-    inc           = 0;
-    startTime     = 0;
-    softTime      = 0;
-    period        = 1000;
-    calls         = period;
-    hardTime      = 0;
+    depthLimit       = MAX_PLY;
+    nodeLimit        = -1;
+    movesToGo        = 20;
+    fixedMoveTime    = -1;
+    remainingTime    = 1e9;
+    inc              = 0;
+    predictionResult = 0;
+    startTime        = 0;
+    softTime         = 0;
+    period           = 1000;
+    calls            = period;
+    hardTime         = 0;
 }
 
 void TimeManager::start() {
@@ -51,5 +54,12 @@ void TimeManager::start() {
     hardTime = std::max<int64_t>(hardTime, 1);
 
     softTime = remainingTime * softTimePercentage / 100 + inc;
+
+    // A predicted reply means the tree is warm; a surprise means it is cold.
+    if (predictionResult == 1)
+        softTime = softTime * predictHitScale / 100;
+    else if (predictionResult == -1)
+        softTime = softTime * predictMissScale / 100;
+
     softTime = std::min(softTime, hardTime);
 }

@@ -653,7 +653,8 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         // search, which is illegal in this position and loses the game.
         MoveList rootMoves;
         legalmoves<ALL_MOVES>(*board, rootMoves);
-        m_bestMove = (rootMoves.numMove > 0) ? rootMoves.moves[0] : NO_MOVE;
+        m_bestMove       = (rootMoves.numMove > 0) ? rootMoves.moves[0] : NO_MOVE;
+        m_predictedReply = NO_MOVE;
 
         for (int i = 0; i < numThread; i++)
         {
@@ -725,10 +726,11 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         {
             auto elapsed = 1 + currentTime() - this->timeManager->startTime;
 
-            this->m_bestMove  = (ss + 6)->pv[0];
-            auto bestMoveNode = moveNodes[m_bestMove];
-            auto nodes        = this->totalNodes();
-            auto nps          = (1000 * nodes) / elapsed;
+            this->m_bestMove       = (ss + 6)->pv[0];
+            this->m_predictedReply = m_bestMove != NO_MOVE ? (ss + 6)->pv[1] : NO_MOVE;
+            auto bestMoveNode      = moveNodes[m_bestMove];
+            auto nodes             = this->totalNodes();
+            auto nps               = (1000 * nodes) / elapsed;
 
             std::cout << "info depth " << i;
             std::cout << " seldepth " << seldepth;
@@ -786,6 +788,27 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
         }
         std::cout << "bestmove " << moveToUci(this->m_bestMove, *board) << std::endl;
         runningThreads.clear();
+
+        // Remember where the game goes if the opponent plays pv[1]. All helper
+        // threads have joined, so the root board is ours to walk forward.
+        predictedKey = 0;
+        if (m_bestMove != NO_MOVE && m_predictedReply != NO_MOVE)
+        {
+            board->makeMove(m_bestMove, false);
+            MoveList replies;
+            legalmoves<ALL_MOVES>(*board, replies);
+            for (int i = 0; i < replies.numMove; i++)
+            {
+                if (replies.moves[i] == m_predictedReply)
+                {
+                    board->makeMove(m_predictedReply, false);
+                    predictedKey = board->key;
+                    board->unmakeMove(m_predictedReply, false);
+                    break;
+                }
+            }
+            board->unmakeMove(m_bestMove, false);
+        }
 
         res.cp    = 100 * score / NORMALIZE_TO_PAWN;
         res.move  = this->m_bestMove;

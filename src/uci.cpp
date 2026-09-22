@@ -54,6 +54,7 @@ void Uci::UciLoop() {
         {
             this->stop();
             TT::Instance()->ttClear();
+            search.predictedKey = 0;
 
             auto option = Options.at("Threads");
             search.setThread(stoi(option.currentValue));
@@ -179,6 +180,8 @@ void Uci::go(std::vector<std::string>& commands) {
 
         cmd = popFront(commands);
     }
+    if (search.predictedKey != 0)
+        timeManager.predictionResult = (board->key == search.predictedKey) ? 1 : -1;
     timeManager.start();
     NNUE::Instance()->calculateInputLayer(*board, 0, true);
     searchThread = std::thread(&Search::start, &search, board, &timeManager, 0);

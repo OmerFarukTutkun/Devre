@@ -35,6 +35,7 @@ class Search {
     std::atomic<bool> stopped;
     int               numThread;
     uint16_t          m_bestMove{};
+    uint16_t          m_predictedReply{};  // pv[1] of the last completed iteration
     uint64_t*         moveNodes;
     int               seldepth{};
     TimeManager*      timeManager{};
@@ -53,6 +54,10 @@ class Search {
     static void initSearchParameters();
 
     std::vector<ThreadData*> threads;
+
+    // Key of the position after our bestmove and the predicted reply, or 0 if
+    // there is no prediction. The next `go` compares it to the new root.
+    uint64_t predictedKey{0};
 
     void stop();
 

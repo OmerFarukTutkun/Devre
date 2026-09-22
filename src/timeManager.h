@@ -14,6 +14,9 @@ class TimeManager {
     int64_t remainingTime;
     int64_t inc;
 
+    // 1: the opponent played our predicted reply, -1: they didn't, 0: no prediction
+    int predictionResult;
+
     uint64_t startTime;
     int64_t  softTime;
     int64_t  hardTime;
