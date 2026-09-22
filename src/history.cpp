@@ -80,7 +80,7 @@ void updateCaptureHistories(ThreadData& thread, Stack* ss, int depth) {
         {
             int      from    = moveFrom(move);
             int      to      = moveTo(move);
-            int16_t* current = &thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
+            int16_t* current = &thread.captureHist[checkBit(ss->threat, to)][board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
             updateHistory(current, depth, i == ss->played - 1);
         }
     }
@@ -98,7 +98,7 @@ int getCaptureHistory(ThreadData& thread, Stack* ss, uint16_t move) {
     Board* board = &thread.board;
     int    from  = moveFrom(move);
     int    to    = moveTo(move);
-    return thread.captureHist[board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
+    return thread.captureHist[checkBit(ss->threat, to)][board->sideToMove][pieceType(board->pieceBoard[from])][to][pieceType(board->pieceBoard[to])];
 }
 
 int getQuietHistory(ThreadData& thread, Stack* ss, uint16_t move) {
