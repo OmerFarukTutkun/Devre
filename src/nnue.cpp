@@ -714,8 +714,7 @@ int NNUE::finishHead(const int32_t* l1Dots) const {
 
     constexpr int F        = SIMD::fvecSize;
     constexpr int l2Vecs   = L2_SIZE / F;
-    constexpr int headVecs = HEAD_SIZE / F;
-    static_assert(L2_SIZE % F == 0 && HEAD_SIZE % F == 0, "the head must tile the float vectors");
+    static_assert(L2_SIZE % F == 0, "L2 must tile the float vectors");
 
     // L2, accumulated over inputs so the 32 outputs are one FMA per input
     // rather than 32 dependent reductions.
@@ -749,16 +748,22 @@ int NNUE::finishHead(const int32_t* l1Dots) const {
     }
     std::memcpy(head + L2_SIZE, l1Activations, sizeof(l1Activations));
 
-    // Adjacent-pair reduction, so the summation order does not depend on the
-    // vector width.
-    SIMD::fvecType products[headVecs];
-    for (int k = 0; k < headVecs; k++)
-        products[k] = SIMD::fvecMul(SIMD::fvecLoad(head + k * F), SIMD::fvecLoad(net.l3Weights + k * F));
-    for (int width = headVecs; width > 1; width /= 2)
-        for (int k = 0; k < width / 2; k++)
-            products[k] = SIMD::fvecAdd(products[2 * k], products[2 * k + 1]);
+    constexpr int LANES = 16;
+    static_assert(HEAD_SIZE % LANES == 0 && LANES % F == 0, "the head must tile the reduction lanes");
 
-    const float output = net.l3Biases + SIMD::fvecReduceAdd(products[0]);
+    alignas(64) float lanes[LANES];
+    for (int v = 0; v < LANES; v += F)
+    {
+        SIMD::fvecType sum = SIMD::fvecMul(SIMD::fvecLoad(head + v), SIMD::fvecLoad(net.l3Weights + v));
+        for (int k = LANES; k < HEAD_SIZE; k += LANES)
+            sum = SIMD::fvecFmadd(SIMD::fvecLoad(head + k + v), SIMD::fvecLoad(net.l3Weights + k + v), sum);
+        SIMD::fvecStore(lanes + v, sum);
+    }
+    for (int width = LANES / 2; width > 0; width /= 2)
+        for (int l = 0; l < width; l++)
+            lanes[l] += lanes[l + width];
+
+    const float output = net.l3Biases + lanes[0];
     const int   score  = static_cast<int>(output * EVAL_SCALE);
     return std::clamp(score, -static_cast<int>(MAX_MATE_SCORE), static_cast<int>(MAX_MATE_SCORE));
 }
@@ -811,11 +816,7 @@ alignas(64) constexpr auto NNZ_POSITIONS = [] {
 
 }  // namespace
 
-/// Sparse-input affine transform. Weights are input-group-major, so one 4-byte
-/// input group times one weight vector is a slice of every neuron at once and
-/// no horizontal reduction is needed. All-zero groups are skipped, which only
-/// pays because the net is exported with co-quiet outputs grouped together
-/// (tools/permute_net.py): 70% of groups live unordered, 54% ordered.
+/// Sparse affine transform.
 void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
     const NetworkData& net = *network;
 
@@ -823,7 +824,7 @@ void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
     constexpr int groupsPerVec = SIMD::vecSize / 2;
     constexpr int nAcc         = L1_SIZE / groupsPerVec;
     constexpr int maskBytes    = (groupsPerVec + 7) / 8;
-    constexpr int unroll       = 4 / nAcc;
+    constexpr int unroll       = std::max(1, 4 / nAcc);
     static_assert(L1_SIZE % groupsPerVec == 0, "L1 must tile the accumulator vectors");
 
     uint16_t nonZero[L1_GROUPS + 8];

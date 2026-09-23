@@ -3,7 +3,7 @@ CXX      = g++
 CC       ?= gcc
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
-NETWORK ?= devre-a064d8d9d7b6.bin
+NETWORK ?= devre-f24d1d0b3715.bin
 
 # ISA levels, each a superset of the one above. SSE2 is the floor: simd.h has a
 # full path for it, so every level below builds and evaluates identically -- only
@@ -23,14 +23,14 @@ CXX_FLAGS  = -I. -static -pthread -fno-rtti -funroll-loops --param max-unroll-ti
 
 ifeq ($(OS),Windows_NT)
 	EXE := Devre.exe
-	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)" -o $(NETWORK)
+	DOWNLOAD_NETWORK := curl -skL "https://github.com/OmerFarukTutkun/DevreNets/raw/threat_1024x32_transformer_relabel/$(NETWORK)" -o $(NETWORK)
 	# Check if running in cmd.exe (which preserves quotes in echo)
 	ifneq ($(findstring "hello", $(shell echo "hello")),)
 		IS_CMD := 1
 	endif
 else
 	EXE := Devre
-	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/main/$(NETWORK)
+	DOWNLOAD_NETWORK := wget https://github.com/OmerFarukTutkun/DevreNets/raw/threat_1024x32_transformer_relabel/$(NETWORK)
 endif
 
 

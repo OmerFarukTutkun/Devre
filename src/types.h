@@ -258,7 +258,7 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 
 /// Feature-transformer width. Lives here because NNUEAccumulator is sized by it;
 /// the rest of the architecture is described in nnue.h.
-constexpr int NNUE_FT_OUT = 768;
+constexpr int NNUE_FT_OUT = 1024;
 
 struct DirtyThreat {
     uint8_t p;

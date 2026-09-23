@@ -20,13 +20,12 @@ class NNUE {
     static constexpr int NUM_TAC_FEATURES = PAWN_PAIRS + NUM_THREATS;        // 64368
     static constexpr int FT_IN            = PSQ_FEATURES + NUM_TAC_FEATURES; // 73584
 
-    // Head: FT -> pairwise -> L1 -> L2 -> scalar.
-    static constexpr int PW             = NNUE_FT_OUT / 2;         // 384 pairwise outputs
-    static constexpr int L1_SIZE        = 16;
+    static constexpr int PW             = NNUE_FT_OUT / 2;         // 512 pairwise outputs
+    static constexpr int L1_SIZE        = 32;
     static constexpr int L2_SIZE        = 32;
-    static constexpr int HEAD_SIZE      = L2_SIZE + 2 * L1_SIZE;   // 64, [L2 act | L1 act]
+    static constexpr int HEAD_SIZE      = L2_SIZE + 2 * L1_SIZE;   // 96, [L2 act | L1 act]
     // The L1 input is consumed as 4-byte groups, the unit one dpbusd lane eats.
-    static constexpr int L1_GROUPS      = 2 * PW / 4;              // 192
+    static constexpr int L1_GROUPS      = 2 * PW / 4;              // 256
     static constexpr int OUTPUT_BUCKETS = 1;
     static constexpr int EVAL_SCALE     = 427;
     static constexpr int QA          = 127;  // FT / accumulator scale (int8 weights)
@@ -50,7 +49,7 @@ class NNUE {
         alignas(64) int8_t  l1Weights[L1_GROUPS][4 * L1_SIZE];
         alignas(64) float   l1Norm[L1_SIZE];
         alignas(64) float   l1Biases[L1_SIZE];
-        alignas(64) float   l2Weights[L2_SIZE][2 * L1_SIZE];
+        alignas(64) float   l2Weights[2 * L1_SIZE][L2_SIZE];
         alignas(64) float   l2Biases[L2_SIZE];
         alignas(64) float   l3Weights[HEAD_SIZE];
         alignas(64) float   l3Biases;
