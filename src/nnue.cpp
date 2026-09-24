@@ -218,9 +218,6 @@ inline int mapThreatFast(int piece, int src, int dest, int target) {
     return FLAT_THREAT_TABLE.map[piece][src][dest][target];
 }
 
-// The psq half has no bias of its own; the FT bias lives in the tac half.
-alignas(64) constexpr int16_t ZERO_ACC[NNUE_FT_OUT] = {};
-
 // One line is enough; the loop walks the row front to back. Worth ~5% of
 // accumulator time, more lines cost more in load slots than they save.
 inline void prefetchRow(const int8_t* row) { __builtin_prefetch(row, 0, 3); }
@@ -229,12 +226,15 @@ inline void prefetchRow(const int8_t* row) { __builtin_prefetch(row, 0, 3); }
 constexpr uint32_t ACC_BLOCK = 4;
 static_assert(NNUE_FT_OUT % (ACC_BLOCK * SIMD::vecSize) == 0, "column blocks must tile the accumulator");
 
-/// out = base + sum(addRows) - sum(subRows). Rows are int8, widened on load.
+/// out = base + sum(addRows) - sum(subRows) + add16 - sub16. Rows are int8,
+/// widened on load; the int16 terms carry a king-bucket change.
 inline __attribute__((always_inline)) void
 accumulateRows(int16_t* out, const int16_t* base, const int8_t* const* addRows, int nAdd,
-               const int8_t* const* subRows, int nSub) {
-    if (nAdd == 0 && nSub == 0) {
-        std::memcpy(out, base, sizeof(int16_t) * NNUE_FT_OUT);
+               const int8_t* const* subRows, int nSub, const int16_t* add16 = nullptr,
+               const int16_t* sub16 = nullptr) {
+    if (nAdd == 0 && nSub == 0 && !add16 && !sub16) {
+        if (out != base)
+            std::memcpy(out, base, sizeof(int16_t) * NNUE_FT_OUT);
         return;
     }
 
@@ -243,6 +243,13 @@ accumulateRows(int16_t* out, const int16_t* base, const int8_t* const* addRows, 
         SIMD::vecType acc[ACC_BLOCK];
         for (uint32_t v = 0; v < ACC_BLOCK; v++)
             acc[v] = SIMD::vecLoad(base + i + v * SIMD::vecSize);
+
+        if (add16)
+            for (uint32_t v = 0; v < ACC_BLOCK; v++)
+                acc[v] = SIMD::vecAddEpi16(acc[v], SIMD::vecLoad(add16 + i + v * SIMD::vecSize));
+        if (sub16)
+            for (uint32_t v = 0; v < ACC_BLOCK; v++)
+                acc[v] = SIMD::vecSubEpi16(acc[v], SIMD::vecLoad(sub16 + i + v * SIMD::vecSize));
 
         for (int a = 0; a < nAdd; a++) {
             const int8_t* row = addRows[a];
@@ -310,37 +317,44 @@ int NNUE::pawnPairIndex(int idA, int idB) {
     return hi * (hi - 1) / 2 + lo;
 }
 
-/// Rebuilds one or both halves; a nullptr skips that half, and skipping tac
-/// skips the threat generation, which is what a refresh actually costs.
-void NNUE::refresh(const Board& board, Color perspective, PerspectiveKey key, int16_t* psqOut,
-                   int16_t* tacOut) const {
-    if (psqOut)
-        refreshPsq(board, perspective, key, psqOut);
-    if (tacOut)
-        refreshTac(board, perspective, key, tacOut);
-}
+/// One entry per perspective, king bucket and mirror; syncing applies only the
+/// pieces that changed since the entry was last used.
+FinnyEntry& NNUE::syncFinny(NNUEData& data, const uint64_t* pieces, Color perspective, PerspectiveKey key) const {
+    const NetworkData& net   = *network;
+    FinnyEntry&        entry = data.finny[(perspective * KING_BUCKETS + key.bucket) * 2 + ((key.flip & 7) != 0)];
 
-void NNUE::refreshPsq(const Board& board, Color perspective, PerspectiveKey key, int16_t* out) const {
-    const NetworkData& net = *network;
+    const int8_t* addRows[MAX_PSQ_ACTIVE];
+    const int8_t* subRows[MAX_PSQ_ACTIVE];
+    int           nAdd = 0;
+    int           nSub = 0;
 
-    const int8_t* rows[MAX_PSQ_ACTIVE];
-    int           n = 0;
+    auto row = [&](int piece, int sq) {
+        const int8_t* r = net.ftPsqWeights + static_cast<size_t>(psqFeature(piece, sq, perspective, key)) * NNUE_FT_OUT;
+        prefetchRow(r);
+        return r;
+    };
 
-    uint64_t occupied = board.occupied[WHITE] | board.occupied[BLACK];
-    while (occupied && n < MAX_PSQ_ACTIVE)
+    for (int piece = WHITE_PAWN; piece <= BLACK_KING; piece++)
     {
-        const int sq = poplsb(occupied);
-        rows[n++]    = net.ftPsqWeights
-                  + static_cast<size_t>(psqFeature(board.pieceBoard[sq], sq, perspective, key)) * NNUE_FT_OUT;
+        uint64_t added   = pieces[piece] & ~entry.bitboards[piece];
+        uint64_t removed = entry.bitboards[piece] & ~pieces[piece];
+        while (added && nAdd < MAX_PSQ_ACTIVE)
+            addRows[nAdd++] = row(piece, poplsb(added));
+        while (removed && nSub < MAX_PSQ_ACTIVE)
+            subRows[nSub++] = row(piece, poplsb(removed));
+        entry.bitboards[piece] = pieces[piece];
     }
 
-    accumulateRows(out, ZERO_ACC, rows, n, nullptr, 0);
+    if (nAdd || nSub)
+        accumulateRows(entry.psq, entry.psq, addRows, nAdd, subRows, nSub);
+    return entry;
 }
 
-/// Pawn-structure pairs plus every threat on the board -- the expensive half,
-/// which is why a bucket-only king move rebuilds psq without touching this.
-void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key, int16_t* out) const {
-    const NetworkData& net = *network;
+/// Full rebuild of one perspective: psq from its Finny entry, then the pawn
+/// pairs and every threat on the board, on top of the FT bias.
+void NNUE::refresh(Board& board, Color perspective, PerspectiveKey key, int16_t* out) const {
+    const NetworkData& net   = *network;
+    const FinnyEntry&  entry = syncFinny(board.nnueData, board.bitboards, perspective, key);
 
     const int8_t* tacRows[MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE];
     int           nTac = 0;
@@ -442,57 +456,44 @@ void NNUE::refreshTac(const Board& board, Color perspective, PerspectiveKey key,
         }
     }
 
-    accumulateRows(out, net.ftTacBiases, tacRows, nTac, nullptr, 0);
+    accumulateRows(out, entry.psq, tacRows, nTac, nullptr, 0, net.ftTacBiases);
 }
 
-/// doPsq / doTac are independent: the psq chain breaks on any king-key change,
-/// the tac chain only when the mirror flips.
-void NNUE::applyPly(Board& board, Color perspective, int idx, PerspectiveKey key, bool doPsq, bool doTac) const {
+/// The deltas of ply idx are indexed in the parent's king bucket. If the king
+/// changed bucket, two Finny entries synced to this ply convert the psq part.
+void NNUE::applyPly(Board& board, Color perspective, int idx) const {
     const NetworkData& net  = *network;
     auto&              cur  = board.nnueData.accumulator[idx];
     const auto&        prev = board.nnueData.accumulator[idx - 1];
 
-    const int8_t* addRows[MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE];
-    const int8_t* subRows[MAX_PAIR_ACTIVE + MAX_THREAT_ACTIVE];
+    const PerspectiveKey key     = perspectiveKey(cur.kingSq[perspective], perspective);
+    const PerspectiveKey prevKey = perspectiveKey(prev.kingSq[perspective], perspective);
+
+    const int8_t* addRows[MAX_ACTIVE];
+    const int8_t* subRows[MAX_ACTIVE];
     int           nAdd = 0;
     int           nSub = 0;
 
-    auto rowPsq = [&](int feature) {
-        const int8_t* row = net.ftPsqWeights + static_cast<size_t>(feature) * NNUE_FT_OUT;
-        prefetchRow(row);
-        return row;
-    };
-
-    if (doPsq)
+    for (int i = 0; i < cur.changeCount; i++)
     {
-        for (int i = 0; i < cur.changeCount; i++)
-        {
-            const auto& change  = cur.changes[i];
-            const int   feature = psqFeature(change.piece, change.sq, perspective, key);
-            if (change.sign > 0)
-                addRows[nAdd++] = rowPsq(feature);
-            else
-                subRows[nSub++] = rowPsq(feature);
-        }
-
-        accumulateRows(cur.psq[perspective], prev.psq[perspective], addRows, nAdd, subRows, nSub);
-        cur.computedPsq[perspective] = true;
+        const auto&   change = cur.changes[i];
+        const int8_t* row    = net.ftPsqWeights
+                          + static_cast<size_t>(psqFeature(change.piece, change.sq, perspective, prevKey)) * NNUE_FT_OUT;
+        prefetchRow(row);
+        if (change.sign > 0)
+            addRows[nAdd++] = row;
+        else
+            subRows[nSub++] = row;
     }
 
-    if (!doTac)
-        return;
-
-    nAdd = 0;
-    nSub = 0;
-
-    pawnPairDelta(prev.pawns, cur.pawns, perspective, key, addRows, nAdd, subRows, nSub);
+    pawnPairDelta(prev.pawns, cur.pawns, perspective, prevKey, addRows, nAdd, subRows, nSub);
 
     for (int i = 0; i < cur.threatChangeCount; i++)
     {
         const DirtyThreat& t      = cur.threatChanges[i];
         const int          offset = (t.pieceColor() == perspective) ? 0 : THREAT_TABLES.offsets[4];
         const int          target = t.targetPiece() + (t.targetColor() == perspective ? 0 : 6);
-        const int          index  = mapThreatFast(t.piece(), t.sq ^ key.flip, t.dest ^ key.flip, target);
+        const int          index  = mapThreatFast(t.piece(), t.sq ^ prevKey.flip, t.dest ^ prevKey.flip, target);
         if (index < 0)
             continue;
 
@@ -505,8 +506,16 @@ void NNUE::applyPly(Board& board, Color perspective, int idx, PerspectiveKey key
             subRows[nSub++] = row;
     }
 
-    accumulateRows(cur.tac[perspective], prev.tac[perspective], addRows, nAdd, subRows, nSub);
-    cur.computedTac[perspective] = true;
+    const int16_t* add16 = nullptr;
+    const int16_t* sub16 = nullptr;
+    if (key != prevKey)
+    {
+        add16 = syncFinny(board.nnueData, cur.pieces, perspective, key).psq;
+        sub16 = syncFinny(board.nnueData, cur.pieces, perspective, prevKey).psq;
+    }
+
+    accumulateRows(cur.values[perspective], prev.values[perspective], addRows, nAdd, subRows, nSub, add16, sub16);
+    cur.computed[perspective] = true;
 }
 
 void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curPawns[N_COLORS], Color perspective,
@@ -612,8 +621,9 @@ void NNUE::pawnPairDelta(const uint64_t prevPawns[N_COLORS], const uint64_t curP
     pairsWithKept(added, nAdded, addRows, nAdd);
 }
 
-/// `moved` is the side whose king may have changed square; the other side's
-/// key cannot have moved, so it stays on the incremental path.
+/// `moved` is the side whose king may have changed square. A mirror flip
+/// rebuilds here, while the board still matches this ply; a bucket-only change
+/// keeps this ply's pieces so applyPly can sync the Finny entries later.
 void NNUE::refreshOnBucketChange(Board& board, Color moved) const {
     if (!loaded)
         return;
@@ -628,83 +638,77 @@ void NNUE::refreshOnBucketChange(Board& board, Color moved) const {
     if (kNow == kPrev)
         return;
 
-    if (kNow.flip != kPrev.flip)
+    if (kNow.flip == kPrev.flip)
     {
-        // Mirror crossed: every feature index changes, both halves go.
-        refresh(board, moved, kNow, stack[cur].psq[moved], stack[cur].tac[moved]);
-        stack[cur].computedTac[moved] = true;
+        std::memcpy(stack[cur].pieces, board.bitboards, sizeof(stack[cur].pieces));
+        return;
     }
-    else
-    {
-        // Bucket only: tac indices depend on the mirror alone, so that half
-        // stays reachable. 90% of bucket changes land here.
-        refresh(board, moved, kNow, stack[cur].psq[moved], nullptr);
-    }
-    stack[cur].computedPsq[moved] = true;
+
+    refresh(board, moved, kNow, stack[cur].values[moved]);
+    stack[cur].computed[moved] = true;
 }
 
 void NNUE::updatePerspective(Board& board, Color perspective) const {
     auto&     stack = board.nnueData.accumulator;
     const int cur   = board.nnueData.size;
 
-    const bool needPsq = !stack[cur].computedPsq[perspective];
-    const bool needTac = !stack[cur].computedTac[perspective];
-    if (!needPsq && !needTac)
-        return;
-
-    const PerspectiveKey key = perspectiveKey(stack[cur].kingSq[perspective], perspective);
-
-    int basePsq = -1;
-    if (needPsq)
-        for (int i = cur - 1; i >= 0; i--)
-        {
-            if (!stack[i].stateValid || perspectiveKey(stack[i].kingSq[perspective], perspective) != key)
-                break;
-            if (stack[i].computedPsq[perspective])
-            {
-                basePsq = i;
-                break;
-            }
-        }
-
-    int baseTac = -1;
-    if (needTac)
-        for (int i = cur - 1; i >= 0; i--)
-        {
-            if (!stack[i].stateValid
-                || perspectiveKey(stack[i].kingSq[perspective], perspective).flip != key.flip)
-                break;
-            if (stack[i].computedTac[perspective])
-            {
-                baseTac = i;
-                break;
-            }
-        }
-
-    if (needPsq && basePsq < 0)
+    // A ply without state or across a mirror flip cannot be applied, so
+    // reaching one means rebuilding from this board.
+    int base = cur;
+    while (!stack[base].computed[perspective])
     {
-        refresh(board, perspective, key, stack[cur].psq[perspective], nullptr);
-        stack[cur].computedPsq[perspective] = true;
-    }
-    if (needTac && baseTac < 0)
-    {
-        refresh(board, perspective, key, nullptr, stack[cur].tac[perspective]);
-        stack[cur].computedTac[perspective] = true;
+        if (base == 0 || !stack[base - 1].stateValid
+            || perspectiveKey(stack[base - 1].kingSq[perspective], perspective).flip
+                   != perspectiveKey(stack[base].kingSq[perspective], perspective).flip)
+        {
+            refresh(board, perspective, perspectiveKey(stack[cur].kingSq[perspective], perspective),
+                    stack[cur].values[perspective]);
+            stack[cur].computed[perspective] = true;
+            return;
+        }
+        base--;
     }
 
-    // `cur + 1` means "this half needs no forward application".
-    const int fromPsq = (needPsq && basePsq >= 0) ? basePsq + 1 : cur + 1;
-    const int fromTac = (needTac && baseTac >= 0) ? baseTac + 1 : cur + 1;
-
-    for (int i = std::min(fromPsq, fromTac); i <= cur; i++)
-        applyPly(board, perspective, i, key, i >= fromPsq, i >= fromTac);
+    for (int i = base + 1; i <= cur; i++)
+        applyPly(board, perspective, i);
 }
+
+namespace {
+
+// Set-bit positions per 8-bit mask, so the scans below are branchless: one
+// unaligned store, then advance by the popcount.
+alignas(64) constexpr auto NNZ_POSITIONS = [] {
+    std::array<std::array<uint16_t, 8>, 256> table{};
+    for (int mask = 0; mask < 256; mask++)
+    {
+        int n = 0;
+        for (int bit = 0; bit < 8; bit++)
+            if (mask & (1 << bit))
+                table[mask][n++] = static_cast<uint16_t>(bit);
+    }
+    return table;
+}();
+
+/// Appends base + i for each of the low `bits` bits set in mask; `out` needs
+/// 8 slots of slack past the last index.
+inline void appendNonZero(uint16_t* out, int& count, uint32_t mask, int base, int bits) {
+    for (int b = 0; b < (bits + 7) / 8; b++)
+    {
+        const uint8_t byte   = static_cast<uint8_t>(mask >> (8 * b));
+        const __m128i offset = _mm_set1_epi16(static_cast<int16_t>(base + 8 * b));
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(out + count),
+                         _mm_add_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(NNZ_POSITIONS[byte].data())), offset));
+        count += __builtin_popcount(byte);
+    }
+}
+
+}  // namespace
 
 int NNUE::finishHead(const int32_t* l1Dots) const {
     const NetworkData& net = *network;
 
     // L1 feeds the head twice: through L2, and straight into the output layer.
-    float l1Activations[2 * L1_SIZE];
+    alignas(64) float l1Activations[2 * L1_SIZE];
     for (int i = 0; i < L1_SIZE; i++)
     {
         const float value          = static_cast<float>(l1Dots[i]) * net.l1Norm[i] + net.l1Biases[i];
@@ -722,15 +726,17 @@ int NNUE::finishHead(const int32_t* l1Dots) const {
     for (int j = 0; j < l2Vecs; j++)
         acc[j] = SIMD::fvecLoad(net.l2Biases + j * F);
 
-    // Skipping zero activations only pays when the loop body is wide enough to
-    // beat an unpredictable branch. On AVX-512 the body is two FMAs and the skip
-    // measured 1.3% slower, so it is off there.
-    constexpr bool skipZeros = l2Vecs >= 4;
+    // A zero activation adds nothing, so dropping it keeps the sum bit-identical
+    // and shortens the dependent FMA chain; about a third are nonzero.
+    static_assert((2 * L1_SIZE) % F == 0, "L1 activations must tile the float vectors");
+    uint16_t nonZero[2 * L1_SIZE + 8];
+    int      count = 0;
+    for (int c = 0; c < 2 * L1_SIZE; c += F)
+        appendNonZero(nonZero, count, SIMD::fvecNonZeroMask(SIMD::fvecLoad(l1Activations + c)), c, F);
 
-    for (int c = 0; c < 2 * L1_SIZE; c++)
+    for (int k = 0; k < count; k++)
     {
-        if (skipZeros && l1Activations[c] == 0.0f)
-            continue;
+        const int            c = nonZero[k];
         const SIMD::fvecType a = SIMD::fvecSet1(l1Activations[c]);
         const float*         w = net.l2Weights[c];
         for (int j = 0; j < l2Vecs; j++)
@@ -768,16 +774,14 @@ int NNUE::finishHead(const int32_t* l1Dots) const {
     return std::clamp(score, -static_cast<int>(MAX_MATE_SCORE), static_cast<int>(MAX_MATE_SCORE));
 }
 
-void NNUE::computePairwise(const int16_t* stmPsq, const int16_t* stmTac, const int16_t* ntmPsq,
-                           const int16_t* ntmTac, uint8_t* out) {
+void NNUE::computePairwise(const int16_t* stm, const int16_t* ntm, uint8_t* out) {
     const SIMD::vecType zero = SIMD::vecZero();
     const SIMD::vecType clip = SIMD::vecSet1Epi16(static_cast<int16_t>(QA));
     // TRUNCATE, do not round -- the trainer models it that way. Rounding reads
     // ~40 cp high on lopsided positions.
     for (int perspective = 0; perspective < 2; perspective++)
     {
-        const int16_t* accPsq = perspective == 0 ? stmPsq : ntmPsq;
-        const int16_t* accTac = perspective == 0 ? stmTac : ntmTac;
+        const int16_t* acc  = perspective == 0 ? stm : ntm;
         uint8_t*       dest = out + perspective * PW;
 
         for (int i = 0; i < PW; i += 2 * SIMD::vecSize)
@@ -786,35 +790,14 @@ void NNUE::computePairwise(const int16_t* stmPsq, const int16_t* stmTac, const i
             for (int half = 0; half < 2; half++)
             {
                 const int           at = i + half * SIMD::vecSize;
-                const SIMD::vecType rawLo = SIMD::vecAddEpi16(SIMD::vecLoad(accPsq + at), SIMD::vecLoad(accTac + at));
-                const SIMD::vecType rawHi =
-                    SIMD::vecAddEpi16(SIMD::vecLoad(accPsq + at + PW), SIMD::vecLoad(accTac + at + PW));
-                const SIMD::vecType lo = SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, rawLo));
-                const SIMD::vecType hi = SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, rawHi));
+                const SIMD::vecType lo = SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, SIMD::vecLoad(acc + at)));
+                const SIMD::vecType hi = SIMD::vecMinEpi16(clip, SIMD::vecMaxEpi16(zero, SIMD::vecLoad(acc + at + PW)));
                 products[half] = SIMD::vecSrliEpi16<INPUT_SHIFT>(SIMD::vecMulloEpi16(lo, hi));
             }
             SIMD::vecStoreRaw(dest + i, SIMD::packUnsignedEpi16(products[0], products[1]));
         }
     }
 }
-
-namespace {
-
-// Set-bit positions per 8-bit mask, so the scan below is branchless: one
-// unaligned store, then advance by the popcount.
-alignas(64) constexpr auto NNZ_POSITIONS = [] {
-    std::array<std::array<uint16_t, 8>, 256> table{};
-    for (int mask = 0; mask < 256; mask++)
-    {
-        int n = 0;
-        for (int bit = 0; bit < 8; bit++)
-            if (mask & (1 << bit))
-                table[mask][n++] = static_cast<uint16_t>(bit);
-    }
-    return table;
-}();
-
-}  // namespace
 
 /// Sparse affine transform.
 void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
@@ -823,7 +806,6 @@ void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
     // 16 lanes on AVX-512, 8 on AVX2, 4 on SSE.
     constexpr int groupsPerVec = SIMD::vecSize / 2;
     constexpr int nAcc         = L1_SIZE / groupsPerVec;
-    constexpr int maskBytes    = (groupsPerVec + 7) / 8;
     constexpr int unroll       = std::max(1, 4 / nAcc);
     static_assert(L1_SIZE % groupsPerVec == 0, "L1 must tile the accumulator vectors");
 
@@ -831,17 +813,8 @@ void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
     int      count = 0;
 
     for (int group = 0; group < L1_GROUPS; group += groupsPerVec)
-    {
-        uint32_t mask = SIMD::nonZeroMaskEpi32(SIMD::vecLoadRaw(pairwise + 4 * group));
-        for (int b = 0; b < maskBytes; b++)
-        {
-            const uint8_t byte = static_cast<uint8_t>(mask >> (8 * b));
-            const __m128i base = _mm_set1_epi16(static_cast<int16_t>(group + 8 * b));
-            _mm_storeu_si128(reinterpret_cast<__m128i*>(nonZero + count),
-                             _mm_add_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(NNZ_POSITIONS[byte].data())), base));
-            count += __builtin_popcount(byte);
-        }
-    }
+        appendNonZero(nonZero, count, SIMD::nonZeroMaskEpi32(SIMD::vecLoadRaw(pairwise + 4 * group)), group,
+                      groupsPerVec);
 
     SIMD::vecType acc[unroll][nAcc];
     for (int u = 0; u < unroll; u++)
@@ -873,12 +846,11 @@ void NNUE::l1Dots(const uint8_t* pairwise, int32_t* dots) const {
     }
 }
 
-int NNUE::runHead(const int16_t* stmPsq, const int16_t* stmTac, const int16_t* ntmPsq,
-                  const int16_t* ntmTac) const {
+int NNUE::runHead(const int16_t* stm, const int16_t* ntm) const {
     alignas(64) uint8_t pairwise[2 * PW];
     alignas(64) int32_t dots[L1_SIZE];
 
-    computePairwise(stmPsq, stmTac, ntmPsq, ntmTac, pairwise);
+    computePairwise(stm, ntm, pairwise);
     l1Dots(pairwise, dots);
     return finishHead(dots);
 }
@@ -889,14 +861,15 @@ void NNUE::calculateInputLayer(Board& board, int idx, bool fromScratch) {
 
     auto& acc = board.nnueData.accumulator[idx];
 
-    if (fromScratch || !acc.computedPsq[WHITE] || !acc.computedPsq[BLACK] || !acc.computedTac[WHITE]
-        || !acc.computedTac[BLACK])
+    // Cached entries may have been built from the weights of an earlier EvalFile.
+    if (fromScratch)
+        std::fill(board.nnueData.finny.begin(), board.nnueData.finny.end(), FinnyEntry{});
+
+    if (fromScratch || !acc.computed[WHITE] || !acc.computed[BLACK])
     {
         for (const Color p : {WHITE, BLACK})
-            refresh(board, p, perspectiveKey(bitScanForward(board.bitboards[pieceIndex(p, KING)]), p),
-                    acc.psq[p], acc.tac[p]);
-        acc.computedPsq[WHITE] = acc.computedPsq[BLACK] = true;
-        acc.computedTac[WHITE] = acc.computedTac[BLACK] = true;
+            refresh(board, p, perspectiveKey(bitScanForward(board.bitboards[pieceIndex(p, KING)]), p), acc.values[p]);
+        acc.computed[WHITE] = acc.computed[BLACK] = true;
     }
 
     acc.pawns[WHITE]  = board.bitboards[WHITE_PAWN];
@@ -926,7 +899,7 @@ int NNUE::evaluate(Board& board) {
 
     const Color stm = board.sideToMove;
     const Color ntm = ~stm;
-    return runHead(acc.psq[stm], acc.tac[stm], acc.psq[ntm], acc.tac[ntm]);
+    return runHead(acc.values[stm], acc.values[ntm]);
 }
 
 float NNUE::halfMoveScale(Board& board) { return (100.0f - board.halfMove) / 100.0f; }

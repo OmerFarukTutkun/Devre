@@ -259,6 +259,8 @@ using PieceTo = int16_t[N_PIECES][N_SQUARES];
 /// Feature-transformer width. Lives here because NNUEAccumulator is sized by it;
 /// the rest of the architecture is described in nnue.h.
 constexpr int NNUE_FT_OUT = 1024;
+// Here for the same reason: NNUEData sizes its Finny table by it.
+constexpr int NNUE_KING_BUCKETS = 12;
 
 struct DirtyThreat {
     uint8_t p;
@@ -296,14 +298,12 @@ struct NNUEAccumulator {
     // (28 attackers plus 8 discovered), so this cannot overflow.
     static constexpr int MAX_THREAT_CHANGES = 128;
 
-    // Split because a psq index depends on bucket AND mirror while a tac index
-    // depends on the mirror alone: 90% of bucket changes rebuild psq only.
-    alignas(64) int16_t psq[2][NNUE_FT_OUT]{};
-    alignas(64) int16_t tac[2][NNUE_FT_OUT]{};  // includes the FT bias
+    alignas(64) int16_t values[2][NNUE_FT_OUT]{};  // psq + tac, FT bias included
 
     // Board state AFTER this ply, needed by the incremental update and filled
     // by `Board::makeMove`.
     uint64_t pawns[N_COLORS]{};
+    uint64_t pieces[N_PIECES]{};  // only kept when a king changes bucket
     uint8_t  kingSq[N_COLORS]{};
     bool     stateValid{};
 
@@ -313,15 +313,13 @@ struct NNUEAccumulator {
     DirtyThreat threatChanges[MAX_THREAT_CHANGES]{};
     uint8_t     threatChangeCount{};
 
-    bool computedPsq[N_COLORS]{};
-    bool computedTac[N_COLORS]{};
+    bool computed[N_COLORS]{};
 
     void clear() {
-        computedPsq[WHITE] = computedPsq[BLACK] = false;
-        computedTac[WHITE] = computedTac[BLACK] = false;
-        stateValid         = false;
-        changeCount        = 0;
-        threatChangeCount  = 0;
+        computed[WHITE] = computed[BLACK] = false;
+        stateValid        = false;
+        changeCount       = 0;
+        threatChangeCount = 0;
     }
 
     void addChange(int piece, int sq, int sign) {
@@ -344,14 +342,22 @@ struct NNUEAccumulator {
     }
 };
 
-static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::psq/tac");
+static_assert(alignof(NNUEAccumulator) == 64, "simd.h issues aligned loads on NNUEAccumulator::values");
+
+/// The psq part as last computed under one king bucket and mirror, with the
+/// pieces it was computed from. Zeroed is valid: psq features have no bias.
+struct FinnyEntry {
+    alignas(64) int16_t psq[NNUE_FT_OUT]{};
+    uint64_t bitboards[N_PIECES]{};
+};
 
 class NNUEData {
    public:
     std::vector<NNUEAccumulator> accumulator;
+    std::vector<FinnyEntry>      finny;  // [perspective][bucket][mirrored]
     int                          size{};
 
-    NNUEData() : accumulator(MAX_PLY + 10) {}
+    NNUEData() : accumulator(MAX_PLY + 10), finny(N_COLORS * NNUE_KING_BUCKETS * 2) {}
 };
 
 struct BoardHistory {

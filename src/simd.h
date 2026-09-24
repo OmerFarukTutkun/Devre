@@ -60,6 +60,7 @@ inline fvecType fvecFmadd(fvecType a, fvecType b, fvecType c) { return _mm512_fm
 inline fvecType fvecMin(fvecType a, fvecType b) { return _mm512_min_ps(a, b); }
 inline fvecType fvecMax(fvecType a, fvecType b) { return _mm512_max_ps(a, b); }
 inline float fvecReduceAdd(fvecType v) { return _mm512_reduce_add_ps(v); }
+inline uint32_t fvecNonZeroMask(fvecType v) { return _mm512_cmp_ps_mask(v, _mm512_setzero_ps(), _CMP_NEQ_UQ); }
 
 #elif defined(__AVX2__)
 
@@ -120,6 +121,9 @@ inline fvecType fvecFmadd(fvecType a, fvecType b, fvecType c) {
 }
 inline fvecType fvecMin(fvecType a, fvecType b) { return _mm256_min_ps(a, b); }
 inline fvecType fvecMax(fvecType a, fvecType b) { return _mm256_max_ps(a, b); }
+inline uint32_t fvecNonZeroMask(fvecType v) {
+    return static_cast<uint32_t>(_mm256_movemask_ps(_mm256_cmp_ps(v, _mm256_setzero_ps(), _CMP_NEQ_UQ)));
+}
 inline float fvecReduceAdd(fvecType v) {
     __m128 half = _mm_add_ps(_mm256_castps256_ps128(v), _mm256_extractf128_ps(v, 1));
     half = _mm_add_ps(half, _mm_movehl_ps(half, half));
@@ -179,6 +183,7 @@ inline fvecType fvecFmadd(fvecType a, fvecType b, fvecType c) {
 }
 inline fvecType fvecMin(fvecType a, fvecType b) { return _mm_min_ps(a, b); }
 inline fvecType fvecMax(fvecType a, fvecType b) { return _mm_max_ps(a, b); }
+inline uint32_t fvecNonZeroMask(fvecType v) { return static_cast<uint32_t>(_mm_movemask_ps(_mm_cmpneq_ps(v, _mm_setzero_ps()))); }
 inline float fvecReduceAdd(fvecType v) {
     v = _mm_add_ps(v, _mm_movehl_ps(v, v));
     v = _mm_add_ss(v, _mm_shuffle_ps(v, v, 1));
