@@ -90,7 +90,7 @@ uint32_t probeTB(Board& pos) {
 }
 
 
-Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(SCORE_NONE), threat(0ull), excludedMove(NO_MOVE) {
+Stack::Stack() : played(0), doubleExtension(0), move(NO_MOVE), staticEval(SCORE_NONE), threat(0ull), excludedMove(NO_MOVE), reduction(0) {
     killers[0]      = NO_MOVE;
     killers[1]      = NO_MOVE;
     pv[0]           = NO_MOVE;
@@ -392,6 +392,16 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             improving = ss->staticEval > (ss - 4)->staticEval;
     }
 
+    const int priorReduction = (ss - 1)->reduction;
+    (ss - 1)->reduction      = 0;
+    if (!rootNode && !inCheck && (ss - 1)->staticEval != SCORE_NONE)
+    {
+        if (priorReduction >= 3 && ss->staticEval <= -(ss - 1)->staticEval)
+            depth++;
+        if (priorReduction >= 2 && depth >= 2 && ss->staticEval + (ss - 1)->staticEval > 175)
+            depth--;
+    }
+
     //ttValue can be used as a better position evaluation
     if (ttHit && (ttBound & (ttScore > eval ? TT_LOWERBOUND : TT_UPPERBOUND)))
         eval = ttScore;
@@ -558,7 +568,9 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         board->makeMove(move);
         if (lmr >= 1)
         {
-            score = -alphaBeta<false>(-alpha - 1, -alpha, d, true, thread, ss + 1);
+            ss->reduction = newDepth - d;
+            score         = -alphaBeta<false>(-alpha - 1, -alpha, d, true, thread, ss + 1);
+            ss->reduction = 0;
             if (score > alpha && d < newDepth)
             {
 

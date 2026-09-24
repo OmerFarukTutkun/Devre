@@ -20,6 +20,7 @@ struct Stack {
     int      staticEval;
     uint64_t threat;
     uint16_t excludedMove;
+    int      reduction;  // LMR applied to the move currently being searched from here
 
     Stack();
 };
