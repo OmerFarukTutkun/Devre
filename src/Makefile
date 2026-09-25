@@ -3,7 +3,7 @@ CXX      = g++
 CC       ?= gcc
 LIBS     = -lm
 # Named after the first 12 hex of its sha256. Override with NETWORK=<file>.
-NETWORK ?= devre-f24d1d0b3715.bin
+NETWORK ?= devre-612bebe0df5a.bin
 
 # ISA levels, each a superset of the one above. SSE2 is the floor: simd.h has a
 # full path for it, so every level below builds and evaluates identically -- only
