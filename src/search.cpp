@@ -391,7 +391,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         else if ((ss - 4)->staticEval != SCORE_NONE)
             improving = ss->staticEval > (ss - 4)->staticEval;
     }
-    const bool opponentWorsening = (ss - 1)->staticEval != SCORE_NONE && ss->staticEval + (ss - 1)->staticEval > 0;
+    const bool opponentWorsening = (ss - 1)->staticEval != SCORE_NONE && ss->staticEval + (ss - 1)->staticEval > 211;
 
     const int priorReduction = (ss - 1)->reduction;
     (ss - 1)->reduction      = 0;
