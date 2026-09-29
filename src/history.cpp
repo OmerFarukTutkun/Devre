@@ -173,10 +173,14 @@ void updateCorrHistScore(ThreadData& thread, Stack* ss, const int depth, const i
 
         auto& contcorrHistEntry           = (*(ss - 2)->contCorrHist)[piece][to];
         auto& contcorrHistEntryPly3       = (*(ss - 3)->contCorrHist)[piece][to];
+        auto& contcorrHistEntryPly4       = (*(ss - 4)->contCorrHist)[piece][to];
+        auto& contcorrHistEntryPly6       = (*(ss - 6)->contCorrHist)[piece][to];
         auto& threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
 
         contcorrHistEntry += clampedBonus - contcorrHistEntry * std::abs(clampedBonus) / D;
         contcorrHistEntryPly3 += clampedBonus - contcorrHistEntryPly3 * std::abs(clampedBonus) / D;
+        contcorrHistEntryPly4 += clampedBonus - contcorrHistEntryPly4 * std::abs(clampedBonus) / D;
+        contcorrHistEntryPly6 += clampedBonus - contcorrHistEntryPly6 * std::abs(clampedBonus) / D;
 
         threatLastMoveCorrHistEntry += clampedBonus - threatLastMoveCorrHistEntry * std::abs(clampedBonus) / D;
     }
@@ -203,6 +207,8 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
 
         contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
         contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
+        contcorrHistEntry += (*(ss - 4)->contCorrHist)[piece][to];
+        contcorrHistEntry += (*(ss - 6)->contCorrHist)[piece][to];
         threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
