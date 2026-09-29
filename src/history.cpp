@@ -205,10 +205,10 @@ int adjustEvalWithCorrHist(ThreadData& thread, Stack* ss, const int rawEval) {
         int to    = moveTo((ss - 1)->move);
         int piece = board->pieceBoard[to];
 
-        contcorrHistEntry = (*(ss - 2)->contCorrHist)[piece][to];
-        contcorrHistEntry += (*(ss - 3)->contCorrHist)[piece][to];
-        contcorrHistEntry += (*(ss - 4)->contCorrHist)[piece][to];
-        contcorrHistEntry += (*(ss - 6)->contCorrHist)[piece][to];
+        contcorrHistEntry = 0.35 * (*(ss - 2)->contCorrHist)[piece][to];
+        contcorrHistEntry += 0.30 * (*(ss - 3)->contCorrHist)[piece][to];
+        contcorrHistEntry += 0.25 * (*(ss - 4)->contCorrHist)[piece][to];
+        contcorrHistEntry += 0.20 * (*(ss - 6)->contCorrHist)[piece][to];
         threatLastMoveCorrHistEntry = thread.threatLastMoveCorrHist[checkBit((ss - 1)->threat, from)][checkBit((ss - 1)->threat, to)][board->sideToMove][from][to];
     }
 
