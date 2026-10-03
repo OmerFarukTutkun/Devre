@@ -773,7 +773,7 @@ SearchResult Search::start(Board* board, TimeManager* tm, int ThreadID) {
 
             int   rootRawEval       = threads.at(0)->board.eval();
             int   rootCorr          = std::abs(adjustEvalWithCorrHist(*threads.at(0), ss + 6, rootRawEval) - rootRawEval);
-            float instabilityFactor = 1.0f + std::min(0.25f, rootCorr / 400.0f);
+            float instabilityFactor = std::clamp(0.85f + rootCorr / 400.0f, 0.85f, 1.5f);
 
             float evalStabilityFactor = 1.0f;
             if (i > 1 && std::abs(score) < MIN_MATE_SCORE && std::abs(previousScore) < MIN_MATE_SCORE)
