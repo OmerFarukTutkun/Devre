@@ -1,6 +1,8 @@
 #include "movepick.h"
 #include "attack.h"
 #include "history.h"
+#include "tt.h"
+#include "zobrist.h"
 
 namespace {
 
@@ -210,11 +212,12 @@ bool isLegal(const Board& board, uint16_t move)
     return !attackedWith(board, kingSq, them, occ, themBB);
 }
 
-MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode) :
+MovePicker::MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int beta) :
     m_thread(thread),
     m_ss(ss),
     m_board(&thread.board),
     m_ttMove(ttMove),
+    m_beta(beta),
     m_refutationIndex(0),
     m_skipQuiets(false),
     m_mode(mode)
@@ -343,6 +346,22 @@ void MovePicker::generateQuiets()
     else
         generateMoves<BLACK, QUIET_MOVES>(*m_board, m_info, m_list);
 
+    const Board&   b        = *m_board;
+    const Color    them     = ~b.sideToMove;
+    const uint64_t occ      = b.occupied[WHITE] | b.occupied[BLACK];
+    const uint64_t threat   = m_ss->threat;
+    const uint64_t pawns    = b.bitboards[pieceIndex(them, PAWN)];
+    const uint64_t pawnSeen = them == WHITE ? pawnLeftAttacks<WHITE>(pawns) | pawnRightAttacks<WHITE>(pawns)
+                                            : pawnLeftAttacks<BLACK>(pawns) | pawnRightAttacks<BLACK>(pawns);
+    const int      ksq      = bitScanForward(b.bitboards[pieceIndex(them, KING)]);
+    const uint64_t diag = bishopAttacks(occ, ksq), line = rookAttacks(occ, ksq);
+    const uint64_t checks[6] = {PawnAttacks[them][ksq], KnightAttacks[ksq], diag, line, diag | line, 0};
+    constexpr int  escape[6] = {0, 1536, 1536, 2560, 4608, 0};
+
+    // castling-right changes and new en passant squares only make the child probe miss
+    const Zobrist* z       = Zobrist::Instance();
+    const uint64_t keyBase = b.key ^ z->SideToPlayKey ^ z->EnPassantKeys[b.enPassant] ^ z->EnPassantKeys[NO_SQ];
+
     int write = start;
     for (int read = start; read < m_list.numMove; read++)
     {
@@ -353,7 +372,24 @@ void MovePicker::generateQuiets()
         const int type  = moveType(move);
         int       score = moveTypeScores[type];
         if (type < 2)  //castles and under promotions get no history
+        {
+            const int from = moveFrom(move), to = moveTo(move), pc = b.pieceBoard[from], pt = pieceType(pc);
             score += getQuietHistory(m_thread, m_ss, move);
+
+            if (pt != PAWN && checkBit(pawnSeen, to))
+                score -= 16384;
+            if (!checkBit(threat, to))
+            {
+                score += checkBit(checks[pt], to) * 16384;
+                score += checkBit(threat, from) * escape[pt];
+            }
+
+            int      ttDepth, ttScore, ttBound, ttEval;
+            uint16_t childMove;
+            if (TT::Instance()->ttProbe(keyBase ^ z->PieceKeys[pc][from] ^ z->PieceKeys[pc][to], m_ss->ply + 1, ttDepth, ttScore, ttBound, ttEval, childMove)
+                && (ttBound & TT_UPPERBOUND) && -ttScore >= m_beta)
+                score += 16384;
+        }
 
         m_list.moves[write]  = move;
         m_list.scores[write] = score;

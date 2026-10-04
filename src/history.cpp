@@ -6,9 +6,9 @@ const int HistoryDivisor = 16728;
 
 int statBonus(int depth) { return std::min(488 * depth - 73, 1367); }
 
-void updateHistory(int16_t* current, int depth, bool good) {
+void updateHistory(int16_t* current, int depth, bool good, int scale = 4) {
 
-    const int delta = good ? statBonus(depth) : -statBonus(depth);
+    const int delta = (good ? statBonus(depth) : -statBonus(depth)) * scale / 4;
     *current += delta - *current * std::abs(delta) / HistoryDivisor;
 }
 // When a node fails low, the opponent's previous quiet move "worked":
@@ -40,6 +40,12 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
         ss->killers[0] = bestMove;
     }
     int pawnBucket = board->pawnKey % ThreadData::PAWN_HIST_SIZE;
+
+    // a cutoff found late was under-ranked: up to twice the bonus
+    int quiets = 0;
+    for (int i = 0; i < ss->played; i++)
+        quiets += isQuiet(ss->playedMoves[i]);
+
     for (int i = 0; i < ss->played; i++)
     {
         uint16_t move = ss->playedMoves[i];
@@ -49,23 +55,24 @@ void updateQuietHistories(ThreadData& thread, Stack* ss, int depth, uint16_t bes
             int  to     = moveTo(move);
             int  piece  = board->pieceBoard[from];
             bool isGood = (i == ss->played - 1);
+            int  scale  = isGood ? 4 + std::min(quiets - 1, 4) : 4;
 
             int16_t* current = &thread.history[checkBit(ss->threat, from)][checkBit(ss->threat, to)][board->sideToMove][from][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, depth, isGood, scale);
 
             // pawn history
             current = &thread.pawnHistory[pawnBucket][piece][to];
-            updateHistory(current, depth, isGood);
+            updateHistory(current, depth, isGood, scale);
 
             if ((ss - 1)->move)
             {
                 current = &(*(ss - 1)->continuationHistory)[piece][to];
-                updateHistory(current, depth, isGood);
+                updateHistory(current, depth, isGood, scale);
             }
             if ((ss - 2)->move)
             {
                 current = &(*(ss - 2)->continuationHistory)[piece][to];
-                updateHistory(current, depth, isGood);
+                updateHistory(current, depth, isGood, scale);
             }
         }
     }

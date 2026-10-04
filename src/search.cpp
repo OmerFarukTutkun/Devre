@@ -196,7 +196,7 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
         bestScore = standPat;
     }
     ss->threat = board->threat();
-    MovePicker picker(thread, ss, ttMove, inCheck ? PICK_QSEARCH_CHECK : PICK_QSEARCH);
+    MovePicker picker(thread, ss, ttMove, inCheck ? PICK_QSEARCH_CHECK : PICK_QSEARCH, beta);
     int        movesSeen = 0;
 
     while ((move = picker.next()))
@@ -452,7 +452,7 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
         if (score >= beta)
             return score < MIN_MATE_SCORE ? score : beta;
     }
-    MovePicker picker(thread, ss, ttMove, PICK_MAIN);
+    MovePicker picker(thread, ss, ttMove, PICK_MAIN, beta);
     uint64_t   beforeNodes = 0;
     int        lmr;
     uint16_t   bestMove = NO_MOVE, move = NO_MOVE;

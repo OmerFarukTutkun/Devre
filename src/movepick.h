@@ -34,7 +34,7 @@ enum PickStage : uint8_t {
 // must not be called between makeMove() and unmakeMove().
 class MovePicker {
    public:
-    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode);
+    MovePicker(ThreadData& thread, Stack* ss, uint16_t ttMove, PickMode mode, int beta);
 
     uint16_t next();
 
@@ -53,6 +53,7 @@ class MovePicker {
     MoveList    m_list;
     MoveGenInfo m_info;
     uint16_t    m_ttMove;
+    int         m_beta;
     uint16_t    m_refutations[3];
     int         m_refutationIndex;
     bool        m_skipQuiets;
