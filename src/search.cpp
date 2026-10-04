@@ -233,6 +233,9 @@ int Search::qsearch(int alpha, int beta, ThreadData& thread, Stack* ss) {
     if (inCheck && movesSeen == 0)
         return -(MAX_MATE_SCORE - ss->ply);
 
+    if (bestScore >= beta && std::abs(bestScore) < MIN_TB_SCORE && std::abs(beta) < MIN_TB_SCORE)
+        bestScore = (bestScore + beta) / 2;
+
     TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : TT_UPPERBOUND;
     TT::Instance()->ttSave(board->key, ss->ply, bestScore, rawEval, bound, 0, bestMove);
     return bestScore;
@@ -631,6 +634,10 @@ int Search::alphaBeta(int alpha, int beta, int depth, const bool cutNode, Thread
             return bestScore;
         return inCheck ? -(MAX_MATE_SCORE - ss->ply) : 0;
     }
+
+    if (bestScore >= beta && std::abs(bestScore) < MIN_TB_SCORE && std::abs(beta) < MIN_TB_SCORE)
+        bestScore = (bestScore * depth + beta) / (depth + 1);
+
     if (ss->excludedMove == NO_MOVE)
     {
         TT_BOUND bound = bestScore >= beta ? TT_LOWERBOUND : (alpha > oldAlpha ? TT_EXACT : TT_UPPERBOUND);
